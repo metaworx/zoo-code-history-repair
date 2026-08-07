@@ -1,5 +1,5 @@
 import path from "node:path"
-import type {HistoryItem, RepairOptions} from "../types.js"
+import type {HistoryItem, IndexFile, RepairOptions} from "../types.js"
 import {HISTORY_ITEM_NAME, listTaskDirs, resolveIndexPath, resolveTasksDir} from "./paths.js"
 import {backupFile, readJsonFile, writeJsonCompact} from "./readJson.js"
 
@@ -36,6 +36,11 @@ export function rebuildIndexFromDisk(
         backupPath = backupFile(indexPath)
     }
 
-    writeJsonCompact(indexPath, items)
+    const index: IndexFile = {
+        version: 1,
+        updatedAt: Date.now(),
+        entries: items,
+    }
+    writeJsonCompact(indexPath, index)
     return {items, written: true, backupPath}
 }

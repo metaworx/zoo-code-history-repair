@@ -1,5 +1,5 @@
 import path from "node:path"
-import type {HistoryItem, ScanResult, TaskCorruption} from "../types.js"
+import type {HistoryItem, IndexFile, ScanResult, TaskCorruption} from "../types.js"
 import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
 import {readJsonFile} from "./readJson.js"
 import {inspectTaskDir} from "./detectCorruption.js"
@@ -8,12 +8,10 @@ export function scanStorage(storageRoot: string): ScanResult {
     const tasksDir = resolveTasksDir(storageRoot)
     const indexPath = resolveIndexPath(tasksDir)
 
-    const indexRaw = readJsonFile<HistoryItem[] | { items?: HistoryItem[] }>(indexPath)
+    const indexRaw = readJsonFile<HistoryItem[] | IndexFile>(indexPath)
     const indexItems: HistoryItem[] = Array.isArray(indexRaw)
         ? indexRaw
-        : Array.isArray(indexRaw?.items)
-            ? indexRaw!.items!
-            : []
+        : indexRaw?.entries ?? []
 
     const dirs = listTaskDirs(tasksDir)
     const byId = new Map(indexItems.map((i) => [i.id, i]))

@@ -38,6 +38,12 @@ export interface TaskCorruption {
     diskItem?: HistoryItem | null
 }
 
+export interface IndexFile {
+    version: number
+    updatedAt: number
+    entries: HistoryItem[]
+}
+
 export interface ScanResult {
     storageRoot: string
     tasksDir: string
