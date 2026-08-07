@@ -8,7 +8,7 @@ import {rebuildIndexFromDisk} from "./lib/rebuildIndex.js"
 const program = new Command()
 
 program
-    .name("zoo-task-repair")
+    .name("zoo-code-history-repair")
     .description("Scan / repair Zoo Code task history index and corrupted task metadata")
     .option(
         "-r, --root <path>",

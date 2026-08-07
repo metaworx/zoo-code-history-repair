@@ -1,10 +1,10 @@
 {
-  "name": "zoo-task-repair",
+  "name": "zoo-code-history-repair",
   "version": "0.1.0",
   "description": "Scan and repair Zoo Code / Roo-style task history indexes and corrupted task metadata",
   "type": "module",
   "bin": {
-    "zoo-task-repair": "./dist/cli.js"
+    "zoo-code-history-repair": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
