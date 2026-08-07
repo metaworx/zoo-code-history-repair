@@ -1,0 +1,5 @@
+export * from "./types.js"
+export {scanStorage} from "./lib/scan.js"
+export {rebuildIndexFromDisk} from "./lib/rebuildIndex.js"
+export {isPlaceholderTaskName, inspectTaskDir} from "./lib/detectCorruption.js"
+export {guessStorageRoots, resolveTasksDir} from "./lib/paths.js"
