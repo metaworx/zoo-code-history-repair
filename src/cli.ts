@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import {Command} from "commander"
-import path from "node:path"
 import {guessStorageRoots, resolveTasksDir} from "./lib/paths.js"
 import {scanStorage} from "./lib/scan.js"
 import {rebuildIndexFromDisk} from "./lib/rebuildIndex.js"
 import {repairTaskDir} from "./lib/repairTask.js"
+import {repairAllCorrupted} from "./lib/repairAll.js"
 
 const program = new Command()
 
@@ -16,18 +16,21 @@ program
         "Storage root (directory that contains tasks/). If omitted, tries common locations.",
     )
 
+function resolveRoot(): string {
+    const opts = program.opts<{ root?: string }>()
+    const root = opts.root ?? guessStorageRoots()[0]
+    if (!root) {
+        console.error("No storage root found. Pass --root")
+        process.exit(1)
+    }
+    return root
+}
+
 program
     .command("scan")
     .description("Scan _index.json + task directories for corruption")
     .action(() => {
-        const opts = program.opts<{ root?: string }>()
-        const root = opts.root ?? guessStorageRoots()[0]
-        if (!root) {
-            console.error("No storage root found. Pass --root")
-            process.exit(1)
-        }
-
-        const result = scanStorage(root)
+        const result = scanStorage(resolveRoot())
         console.log(`Storage: ${result.storageRoot}`)
         console.log(`Tasks:   ${result.tasksDir}`)
         console.log(`Index:   ${result.indexPath}`)
@@ -50,13 +53,7 @@ program
     .command("list-corrupt")
     .description("List only corrupted task ids")
     .action(() => {
-        const opts = program.opts<{ root?: string }>()
-        const root = opts.root ?? guessStorageRoots()[0]
-        if (!root) {
-            console.error("No storage root found. Pass --root")
-            process.exit(1)
-        }
-        const result = scanStorage(root)
+        const result = scanStorage(resolveRoot())
         for (const c of result.corruptions) {
             console.log(`${c.taskId}\t${c.reasons.join(",")}`)
         }
@@ -68,13 +65,7 @@ program
     .option("--dry-run", "Do not write files", false)
     .option("--no-backup", "Do not create .bak file")
     .action((cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
-        const opts = program.opts<{ root?: string }>()
-        const root = opts.root ?? guessStorageRoots()[0]
-        if (!root) {
-            console.error("No storage root found. Pass --root")
-            process.exit(1)
-        }
-
+        const root = resolveRoot()
         const {items, written, backupPath} = rebuildIndexFromDisk(root, {
             dryRun: !!cmdOpts.dryRun,
             backup: cmdOpts.backup !== false,
@@ -84,8 +75,7 @@ program
         if (cmdOpts.dryRun) {
             console.log("Dry-run only — nothing written")
         } else {
-            const tasksDir = resolveTasksDir(root)
-            console.log(`Written: ${path.join(tasksDir, "_index.json")}`)
+            console.log(`Written: ${resolveTasksDir(root)}/_index.json`)
             if (backupPath) console.log(`Backup:  ${backupPath}`)
         }
     })
@@ -96,34 +86,24 @@ program
     .option("--dry-run", "Do not write files", false)
     .option("--no-backup", "Do not create .bak files")
     .action((taskId: string, cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
-        const opts = program.opts<{ root?: string }>()
-        const root = opts.root ?? guessStorageRoots()[0]
-        if (!root) {
-            console.error("No storage root found. Pass --root")
-            process.exit(1)
-        }
-
+        const root = resolveRoot()
         const tasksDir = resolveTasksDir(root)
-        const taskDir = path.join(tasksDir, taskId)
+        const taskDir = `${tasksDir}/${taskId}`
 
-        const result = repairTaskDir(taskDir, {
+        const r = repairTaskDir(taskDir, {
             dryRun: !!cmdOpts.dryRun,
             backup: cmdOpts.backup !== false,
         })
 
-        console.log(`Task: ${result.taskId}`)
-        console.log(`  ui_messages.json repaired: ${result.uiRepaired}`)
-        console.log(`  task field repaired:      ${result.taskRepaired}`)
-        console.log(`  size field repaired:      ${result.sizeRepaired}`)
-        if (result.errors.length) {
+        console.log(`Task: ${r.taskId}`)
+        console.log(`  ui_messages.json repaired: ${r.uiRepaired}`)
+        console.log(`  task field repaired:      ${r.taskRepaired}`)
+        console.log(`  size field repaired:      ${r.sizeRepaired}`)
+        if (r.errors.length) {
             console.log(`  errors:`)
-            for (const e of result.errors) {
-                console.log(`    - ${e}`)
-            }
+            for (const e of r.errors) console.log(`    - ${e}`)
         }
-        if (cmdOpts.dryRun) {
-            console.log("Dry-run only — nothing written")
-        }
+        if (cmdOpts.dryRun) console.log("Dry-run only — nothing written")
     })
 
 program
@@ -132,45 +112,25 @@ program
     .option("--dry-run", "Do not write files", false)
     .option("--no-backup", "Do not create .bak files")
     .action((cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
-        const opts = program.opts<{ root?: string }>()
-        const root = opts.root ?? guessStorageRoots()[0]
-        if (!root) {
-            console.error("No storage root found. Pass --root")
-            process.exit(1)
-        }
+        const root = resolveRoot()
+        const ra = repairAllCorrupted(root, {
+            dryRun: !!cmdOpts.dryRun,
+            backup: cmdOpts.backup !== false,
+        })
 
-        const result = scanStorage(root)
-        const corruptIds = result.corruptions.map(c => c.taskId)
-        console.log(`Found ${corruptIds.length} corrupted tasks`)
-
-        let repaired = 0
-        let failed = 0
-
-        for (const taskId of corruptIds) {
-            const taskDir = path.join(result.tasksDir, taskId)
-            const r = repairTaskDir(taskDir, {
-                dryRun: !!cmdOpts.dryRun,
-                backup: cmdOpts.backup !== false,
-            })
-
+        console.log(`Found ${ra.total} corrupted tasks`)
+        for (const r of ra.results) {
             const fixed = [r.uiRepaired, r.taskRepaired, r.sizeRepaired].filter(Boolean).length
             if (fixed > 0) {
-                repaired++
-                console.log(`  ${taskId}: repaired ${fixed} fields`)
+                console.log(`  ${r.taskId}: repaired ${fixed} fields`)
+            } else if (r.errors.length) {
+                console.log(`  ${r.taskId}: FAILED — ${r.errors.join("; ")}`)
             } else {
-                failed++
-                if (r.errors.length) {
-                    console.log(`  ${taskId}: FAILED — ${r.errors.join("; ")}`)
-                } else {
-                    console.log(`  ${taskId}: nothing to repair`)
-                }
+                console.log(`  ${r.taskId}: nothing to repair`)
             }
         }
-
-        console.log(`\nRepaired: ${repaired}, Failed: ${failed}`)
-        if (cmdOpts.dryRun) {
-            console.log("Dry-run only — nothing written")
-        }
+        console.log(`\nRepaired: ${ra.repaired}, Failed: ${ra.failed}`)
+        if (cmdOpts.dryRun) console.log("Dry-run only — nothing written")
     })
 
 program.parse()
