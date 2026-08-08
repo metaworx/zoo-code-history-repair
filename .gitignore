@@ -2,6 +2,9 @@
 /tmp
 /out-tsc
 
+# Integration test fixtures (scrambled for privacy, safe to commit)
+!/tests/fixtures/
+
 /node_modules
 npm-debug.log*
 yarn-debug.log*

@@ -125,6 +125,44 @@ Computes the correct `size` value as the sum of compact UTF-8 byte sizes of all 
 size = compactBytes(ui_messages) + compactBytes(api_history) + compactBytes(history_item) + compactBytes(task_metadata)
 ```
 
+## Development
+
+### Integration Test Fixtures
+
+Integration tests run against scrambled real-world task data in `tests/fixtures/tasks/`.
+All text content is replaced with exact byte-length lorem ipsum while preserving
+JSON structure and corruption patterns.
+
+To regenerate fixtures from source:
+
+```bash
+npx tsx scripts/scramble-fixture.ts [<source-dir>] <taskId> [taskId...]
+```
+
+The script copies from Zoo Code storage (auto-detected from `~/.zoo-code` or
+passed as first argument), scrambles all text fields with exact byte-length
+replacement, and writes to `tests/fixtures/tasks/`. It also builds `_index.json`
+and a `tests/fixtures/hashes.json` manifest with SHA1 hashes for repair
+verification. Tasks not found in the source index are automatically treated as
+folder orphans (excluded from output index).
+
+The scramble source defaults to `tests/fixtures/scramble_mixed.txt`. To
+regenerate it:
+
+```bash
+npx tsx scripts/generate_scramble.ts
+```
+
+This fetches War & Peace (Gutenberg) and TypeScript checker.ts (GitHub), mixes
+them, and writes a ~535KB file. On error (no internet), the scramble script
+falls back to embedded lorem ipsum.
+
+Run integration tests:
+
+```bash
+npx vitest run src/lib/__tests__/integration/
+```
+
 ## Library API
 
 All functionality is available programmatically — useful for IDE plugin integration:

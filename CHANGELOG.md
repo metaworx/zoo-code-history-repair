@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Integration test fixtures (`tests/fixtures/tasks/`) — 7 corrupt + 3 healthy task dirs scrambled for privacy
+- Scramble script (`scripts/scramble-fixture.ts`) — copies from source, exact byte-length lorem ipsum replacement per field, substring index→ACH sync, auto-detects folder orphans, computes SHA1 hashes
+- Scramble source generator (`scripts/generate_scramble.ts`) — fetches War & Peace + TypeScript checker.ts, produces ~535KB never-repeating mix
+- Integration tests (`src/lib/__tests__/integration/`) — scan, repair, restore against real(istic) fixture data
+
 ## [0.4.0] — 2026-08-08
 
 ### Added
