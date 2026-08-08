@@ -41,36 +41,9 @@ function detectUiSyncMismatch(uiPath: string, apiHistory: unknown[]): boolean {
 function detectInterruptedTask(apiHistory: unknown[]): boolean {
     if (!Array.isArray(apiHistory) || apiHistory.length === 0) return false
 
-    // Find turns with tool_use blocks and check for matching tool_results
-    const toolUseIds = new Map<string, string>() // tool_use_id → block name
-
-    for (const turn of apiHistory) {
-        if (!turn || typeof turn !== "object") continue
-        const t = turn as Record<string, unknown>
-        const content = t.content
-        if (!Array.isArray(content)) continue
-
-        for (const block of content) {
-            if (!block || typeof block !== "object") continue
-            const b = block as Record<string, unknown>
-
-            if (b.type === "tool_use" && typeof b.id === "string") {
-                toolUseIds.set(b.id, (b.name as string) ?? "unknown")
-            }
-            if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
-                toolUseIds.delete(b.tool_use_id)
-            }
-        }
-    }
-
-    // Remaining tool_use_ids = no matching tool_result
-    for (const [, name] of toolUseIds) {
-        if (name === "attempt_completion" || name === "attemptCompletion") {
-            return true
-        }
-    }
-
-    // Also check: last turn is assistant ending with tool_use (no response)
+    // Only Trigger B: last turn is assistant ending with tool_use.
+    // Trigger A (unanswered attempt_completion) removed — normal child-task
+    // behavior; the tool_result goes to the parent's ACH, not the child's.
     const lastTurn = apiHistory[apiHistory.length - 1] as Record<string, unknown> | null
     if (lastTurn && lastTurn.role === "assistant" && Array.isArray(lastTurn.content)) {
         const blocks = lastTurn.content as Array<Record<string, unknown>>
@@ -95,12 +68,26 @@ export function inspectTaskDir(
     const historyPath = path.join(dir, HISTORY_ITEM_NAME)
     const diskItem = readJsonFile<HistoryItem>(historyPath)
 
+    const apiPath = path.join(dir, API_HISTORY_NAME)
+    const api = readJsonFile<unknown[]>(apiPath)
+
     if (!diskItem) {
         reasons.push("missing_history_item")
     } else {
         if (isPlaceholderTaskName(diskItem.task)) reasons.push("placeholder_task_name")
         if (diskItem.size === 0 || diskItem.size == null) reasons.push("zero_size")
         if (!diskItem.task?.trim()) reasons.push("missing_task_text")
+
+        // v0.3.0: zero token detection
+        if (
+            diskItem.tokensIn === 0 &&
+            diskItem.tokensOut === 0 &&
+            diskItem.totalCost === 0 &&
+            Array.isArray(api) &&
+            api.length > 0
+        ) {
+            reasons.push("zero_tokens")
+        }
     }
 
     if (indexItem) {
@@ -112,8 +99,6 @@ export function inspectTaskDir(
     const ui = readJsonFile<unknown[]>(uiPath)
     if (Array.isArray(ui) && ui.length === 0) reasons.push("empty_ui_messages")
 
-    const apiPath = path.join(dir, API_HISTORY_NAME)
-    const api = readJsonFile<unknown[]>(apiPath)
     if (Array.isArray(api) && api.length === 0) {
         reasons.push("empty_api_history")
     }
@@ -134,6 +119,12 @@ export function inspectTaskDir(
 
     // de-dupe
     const unique = [...new Set(reasons)]
+
+    // v0.3.0: gate interrupted_task — only flag when co-occurring
+    // with other corruption. Solo interrupted_task = user simply moved on.
+    if (unique.includes("interrupted_task") && unique.length === 1) {
+        unique.splice(unique.indexOf("interrupted_task"), 1)
+    }
 
     return {
         taskId,

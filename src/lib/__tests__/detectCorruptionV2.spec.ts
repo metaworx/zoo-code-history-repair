@@ -63,7 +63,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
     })
 
     describe("interrupted_task", () => {
-        it("detects unmatched attempt_completion tool_use", () => {
+        it("does NOT flag unanswered attempt_completion (Trigger A removed — normal child-task behavior)", () => {
             writeJson("history_item.json", {
                 id: "abc",
                 task: "Real task",
@@ -86,10 +86,10 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).toContain("interrupted_task")
+            expect(result.reasons).not.toContain("interrupted_task")
         })
 
-        it("detects unmatched attemptCompletion (camelCase)", () => {
+        it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", () => {
             writeJson("history_item.json", {
                 id: "abc",
                 task: "Real task",
@@ -112,10 +112,10 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).toContain("interrupted_task")
+            expect(result.reasons).not.toContain("interrupted_task")
         })
 
-        it("detects last turn ending with tool_use (no tool_result)", () => {
+        it("gates interrupted_task when solo (co-occurrence required)", () => {
             writeJson("history_item.json", {
                 id: "abc",
                 task: "Real task",
@@ -138,7 +138,34 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
+            expect(result.reasons).not.toContain("interrupted_task")
+        })
+
+        it("keeps interrupted_task when co-occurring with other corruption", () => {
+            writeJson("history_item.json", {
+                id: "abc",
+                task: "Real task",
+                size: 0,
+                ts: 1,
+            })
+            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("api_conversation_history.json", [
+                {
+                    role: "user",
+                    content: [{ type: "text", text: "Do X" }],
+                },
+                {
+                    role: "assistant",
+                    content: [
+                        { type: "text", text: "Okay" },
+                        { type: "tool_use", name: "write_file", id: "tu1", input: {} },
+                    ],
+                },
+            ])
+
+            const result = inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContain("interrupted_task")
+            expect(result.reasons).toContain("zero_size")
         })
 
         it("does not flag completed task with matching tool_results", () => {

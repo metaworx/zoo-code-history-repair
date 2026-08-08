@@ -211,7 +211,7 @@ describe("repairTaskDir", () => {
 
         // Check for .bak files (backupFile creates filePath.bak.TIMESTAMP)
         const files = fs.readdirSync(taskDir)
-        const bakFiles = files.filter((f) => f.includes(".bak."))
+        const bakFiles = files.filter((f) => /\.[0-9]{13}\.json$/.test(f))
         expect(bakFiles.length).toBeGreaterThanOrEqual(1)
         // Original ui_messages should have been written (repaired)
         const ui = readJson("ui_messages.json") as Array<unknown>

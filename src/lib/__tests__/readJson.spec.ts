@@ -101,7 +101,7 @@ describe("backupFile", () => {
 
         const bak = backupFile(src)
         expect(bak).toBeTruthy()
-        expect(bak!).toMatch(/\.bak\.\d+$/)
+        expect(bak!).toMatch(/\.\d+\.\w+$/)
         expect(fs.existsSync(bak!)).toBe(true)
         expect(fs.readFileSync(bak!, "utf8")).toBe("hello world")
     })

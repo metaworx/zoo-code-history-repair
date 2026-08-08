@@ -84,7 +84,10 @@ export function writeJsonCompact(filePath: string, data: unknown): void {
 
 export function backupFile(filePath: string): string | null {
     if (!fs.existsSync(filePath)) return null
-    const bak = `${filePath}.bak.${Date.now()}`
+    const ext = filePath.lastIndexOf(".")
+    const base = ext > 0 ? filePath.slice(0, ext) : filePath
+    const suffix = ext > 0 ? filePath.slice(ext) : ""
+    const bak = `${base}.${Date.now()}${suffix}`
     fs.copyFileSync(filePath, bak)
     return bak
 }

@@ -10,12 +10,20 @@ import {backupFile, readJsonFile, readPartialJsonArray, writeJsonCompact} from "
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {computeTaskSize} from "./size.js"
+import {
+    estimateCacheReads,
+    estimateTokensIn,
+    estimateTokensOut,
+    estimateTotalCost,
+} from "./estimateTokens.js"
 
 export interface RepairResult {
     taskId: string
     uiRepaired: boolean
     taskRepaired: boolean
     sizeRepaired: boolean
+    tokensRepaired: boolean
+    tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
     errors: string[]
 }
@@ -28,9 +36,18 @@ export interface RepairResult {
  *
  * All writes are compact JSON. Backups are created before overwriting.
  */
+export interface RepairTaskOptions {
+    dryRun?: boolean
+    backup?: boolean
+    /** User-supplied tokensIn override. 0 = disable estimation (keep zeros). */
+    fixedInputToken?: number
+    /** Index entries for token recovery lookup. */
+    indexItems?: Array<{ id: string; tokensIn?: number; tokensOut?: number; totalCost?: number; cacheReads?: number; cacheWrites?: number }>
+}
+
 export function repairTaskDir(
     taskDir: string,
-    options: { dryRun?: boolean; backup?: boolean } = {},
+    options: RepairTaskOptions = {},
 ): RepairResult {
     const taskId = path.basename(taskDir)
     const result: RepairResult = {
@@ -38,6 +55,7 @@ export function repairTaskDir(
         uiRepaired: false,
         taskRepaired: false,
         sizeRepaired: false,
+        tokensRepaired: false,
         apiTruncated: false,
         errors: [],
     }
@@ -116,6 +134,68 @@ export function repairTaskDir(
             historyItem.size = expectedSize
             result.sizeRepaired = true
             modified = true
+        }
+
+        // --- 4. Repair token fields ---
+        if (
+            historyItem.tokensIn === 0 &&
+            historyItem.tokensOut === 0 &&
+            historyItem.totalCost === 0
+        ) {
+            // a. Try index recovery first
+            const idxEntry = options.indexItems?.find(e => e.id === taskId)
+            if (idxEntry && idxEntry.tokensIn && idxEntry.tokensIn > 0) {
+                historyItem.tokensIn = idxEntry.tokensIn
+                historyItem.tokensOut = idxEntry.tokensOut ?? 0
+                historyItem.totalCost = idxEntry.totalCost ?? 0
+                if (idxEntry.cacheReads != null) historyItem.cacheReads = idxEntry.cacheReads
+                if (idxEntry.cacheWrites != null) historyItem.cacheWrites = idxEntry.cacheWrites
+                result.tokensRepaired = true
+                result.tokensRecoverySource = "index"
+                modified = true
+            } else if (options.fixedInputToken !== undefined) {
+                // b. User override (0 = disable, keep zeros)
+                if (options.fixedInputToken > 0) {
+                    historyItem.tokensIn = options.fixedInputToken
+                    historyItem.tokensOut = estimateTokensOut(apiHistory as Parameters<typeof estimateTokensOut>[0])
+                    historyItem.totalCost = estimateTotalCost(
+                        historyItem.tokensIn,
+                        historyItem.tokensOut,
+                        historyItem.apiConfigName as string | undefined,
+                    )
+                    result.tokensRepaired = true
+                    result.tokensRecoverySource = "user_override"
+                    modified = true
+                }
+                // fixedInputToken === 0: explicitly skip estimation, keep zeros
+            } else {
+                // c. Default: estimate from ACH
+                const estOut = estimateTokensOut(apiHistory as Parameters<typeof estimateTokensOut>[0])
+                const estIn = estimateTokensIn(apiHistory as Parameters<typeof estimateTokensIn>[0])
+                if (estOut > 0 || estIn > 0) {
+                    historyItem.tokensOut = estOut
+                    historyItem.tokensIn = estIn
+                    historyItem.totalCost = estimateTotalCost(
+                        estIn,
+                        estOut,
+                        historyItem.apiConfigName as string | undefined,
+                    )
+                    result.tokensRepaired = true
+                    result.tokensRecoverySource = "estimate"
+                    modified = true
+                }
+            }
+
+            // Estimate cacheReads if still zero/missing after repair
+            if (result.tokensRepaired && historyItem.tokensIn > 0) {
+                const provider = historyItem.apiConfigName as string | undefined
+                if (!historyItem.cacheReads || historyItem.cacheReads === 0) {
+                    historyItem.cacheReads = estimateCacheReads(historyItem.tokensIn, provider)
+                }
+                if (historyItem.cacheWrites === undefined || historyItem.cacheWrites === null) {
+                    historyItem.cacheWrites = 0
+                }
+            }
         }
 
         if (modified && !options.dryRun) {

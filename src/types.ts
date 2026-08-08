@@ -30,7 +30,8 @@ export type CorruptionReason =
     | "index_orphan"            // in index but no folder
     | "folder_orphan"           // folder exists but not in index
     | "ui_sync_mismatch"        // ui_messages.json differs from ACH-derived reconstruction
-    | "interrupted_task"        // task appears interrupted (missing final tool_result)
+    | "interrupted_task"        // task appears interrupted (last turn ends with tool_use, co-occurs with other corruption)
+    | "zero_tokens"             // tokensIn==0 && tokensOut==0 && totalCost==0 but ACH has entries
 
 export interface TaskCorruption {
     taskId: string
