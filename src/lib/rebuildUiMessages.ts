@@ -10,9 +10,11 @@
  *   reasoning            | assistant | "reasoning"  | block.text
  *   tool_use             | assistant | "tool"       | JSON descriptor {tool, path, ...}
  *   tool_result          | user      | "tool"       | concatenated result content
+ *   image                | user/asst | "text"       | "[Image: media/type]" placeholder
  *
  * Timestamps: turn-level ts + monotonic +1ms increments within each turn.
  * Tool names: underscore_case → camelCase.
+ * MCP tools (mcp-- prefix) include serverName, toolName, arguments in the descriptor.
  */
 
 export interface UiMessageEvent {
@@ -37,6 +39,7 @@ interface AchBlock {
     input?: Record<string, unknown>
     tool_use_id?: string
     content?: Array<{ type: string; text?: string } | string>
+    source?: { type: string; media_type?: string; data?: string }
 }
 
 /**
@@ -53,15 +56,24 @@ export function snakeToCamel(name: string): string {
 function buildToolUseDescriptor(block: AchBlock): string {
     const name = snakeToCamel(block.name ?? "unknown")
     const input = block.input ?? {}
-    const path = (input.path ?? input.filePath ?? "") as string
-    const content = (input.content ?? "") as string
-    const reason = (input.reason ?? "") as string
+    const isMcp = (block.name ?? "").includes("mcp--")
 
     const payload: Record<string, unknown> = {
         tool: name,
-        path,
+        path: (input.path ?? input.filePath ?? "") as string,
         isOutsideWorkspace: input.isOutsideWorkspace ?? false,
     }
+
+    if (isMcp) {
+        if (input.serverName) payload.serverName = input.serverName
+        if (input.toolName) payload.toolName = input.toolName
+        if (input.arguments) payload.arguments = input.arguments
+        if (input.maxResults != null) payload.maxResults = input.maxResults
+        if (input.maxTokens != null) payload.maxTokens = input.maxTokens
+    }
+
+    const content = (input.content ?? "") as string
+    const reason = (input.reason ?? "") as string
     if (content) payload.content = content
     if (reason) payload.reason = reason
 
@@ -74,11 +86,22 @@ function buildToolResultText(block: AchBlock): string {
     for (const p of parts) {
         if (typeof p === "string") {
             texts.push(p)
-        } else if (p && typeof p === "object" && p.type === "text" && typeof p.text === "string") {
-            texts.push(p.text)
+        } else if (p && typeof p === "object") {
+            if (p.type === "text" && typeof p.text === "string") {
+                texts.push(p.text)
+            } else if (p.type === "resource") {
+                // MCP resource result — serialize as JSON
+                texts.push(JSON.stringify(p))
+            }
         }
     }
     return texts.join("\n")
+}
+
+function buildImagePlaceholder(block: AchBlock): string {
+    const source = block.source
+    const mediaType = source?.media_type ?? "unknown"
+    return `[Image: ${mediaType}]`
 }
 
 /**
@@ -118,6 +141,15 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
                         text: rt,
                     })
                     counter++
+                } else if (bt === "image") {
+                    events.push({
+                        ts: baseTs + counter,
+                        type: "say",
+                        say: "text",
+                        text: buildImagePlaceholder(block),
+                        partial: false,
+                    })
+                    counter++
                 }
             } else if (role === "assistant") {
                 if (bt === "reasoning") {
@@ -149,6 +181,15 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
                         type: "say",
                         say: "tool",
                         text: toolJson,
+                        partial: false,
+                    })
+                    counter++
+                } else if (bt === "image") {
+                    events.push({
+                        ts: baseTs + counter,
+                        type: "say",
+                        say: "text",
+                        text: buildImagePlaceholder(block),
                         partial: false,
                     })
                     counter++

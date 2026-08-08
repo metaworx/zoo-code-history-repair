@@ -3,7 +3,9 @@
  * in an api_conversation_history.json array.
  *
  * The task text is the content inside <user_message>...</user_message> tags
- * in the first text block of the first user turn.
+ * in the text blocks of the first user turn. If the tag spans multiple text
+ * blocks (partial streaming), all text blocks in the turn are concatenated
+ * before matching.
  */
 
 const USER_MESSAGE_RE = /<user_message>(.*?)<\/user_message>/s
@@ -23,15 +25,20 @@ export function extractTaskFromApiHistory(apiHistory: unknown[]): string | null 
         const content = t.content
         if (!Array.isArray(content)) continue
 
-        for (const block of content) {
-            if (!block || typeof block !== "object") continue
-            const b = block as Record<string, unknown>
-            if (b.type !== "text") continue
+        // Concatenate all text blocks in the first user turn, then match.
+        // This handles cases where <user_message> spans multiple blocks.
+        const allText = content
+            .filter((block): block is Record<string, unknown> =>
+                block != null && typeof block === "object" && (block as Record<string, unknown>).type === "text",
+            )
+            .map(b => typeof b.text === "string" ? b.text : "")
+            .join("")
 
-            const text = typeof b.text === "string" ? b.text : ""
-            const m = USER_MESSAGE_RE.exec(text)
-            if (m) return m[1].trim()
-        }
+        const m = USER_MESSAGE_RE.exec(allText)
+        if (m) return m[1].trim()
+
+        // Only check the first user turn
+        break
     }
 
     return null
