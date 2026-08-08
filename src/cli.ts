@@ -18,6 +18,7 @@ program
     .name("zoo-code-history-repair")
     .description("Scan / repair Zoo Code task history index and corrupted task metadata")
     .version(`Zoo Code History Repair, v${pkg.version}`, "-v, --version", "Print version information")
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
     .option("--version-only", "Print version number only")
     .option(
         "-r, --root <path>",
@@ -36,8 +37,9 @@ function resolveRoot(): string {
 
 program
     .command("scan")
-    .description("Scan _index.json + task directories for corruption")
-    .addHelpText("after", `
+    .summary("Scan _index.json + task directories for corruption")
+    .description(`Scan _index.json + task directories for corruption.
+
 Corruption reasons detected by scan:
   1. placeholder_task_name — task field matches "Task #N" / "Task #N (Incomplete)" pattern
   2. zero_size              — size field is 0 or null/missing (on disk or in index)
@@ -51,6 +53,7 @@ Corruption reasons detected by scan:
  10. folder_orphan          — task directory on disk is absent from _index.json
  11. ui_sync_mismatch       — (opt-in) ui_messages.json differs from ACH-derived reconstruction
  12. interrupted_task       — task appears interrupted (unanswered attempt_completion / tool_use)`)
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
     .option("--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false)
     .action((cmdOpts: { verifyUiSync?: boolean }) => {
         const result = scanStorage(resolveRoot(), {verifyUiSync: !!cmdOpts.verifyUiSync})
@@ -76,7 +79,12 @@ Corruption reasons detected by scan:
 
 program
     .command("list-corrupt")
-    .description("List only corrupted task ids")
+    .summary("List only corrupted task ids")
+    .description(`List only corrupted task ids.
+
+Output format: <taskId><TAB><reason1,reason2,…>
+One line per corrupted task. Same corruption reasons as the scan command.`)
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
     .option("--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false)
     .action((cmdOpts: { verifyUiSync?: boolean }) => {
         const result = scanStorage(resolveRoot(), {verifyUiSync: !!cmdOpts.verifyUiSync})
@@ -87,9 +95,14 @@ program
 
 program
     .command("rebuild-index")
-    .description("Rebuild _index.json from each task's history_item.json")
-    .option("--dry-run", "Do not write files", false)
-    .option("--no-backup", "Do not create .bak file")
+    .summary("Rebuild _index.json from each task's history_item.json")
+    .description(`Rebuild _index.json from each task's history_item.json.
+
+Reads every task directory on disk, extracts history_item.json, and writes a fresh
+_index.json with correct entries. Handles both flat array and {entries: […]} formats.`)
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
+    .option("--dry-run", "Preview only — do not write files", false)
+    .option("--no-backup", "Skip creating a .bak backup of the existing _index.json")
     .action((cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
         const root = resolveRoot()
         const {items, written, backupPath} = rebuildIndexFromDisk(root, {
@@ -108,7 +121,17 @@ program
 
 program
     .command("repair-task <taskId>")
-    .description("Repair a single task: rebuild ui_messages.json, fix task field, recompute size")
+    .summary("Repair a single task: rebuild ui_messages.json, fix task field, recompute size")
+    .description(`Repair a single task: rebuild ui_messages.json, fix task field, recompute size.
+
+Repairs three aspects of a task directory:
+  1. ui_messages.json — rebuild from api_conversation_history.json (ACH→UIM).
+  2. task field        — extract original user prompt from the first user turn in ACH.
+  3. size field        — recompute as the compact UTF-8 byte size of all task JSON files.
+
+Falls back to partial ACH recovery if api_conversation_history.json is truncated.
+With --dry-run, reports what would be fixed without writing.`)
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
     .option("--dry-run", "Do not write files", false)
     .option("--no-backup", "Do not create .bak files")
     .action((taskId: string, cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
@@ -134,9 +157,14 @@ program
 
 program
     .command("repair-all")
-    .description("Repair all corrupted tasks found by scan")
-    .option("--dry-run", "Do not write files", false)
-    .option("--no-backup", "Do not create .bak files")
+    .summary("Repair all corrupted tasks found by scan")
+    .description(`Repair all corrupted tasks found by scan.
+
+Runs scan internally, then calls repair-task on every corrupted task.
+Reports per-task results (repaired counts or failure reasons) and a summary line.`)
+    .addHelpText("before", `Zoo Code History Repair, v${pkg.version}\n`)
+    .option("--dry-run", "Preview only — do not write files", false)
+    .option("--no-backup", "Skip creating .bak backups of modified files")
     .action((cmdOpts: { dryRun?: boolean; backup?: boolean }) => {
         const root = resolveRoot()
         const ra = repairAllCorrupted(root, {
