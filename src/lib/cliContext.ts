@@ -15,3 +15,30 @@ export function resolveRoot(): string {
     }
     return root
 }
+
+let _colorEnabled: boolean | undefined
+
+export function setColorEnabled(v: boolean): void {
+    _colorEnabled = v
+}
+
+export function getColorEnabled(): boolean {
+    if (_colorEnabled !== undefined) return _colorEnabled
+    // Default: enabled on TTY, disabled when NO_COLOR is set
+    _colorEnabled = (process.stdout.isTTY ?? false) && !process.env.NO_COLOR
+    return _colorEnabled
+}
+
+let _version = ""
+
+export function setVersion(v: string): void {
+    _version = v
+}
+
+export function getVersion(): string {
+    return _version
+}
+
+export function getVersionBanner(): string {
+    return `Zoo Code History Repair, v${_version}\n`
+}

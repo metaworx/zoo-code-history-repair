@@ -2,7 +2,8 @@ import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
 import {readJsonFile} from "../readJson.js"
 import {repairTaskDir} from "../repairTask.js"
-import {resolveRoot} from "../cliContext.js"
+import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {c, colorize} from "../format.js"
 
 export const name = "repair-task"
 export const summary = "Repair a single task (default: dry-run, use --force to write)"
@@ -10,15 +11,22 @@ export const summary = "Repair a single task (default: dry-run, use --force to w
 export const description = `${summary}.
 
 Repairs four aspects of a task directory:
-  1. ui_messages.json — rebuild from api_conversation_history.json (ACH→UIM).
-  2. task field        — extract original user prompt from the first user turn in ACH.
-  3. size field        — recompute as the compact UTF-8 byte size of all task JSON files.
-  4. token fields      — recover from _index.json or estimate from ACH content.
+  1. ui_messages.json — rebuild from api_conversation_history.json (ach→uim).
+  2. task field        — extract original user prompt from the first user turn in ACH (ach→hi).
+  3. size field        — recompute as the compact UTF-8 byte size of all task JSON files (calc→hi).
+  4. token fields      — recover from _index.json or estimate from ACH content (source→hi).
 
 Token repair priority: index recovery → estimation (default) → user override.
 Use --fixed-input-token 0 to disable estimation.
 Falls back to partial ACH recovery if api_conversation_history.json is truncated.
 By default runs in dry-run mode. Use --force to actually write.`
+
+export const additionalHelp = `
+Output abbreviations:
+  ach  = api_conversation_history.json
+  calc = computed from task files on disk
+  hi   = history_item.json
+  uim  = ui_messages.json`
 
 export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],
@@ -26,6 +34,8 @@ export const options = [
     ["--force-uim", "Force ui_messages.json rebuild even when not corrupt", false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
 ] as const
+
+const dryRunMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
 
 export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean; forceUim?: boolean; fixedInputToken?: number }): void {
     const root = resolveRoot()
@@ -45,26 +55,36 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
         indexItems,
     })
 
-    const fileLabel = (aspect: boolean, files: string[]): string => {
-        if (!aspect) return ""
-        const relevant = files.filter(f => r.touchedFiles.includes(f))
-        if (relevant.length === 0) return ""
-        return ` (${relevant.join(", ")})`
-    }
+    console.log(getVersionBanner())
 
-    console.log(`Task: ${r.taskId}`)
-    console.log(`  ui_messages.json repaired: ${r.uiRepaired}${fileLabel(r.uiRepaired, ["ui_messages.json"])}`)
-    console.log(`  task field repaired:      ${r.taskRepaired}${fileLabel(r.taskRepaired, ["history_item.json"])}`)
-    console.log(`  size field repaired:      ${r.sizeRepaired}${fileLabel(r.sizeRepaired, ["history_item.json"])}`)
-    console.log(`  token fields repaired:    ${r.tokensRepaired}${fileLabel(r.tokensRepaired, ["history_item.json"])}`)
-    if (r.tokensRecoverySource) console.log(`  token source:             ${r.tokensRecoverySource}`)
     if (r.errors.length) {
+        console.log(`Task: ${r.taskId}`)
         console.log(`  errors:`)
         for (const e of r.errors) console.log(`    - ${e}`)
+        if (r.backups.length > 0) {
+            console.log(`  Backups:`)
+            for (const b of r.backups) console.log(`    ${path.basename(b)}`)
+        }
+        if (!cmdOpts.force) console.log(dryRunMsg)
+        return
     }
+
+    const parts: string[] = []
+    if (r.uiRepaired) parts.push("ui(ach→uim)")
+    if (r.taskRepaired) parts.push("task(ach→hi)")
+    if (r.sizeRepaired) parts.push("size(calc→hi)")
+    if (r.tokensRepaired) {
+        const src = r.tokensRecoverySource ?? "?"
+        parts.push(`tokens(${src}→hi)`)
+    }
+
+    if (parts.length > 0) {
+        console.log(`${r.taskId}: repaired ${parts.join(", ")}`)
+    }
+
     if (r.backups.length > 0) {
         console.log(`  Backups:`)
         for (const b of r.backups) console.log(`    ${path.basename(b)}`)
     }
-    if (!cmdOpts.force) console.log("Dry-run — nothing written. Use --force to apply changes.")
+    if (!cmdOpts.force) console.log(dryRunMsg)
 }

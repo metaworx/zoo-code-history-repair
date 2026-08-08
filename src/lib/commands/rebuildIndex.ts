@@ -1,6 +1,7 @@
 import {rebuildIndexFromDisk} from "../rebuildIndex.js"
 import {resolveTasksDir} from "../paths.js"
-import {resolveRoot} from "../cliContext.js"
+import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {c, colorize} from "../format.js"
 
 export const name = "rebuild-index"
 export const summary = "Rebuild _index.json from each task's history_item.json"
@@ -16,6 +17,8 @@ export const options = [
     ["--no-backup", "Skip creating a timestamped backup of the existing _index.json"],
 ] as const
 
+const dryRunMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
+
 export function action(cmdOpts: { force?: boolean; backup?: boolean }): void {
     const root = resolveRoot()
     const {items, backupPath} = rebuildIndexFromDisk(root, {
@@ -23,9 +26,10 @@ export function action(cmdOpts: { force?: boolean; backup?: boolean }): void {
         backup: cmdOpts.backup !== false,
     })
 
+    console.log(getVersionBanner())
     console.log(`Rebuilt index with ${items.length} items`)
     if (!cmdOpts.force) {
-        console.log("Dry-run — nothing written. Use --force to apply changes.")
+        console.log(dryRunMsg)
     } else {
         console.log(`Written: ${resolveTasksDir(root)}/_index.json`)
         if (backupPath) console.log(`Backup:  ${backupPath}`)

@@ -1,6 +1,7 @@
 import path from "node:path"
 import {resolveTasksDir} from "../paths.js"
-import {resolveRoot} from "../cliContext.js"
+import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {c, colorize} from "../format.js"
 import {deleteBackups, listBackups, restoreFromBackups} from "../restore.js"
 import type {BackupEntry} from "../restore.js"
 
@@ -22,6 +23,9 @@ export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],
 ] as const
 
+const dryRunDeleteMsg = colorize("Dry-run — nothing deleted. Use --force to actually delete.", c.red)
+const dryRunRestoreMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
+
 export function action(
     taskId: string | undefined,
     timestamp: string | undefined,
@@ -29,6 +33,8 @@ export function action(
 ): void {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
+
+    console.log(getVersionBanner())
 
     if (cmdOpts.delete) {
         if (!taskId && !timestamp) {
@@ -51,7 +57,7 @@ export function action(
         for (const p of result.deleted) {
             console.log(`  ${path.basename(p)}`)
         }
-        if (!cmdOpts.force) console.log("Dry-run — nothing deleted. Use --force to actually delete.")
+        if (!cmdOpts.force) console.log(dryRunDeleteMsg)
         return
     }
 
@@ -114,5 +120,5 @@ export function action(
             console.log(`  ${s}`)
         }
     }
-    if (!cmdOpts.force) console.log("Dry-run — nothing written. Use --force to apply changes.")
+    if (!cmdOpts.force) console.log(dryRunRestoreMsg)
 }

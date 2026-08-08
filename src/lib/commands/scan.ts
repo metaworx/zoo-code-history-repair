@@ -2,7 +2,7 @@ import {scanStorage} from "../scan.js"
 import {taskMatch, truncate} from "../format.js"
 import {align, countEntries, recoverabilityScore} from "../scanOutput.js"
 import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "../paths.js"
-import {resolveRoot} from "../cliContext.js"
+import {getVersionBanner, resolveRoot} from "../cliContext.js"
 
 export const name = "scan"
 export const summary = "Scan _index.json + task directories for corruption"
@@ -11,7 +11,8 @@ export const description = `${summary}.
 Reads the _index.json and all task directories, cross-references entries,
 and reports any corruption found. Shows recoverability estimates and
 entry counts (ACH/UIM) for each corrupted task. Use --verify-ui-sync
-for deep ui_messages.json comparison against ACH-derived reconstruction.`
+for deep ui_messages.json comparison against ACH-derived reconstruction.
+With --json, outputs machine-parseable JSON instead of formatted text.`
 
 export const additionalHelp = `
 Corruption reasons detected by scan:
@@ -27,15 +28,53 @@ Corruption reasons detected by scan:
  10. folder_orphan          — task directory on disk is absent from _index.json
  11. ui_sync_mismatch       — (opt-in) ui_messages.json differs from ACH-derived reconstruction
  12. interrupted_task       — task appears interrupted (last turn ends with tool_use + other corruption)
- 13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries`
+ 13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries
+
+Output abbreviations:
+  ach  = api_conversation_history.json
+  hi   = history_item.json
+  uim  = ui_messages.json
+  idx  = _index.json`
 
 export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
+    ["--json", "Output machine-parseable JSON", false],
+    ["--quiet", "Suppress per-task detail lines (summary only)", false],
 ]
 
-export function action(cmdOpts: { verifyUiSync?: boolean }): void {
+export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?: boolean }): void {
     const root = resolveRoot()
     const result = scanStorage(root, {verifyUiSync: !!cmdOpts.verifyUiSync})
+
+    if (cmdOpts.json) {
+        const out: Record<string, unknown> = {
+            version: getVersionBanner().trim().replace("Zoo Code History Repair, v", ""),
+            storageRoot: result.storageRoot,
+            tasksDir: result.tasksDir,
+            indexPath: result.indexPath,
+            indexItemCount: result.indexItems.length,
+            taskDirCount: result.taskDirs.length,
+            corruptions: result.corruptions.map(c => ({
+                taskId: c.taskId,
+                dir: c.dir,
+                reasons: c.reasons,
+                recoverability: recoverabilityScore(c),
+                achEntries: countEntries(c.dir, API_HISTORY_NAME),
+                uimEntries: countEntries(c.dir, UI_MESSAGES_NAME),
+                indexTask: truncate(c.indexItem?.task, 200) || undefined,
+                diskTask: truncate(c.diskItem?.task, 200) || undefined,
+                taskMatch: taskMatch(c.indexItem?.task, c.diskItem?.task) ?? undefined,
+                sizeIndex: c.indexItem?.size,
+                sizeDisk: c.diskItem?.size,
+            })),
+        }
+        console.log(JSON.stringify(out))
+        const exitCode = Math.min(result.corruptions.length, 255)
+        if (exitCode > 0) process.exit(exitCode)
+        return
+    }
+
+    console.log(getVersionBanner())
     console.log(align("Storage:", result.storageRoot))
     console.log(align("Tasks:", result.tasksDir))
     console.log(align("Index:", result.indexPath))
@@ -44,22 +83,27 @@ export function action(cmdOpts: { verifyUiSync?: boolean }): void {
     console.log(align("Corruptions:", String(result.corruptions.length)))
     console.log("")
 
-    for (const c of result.corruptions) {
-        const achCount = countEntries(c.dir, API_HISTORY_NAME)
-        const uimCount = countEntries(c.dir, UI_MESSAGES_NAME)
-        const score = recoverabilityScore(c)
+    if (!cmdOpts.quiet) {
+        for (const c of result.corruptions) {
+            const achCount = countEntries(c.dir, API_HISTORY_NAME)
+            const uimCount = countEntries(c.dir, UI_MESSAGES_NAME)
+            const score = recoverabilityScore(c)
 
-        console.log(`- ${c.taskId}`)
-        console.log(align("reasons:", c.reasons.join(", ")))
-        console.log(align("recoverability:", score))
-        console.log(align("entries.ACH:", String(achCount)))
-        console.log(align("entries.UIM:", String(uimCount)))
-        console.log(align("task.index:", JSON.stringify(truncate(c.indexItem?.task, 200))))
-        console.log(align("task.file:", JSON.stringify(truncate(c.diskItem?.task, 200))))
-        const tm = taskMatch(c.indexItem?.task, c.diskItem?.task)
-        if (tm) console.log(align("task.match:", tm))
-        if (c.indexItem?.size != null) console.log(align("size.index:", String(c.indexItem.size)))
-        if (c.diskItem?.size != null) console.log(align("size.file:", String(c.diskItem.size)))
-        console.log("")
+            console.log(`- ${c.taskId}`)
+            console.log(align("reasons:", c.reasons.join(", ")))
+            console.log(align("recoverability:", score))
+            console.log(align("entries.ACH:", String(achCount)))
+            console.log(align("entries.UIM:", String(uimCount)))
+            console.log(align("task.index:", JSON.stringify(truncate(c.indexItem?.task, 200))))
+            console.log(align("task.file:", JSON.stringify(truncate(c.diskItem?.task, 200))))
+            const tm = taskMatch(c.indexItem?.task, c.diskItem?.task)
+            if (tm) console.log(align("task.match:", tm))
+            if (c.indexItem?.size != null) console.log(align("size.index:", String(c.indexItem.size)))
+            if (c.diskItem?.size != null) console.log(align("size.file:", String(c.diskItem.size)))
+            console.log("")
+        }
     }
+
+    const exitCode = Math.min(result.corruptions.length, 255)
+    if (exitCode > 0) process.exit(exitCode)
 }

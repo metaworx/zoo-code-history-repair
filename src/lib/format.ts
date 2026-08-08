@@ -2,6 +2,22 @@
  * Formatting helpers for CLI output.
  */
 
+import {getColorEnabled} from "./cliContext.js"
+
+export const c = {
+    red: "\x1b[31m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    dim: "\x1b[2m",
+    reset: "\x1b[0m",
+} as const
+
+/** Wrap text in ANSI codes. No-op when color is disabled (--no-color, NO_COLOR, or pipe). */
+export function colorize(text: string, code: string): string {
+    if (!getColorEnabled()) return text
+    return code + text + c.reset
+}
+
 /**
  * Truncate a string to maxLen characters, appending "..." if truncated.
  * Returns empty string for null/undefined input.

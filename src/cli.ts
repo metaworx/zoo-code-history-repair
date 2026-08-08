@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs"
 import {Command} from "commander"
 import "./lib/registerCommandOptions.js"
-import {setRoot} from "./lib/cliContext.js"
+import {setColorEnabled, setRoot, setVersion} from "./lib/cliContext.js"
 import {guessStorageRoots} from "./lib/paths.js"
 import * as scanCmd from "./lib/commands/scan.js"
 import * as listCorruptCmd from "./lib/commands/listCorrupt.js"
@@ -25,13 +25,16 @@ program
     .version(`Zoo Code History Repair, v${pkg.version}`, "-v, --version", "Print version information")
     .addHelpText("before", version)
     .option("--version-only", "Print version number only")
+    .option("--no-color", "Disable ANSI color output")
     .option(
         "-r, --root <path>",
         "Storage root (directory that contains tasks/). If omitted, tries common locations.",
     )
     .hook("preAction", () => {
-        const opts = program.opts<{ root?: string }>()
+        const opts = program.opts<{ root?: string; color?: boolean }>()
         setRoot(opts.root ?? guessStorageRoots()[0] ?? "")
+        if (opts.color === false) setColorEnabled(false)
+        setVersion(pkg.version)
         if (!opts.root && !guessStorageRoots()[0]) {
             console.error("No storage root found. Pass --root")
             process.exit(1)
