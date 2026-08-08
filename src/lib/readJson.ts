@@ -79,7 +79,9 @@ export function readPartialJsonArray<T = unknown>(filePath: string): PartialArra
 
 export function writeJsonCompact(filePath: string, data: unknown): void {
     const text = JSON.stringify(data) // compact, matches plugin style
-    fs.writeFileSync(filePath, text, "utf8")
+    const tmpPath = filePath + ".tmp"
+    fs.writeFileSync(tmpPath, text, "utf8")
+    fs.renameSync(tmpPath, filePath)
 }
 
 function formatTimestamp(): string {
