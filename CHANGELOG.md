@@ -5,6 +5,33 @@ All notable changes to the **Zoo Code History Repair** (ZCHR) app will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-08-08
+
+### Added
+
+- `readPartialJsonArray()` — salvage readable elements from truncated JSON arrays by walking backward to find the last
+  valid element boundary. Integrated as fallback in `repairTaskDir`.
+- Cross-block task extraction — concatenate all text blocks in the first user turn before regex-matching
+  `<user_message>` tags (handles split partial-streaming messages).
+- Image block handling — produce `[Image: media/type]` text placeholder for image content blocks in `ui_messages.json`
+  reconstruction.
+- MCP tool descriptor enrichment — when tool name contains `mcp--`, include `serverName`, `toolName`, `arguments`,
+  `maxResults`, `maxTokens` in the tool descriptor JSON.
+- MCP resource-type result handling — serialize resource-type content blocks as JSON in tool result text.
+- `ui_sync_mismatch` corruption reason — opt-in (`--verify-ui-sync`) comparison of existing `ui_messages.json` against
+  ACH-derived reconstruction. Detects drift even when the file is non-empty.
+- `interrupted_task` corruption reason — detect tasks where `attempt_completion` tool_use has no matching tool_result,
+  or where the last assistant turn ends mid-tool_use.
+- `InspectOptions`, `ScanOptions`, `PartialArrayResult` exported types.
+- `readPartialJsonArray` exported from library index.
+
+### Changed
+
+- Corruption detection now covers 12 patterns (up from 10).
+- ROADMAP.md restructured — "Current State" moved to CHANGELOG.md; table updated with new pattern coverage.
+- `RepairResult` now includes `apiTruncated: boolean` field.
+- `tsconfig.json` excludes `__test__` directories from build.
+
 ## [0.1.0] — 2026-08-08
 
 ### Added
