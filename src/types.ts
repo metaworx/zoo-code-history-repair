@@ -29,6 +29,8 @@ export type CorruptionReason =
     | "empty_api_history"
     | "index_orphan"            // in index but no folder
     | "folder_orphan"           // folder exists but not in index
+    | "ui_sync_mismatch"        // ui_messages.json differs from ACH-derived reconstruction
+    | "interrupted_task"        // task appears interrupted (missing final tool_result)
 
 export interface TaskCorruption {
     taskId: string

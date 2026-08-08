@@ -29,8 +29,9 @@ function resolveRoot(): string {
 program
     .command("scan")
     .description("Scan _index.json + task directories for corruption")
-    .action(() => {
-        const result = scanStorage(resolveRoot())
+    .option("--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false)
+    .action((cmdOpts: { verifyUiSync?: boolean }) => {
+        const result = scanStorage(resolveRoot(), {verifyUiSync: !!cmdOpts.verifyUiSync})
         console.log(`Storage: ${result.storageRoot}`)
         console.log(`Tasks:   ${result.tasksDir}`)
         console.log(`Index:   ${result.indexPath}`)
@@ -52,8 +53,9 @@ program
 program
     .command("list-corrupt")
     .description("List only corrupted task ids")
-    .action(() => {
-        const result = scanStorage(resolveRoot())
+    .option("--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false)
+    .action((cmdOpts: { verifyUiSync?: boolean }) => {
+        const result = scanStorage(resolveRoot(), {verifyUiSync: !!cmdOpts.verifyUiSync})
         for (const c of result.corruptions) {
             console.log(`${c.taskId}\t${c.reasons.join(",")}`)
         }

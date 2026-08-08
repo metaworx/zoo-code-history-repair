@@ -3,8 +3,13 @@ import type {HistoryItem, IndexFile, ScanResult, TaskCorruption} from "../types.
 import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
 import {readJsonFile} from "./readJson.js"
 import {inspectTaskDir} from "./detectCorruption.js"
+import type {InspectOptions} from "./detectCorruption.js"
 
-export function scanStorage(storageRoot: string): ScanResult {
+export interface ScanOptions extends InspectOptions {
+    // future scan-level options
+}
+
+export function scanStorage(storageRoot: string, options: ScanOptions = {}): ScanResult {
     const tasksDir = resolveTasksDir(storageRoot)
     const indexPath = resolveIndexPath(tasksDir)
 
@@ -21,7 +26,9 @@ export function scanStorage(storageRoot: string): ScanResult {
     // folders on disk
     for (const dir of dirs) {
         const taskId = path.basename(dir)
-        const c = inspectTaskDir(taskId, dir, byId.get(taskId) ?? null)
+        const c = inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
+            verifyUiSync: options.verifyUiSync,
+        })
         if (!byId.has(taskId)) c.reasons.push("folder_orphan")
         if (c.reasons.length) corruptions.push(c)
     }
