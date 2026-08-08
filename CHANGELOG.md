@@ -7,20 +7,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-08
+
 ### Added
 
-- `readJson.spec.ts` (20 tests): `readJsonFile`, `readPartialJsonArray` truncated recovery, `writeJsonCompact`, `backupFile`
-- `rebuildUiMessages.spec.ts` (25 tests): `snakeToCamel`, `rebuildUiMessages` covering all 6 block types (text, reasoning, tool_use, tool_result, image), MCP descriptors, ts monotonicity, multi-turn reconstruction
-- `rebuildTaskField.spec.ts` (12 tests): `extractTaskFromApiHistory` including multi-block tag concatenation, first-user-turn-only
-- `size.spec.ts` (9 tests): `compactSizeBytes`, `computeTaskSize` determinism
-- `paths.spec.ts` (13 tests): constants, `resolveTasksDir`, `resolveIndexPath`, `listTaskDirs` filtering
-- `repairTask.spec.ts` (12 tests): full repair pipeline — ui rebuild, task extraction, size recomputation, dry-run, backup creation, partial ACH recovery, error paths
-- `repairAll.spec.ts` (4 tests): `repairAllCorrupted` orchestration, dry-run, zero-corruption case
-- `detectCorruptionV2.spec.ts` (12 tests): v0.2.0 features — `verifyUiSync` mismatch detection, `interrupted_task` (unmatched `attempt_completion`, last-turn `tool_use`), `missing_task_text`
-
-### Changed
-
-- Test coverage expanded from 3/9 to 9/9 library modules (11 test files, 120 tests, 0 failures)
+- Vitest test runner configuration (`vitest.config.ts`) with `globals: true`, v8 coverage provider, `*.spec.ts` pattern
+- Comprehensive test suite: 11 spec files, 120 tests, 0 failures covering all 9 library modules:
+    - `detectCorruption.spec.ts` (7 tests): `isPlaceholderTaskName`, `inspectTaskDir` — existing
+    - `detectCorruptionV2.spec.ts` (12 tests): v0.2.0 features — `verifyUiSync` mismatch, `interrupted_task` (unmatched `attempt_completion`, last-turn `tool_use`), `missing_task_text`
+    - `rebuildIndex.spec.ts` (3 tests): `rebuildIndexFromDisk` — dry-run, backup, skip-empty
+    - `scan.spec.ts` (3 tests): `scanStorage` — orphan detection, index/disk consistency
+    - `readJson.spec.ts` (20 tests): `readJsonFile`, `readPartialJsonArray` truncated recovery, `writeJsonCompact`, `backupFile`
+    - `rebuildUiMessages.spec.ts` (25 tests): `snakeToCamel`, `rebuildUiMessages` — all 6 block types (text, reasoning, tool_use, tool_result, image), MCP descriptors, ts monotonicity, multi-turn reconstruction
+    - `rebuildTaskField.spec.ts` (12 tests): `extractTaskFromApiHistory` — multi-block concatenation, first-user-turn-only
+    - `size.spec.ts` (9 tests): `compactSizeBytes`, `computeTaskSize` determinism
+    - `paths.spec.ts` (13 tests): constants, `resolveTasksDir`, `resolveIndexPath`, `listTaskDirs` filtering (dot-prefixed, files vs dirs)
+    - `repairTask.spec.ts` (12 tests): full repair pipeline — ui rebuild, task extraction, size recomputation, dry-run, backup, partial ACH recovery, error paths
+    - `repairAll.spec.ts` (4 tests): `repairAllCorrupted` orchestration, dry-run, zero-corruption case
+- npm scripts: `test`, `test:watch`, `test:coverage` using Vitest
+- `vitest`, `@vitest/coverage-v8` devDependencies
 
 ## [0.2.0] — 2026-08-08
 
