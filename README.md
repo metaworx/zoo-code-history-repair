@@ -21,7 +21,6 @@ This tool detects and repairs common corruption patterns in these files.
 ```bash
 # Run directly (no install required)
 npx zoo-code-history-repair scan
-npx zoo-code-history-repair repair-all --dry-run
 
 # Or install globally
 npm install -g zoo-code-history-repair
@@ -29,20 +28,42 @@ npm install -g zoo-code-history-repair
 # Scan for corruption
 zoo-code-history-repair scan
 
-# List corrupted task IDs only
+# List corrupted task IDs only (with recoverability %)
 zoo-code-history-repair list-corrupt
 
 # Repair a single task
 zoo-code-history-repair repair-task <taskId>
+zoo-code-history-repair repair-task <taskId> --force          # actually write
+zoo-code-history-repair repair-task <taskId> --force-uim      # force ui_messages.json rebuild
+zoo-code-history-repair repair-task <taskId> --fixed-input-token 50000  # override tokensIn
 
 # Repair all corrupted tasks
-zoo-code-history-repair repair-all
+zoo-code-history-repair repair-all --force
 
 # Rebuild the global index from disk
-zoo-code-history-repair rebuild-index
+zoo-code-history-repair rebuild-index --force
+
+# Delete a task directory + its _index entry
+zoo-code-history-repair delete <taskId>
+zoo-code-history-repair delete <taskId> --force               # actually delete
+
+# Manage backup files
+zoo-code-history-repair restore                              # list all backups
+zoo-code-history-repair restore <taskId>                      # restore newest backup
+zoo-code-history-repair restore <taskId> <timestamp>          # restore specific timestamp
+zoo-code-history-repair restore <timestamp>                   # restore all tasks matching ts
+zoo-code-history-repair restore --delete <taskId> --force     # delete backups
 ```
 
-All repair commands support `--dry-run` and `--no-backup` flags.
+All write commands default to dry-run. Use `--force` to actually apply changes.
+
+```bash
+# Print version information
+zoo-code-history-repair --version       # "Zoo Code History Repair, v0.3.0"
+zoo-code-history-repair --version-only  # "0.3.0"
+```
+
+All commands have detailed help available via `help <command>` (e.g. `zoo-code-history-repair help scan`).
 
 > **Tip:** Use `npx` to run the latest version without installing globally. Ideal for one-off repairs or CI pipelines.
 
@@ -52,16 +73,21 @@ The `scan` command detects these corruption patterns:
 
 | Reason | Description |
 |--------|-------------|
-| `placeholder_task_name` | `task` field is "Task #N" or similar placeholder |
-| `zero_size` | `size` field is 0 or missing |
-| `missing_task_text` | `task` field is empty |
-| `missing_history_item` | `history_item.json` does not exist |
-| `invalid_json` | A JSON file cannot be parsed |
-| `missing_task_dir` | Task directory referenced in index does not exist |
-| `empty_ui_messages` | `ui_messages.json` is empty or missing |
-| `empty_api_history` | `api_conversation_history.json` is empty or missing |
-| `index_orphan` | Entry in `_index.json` has no matching task directory |
-| `folder_orphan` | Task directory exists but is not in `_index.json` |
+| `placeholder_task_name` | `task` field matches "Task #N" / "Task #N (Incomplete)" pattern |
+| `zero_size` | `size` field is 0 or null/missing |
+| `missing_task_text` | Disk `task` field is empty or whitespace-only |
+| `missing_history_item` | `history_item.json` does not exist or is unreadable |
+| `invalid_json` | (not yet produced) A JSON file is syntactically invalid or truncated |
+| `missing_task_dir` | (not yet produced) Index entry has no corresponding task directory |
+| `empty_ui_messages` | `ui_messages.json` is an empty array |
+| `empty_api_history` | `api_conversation_history.json` is an empty array |
+| `index_orphan` | Entry in `_index.json` has no matching task directory on disk |
+| `folder_orphan` | Task directory exists on disk but is absent from `_index.json` |
+| `ui_sync_mismatch` | (opt-in) `ui_messages.json` differs from ACH-derived reconstruction |
+| `interrupted_task` | Task appears interrupted (last turn ends with `tool_use` + other corruption) |
+| `zero_tokens` | `tokensIn`/`tokensOut`/`totalCost` all 0 but `api_conversation_history.json` has entries |
+
+Run `zoo-code-history-repair help scan` for detailed explanations of each reason.
 
 ## Repair Capabilities
 
@@ -82,6 +108,14 @@ Tool names are normalized from `snake_case` to `camelCase`. Timestamps are deriv
 ### `task` Field Extraction
 
 Extracts the original user prompt from the first `<user_message>...</user_message>` block in `api_conversation_history.json`.
+
+### Token Field Recovery
+
+Recovers `tokensIn`/`tokensOut`/`totalCost`/`cacheReads` when zeroed out. Priority:
+
+1. **Index recovery** — copy from `_index.json` backup (exact)
+2. **Estimation** — output tokens from ACH assistant text (3.44 chars/token), input tokens from ACH user text (4.0 chars/token under-estimate), cost from provider pricing
+3. **User override** — `--fixed-input-token <n>` to set tokensIn explicitly; `--fixed-input-token 0` to disable estimation
 
 ### `size` Field Calculation
 
@@ -105,6 +139,18 @@ import {
     extractTaskFromApiHistory,
     computeTaskSize,
     compactSizeBytes,
+    estimateTokensOut,
+    estimateTokensIn,
+    estimateTotalCost,
+    estimateCacheReads,
+    listBackups,
+    restoreFromBackups,
+    deleteBackups,
+    parseTimestamp,
+    truncate,
+    taskMatch,
+    recoverabilityScore,
+    countEntries,
 } from "zoo-code-history-repair"
 ```
 

@@ -7,6 +7,33 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-08
+
+### Added
+
+- `zero_tokens` CorruptionReason — detects tasks where `tokensIn`/`tokensOut`/`totalCost` are all 0 but ACH has entries
+- `estimateTokens` module (`src/lib/estimateTokens.ts`) — `estimateTokensOut` (3.44 chars/token), `estimateTokensIn` (4.0 chars/token under-estimate), `estimateTotalCost` (provider pricing), `estimateCacheReads` (≈0.97×tokensIn)
+- Token repair in `repairTaskDir` — priority: index recovery → estimation → `--fixed-input-token` user override
+- `--fixed-input-token <n>` CLI flag (0=disable estimation, omit=estimate)
+- `delete <taskId>` command — purge task directory from disk and strip entry from `_index.json`
+- `restore` command — list, restore, or delete `.bak.json` backup files (safety backup on restore, `--delete` for cleanup, no timestamp mixing)
+- `restore` library (`src/lib/restore.ts`) — `listBackups`, `restoreFromBackups`, `deleteBackups`, `parseTimestamp`
+- `--force-uim` flag on `repair-task` — force `ui_messages.json` rebuild even when not detected as corrupt
+- Scan output enrichments: recoverability %, `entries.ACH`, `entries.UIM`, aligned columns, blank lines between entries
+- `list-corrupt` output now includes recoverability % as second tab-separated column
+- `--force` flag on all write commands — dry-run is now the default
+- `scanOutput` module (`countEntries`, `recoverabilityScore`, `align` helpers)
+- `registerCommandOptions` prototype extension on commander `Command`
+- CLI commands extracted to `src/lib/commands/` (one module per command) — `cli.ts` reduced from 285 to ~80 lines
+
+### Changed
+
+- `interrupted_task` detection: removed unreliable Trigger A (unanswered `attempt_completion` — normal child-task behavior), gated Trigger B behind multi-error check (solo `interrupted_task` suppressed)
+- Backup files now use `$base.json.YYYYMMDD-HHmmss.bak.json` format (e.g. `history_item.json.20260808-054500.bak.json`) instead of epoch-ms naming — enables `*.bak.json` glob discovery
+- `RepairResult` now includes `touchedFiles` and `backups` — repair output shows which files changed and lists backup files created
+- `repairAll` passes index entries through to `repairTaskDir` for token recovery
+- Corruption detection now covers 13 patterns (up from 12)
+
 ## [0.3.0] — 2026-08-08
 
 ### Added
