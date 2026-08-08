@@ -2,7 +2,7 @@ import {repairAllCorrupted} from "../repairAll.js"
 import {resolveTasksDir} from "../paths.js"
 import {getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
-import {align} from "../scanOutput.js"
+import {alignSummary} from "../scanOutput.js"
 
 export const name = "repair-all"
 export const summary = "Repair all corrupted tasks (default: dry-run, use --force to write)"
@@ -31,7 +31,7 @@ export const options = [
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
 ] as const
 
-const dryRunMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
+const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
 
 export function action(cmdOpts: { force?: boolean; backup?: boolean; verbose?: boolean; fixedInputToken?: number }): void {
     const root = resolveRoot()
@@ -42,8 +42,8 @@ export function action(cmdOpts: { force?: boolean; backup?: boolean; verbose?: b
     })
 
     console.log(getVersionBanner())
-    console.log(align("Storage:", root))
-    console.log(align("Tasks:", resolveTasksDir(root)))
+    console.log(alignSummary("Storage:", root))
+    console.log(alignSummary("Tasks:", resolveTasksDir(root)))
     console.log("")
 
     console.log(`Found ${ra.total} corrupted tasks`)

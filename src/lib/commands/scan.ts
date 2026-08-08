@@ -1,6 +1,6 @@
 import {scanStorage} from "../scan.js"
 import {taskMatch, truncate} from "../format.js"
-import {align, countEntries, recoverabilityScore} from "../scanOutput.js"
+import {align, alignSummary, countEntries, recoverabilityScore} from "../scanOutput.js"
 import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "../paths.js"
 import {getVersionBanner, resolveRoot} from "../cliContext.js"
 
@@ -75,12 +75,12 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?
     }
 
     console.log(getVersionBanner())
-    console.log(align("Storage:", result.storageRoot))
-    console.log(align("Tasks:", result.tasksDir))
-    console.log(align("Index:", result.indexPath))
-    console.log(align("Index entries:", String(result.indexItems.length)))
-    console.log(align("Task dirs:", String(result.taskDirs.length)))
-    console.log(align("Corruptions:", String(result.corruptions.length)))
+    console.log(alignSummary("Storage:", result.storageRoot))
+    console.log(alignSummary("Tasks:", result.tasksDir))
+    console.log(alignSummary("Index:", result.indexPath))
+    console.log(alignSummary("Index entries:", String(result.indexItems.length)))
+    console.log(alignSummary("Task dirs:", String(result.taskDirs.length)))
+    console.log(alignSummary("Corruptions:", String(result.corruptions.length)))
     console.log("")
 
     if (!cmdOpts.quiet) {

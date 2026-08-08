@@ -27,9 +27,12 @@ npm install -g zoo-code-history-repair
 
 # Scan for corruption
 zoo-code-history-repair scan
+zoo-code-history-repair scan --quiet                     # summary only
+zoo-code-history-repair scan --json                      # machine-parseable JSON
 
 # List corrupted task IDs only (with recoverability %)
 zoo-code-history-repair list-corrupt
+zoo-code-history-repair list-corrupt --json               # JSON array
 
 # Repair a single task
 zoo-code-history-repair repair-task <taskId>
@@ -39,6 +42,7 @@ zoo-code-history-repair repair-task <taskId> --fixed-input-token 50000  # overri
 
 # Repair all corrupted tasks
 zoo-code-history-repair repair-all --force
+zoo-code-history-repair repair-all --verbose                  # show skipped tasks
 
 # Rebuild the global index from disk
 zoo-code-history-repair rebuild-index --force
@@ -56,14 +60,28 @@ zoo-code-history-repair restore --delete <taskId> --force     # delete backups
 ```
 
 All write commands default to dry-run. Use `--force` to actually apply changes.
+Dry-run messages are colorized red. Disable colors with `--no-color` or `NO_COLOR=1`.
 
 ```bash
 # Print version information
-zoo-code-history-repair --version       # "Zoo Code History Repair, v0.3.0"
-zoo-code-history-repair --version-only  # "0.3.0"
+zoo-code-history-repair --version       # "Zoo Code History Repair, v0.5.0"
+zoo-code-history-repair --version-only  # "0.5.0"
 ```
 
 All commands have detailed help available via `help <command>` (e.g. `zoo-code-history-repair help scan`).
+
+### Scripting / CI Integration
+
+`scan` and `list-corrupt` support `--json` for machine-parseable output and exit with non-zero
+when corruption is detected (exit code = corruption count, capped at 255):
+
+```bash
+# Check for corruption in CI
+zoo-code-history-repair scan --json --quiet && echo "All clean"
+
+# Parse corruption details
+zoo-code-history-repair scan --json | jq '.corruptions[] | {id: .taskId, reasons: .reasons}'
+```
 
 > **Tip:** Use `npx` to run the latest version without installing globally. Ideal for one-off repairs or CI pipelines.
 

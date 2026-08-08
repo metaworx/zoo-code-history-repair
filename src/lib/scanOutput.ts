@@ -62,5 +62,10 @@ export function recoverabilityScore(c: TaskCorruption): string {
 
 /** Format a label:value pair with aligned values (label width = 16). */
 export function align(label: string, value: string): string {
-    return `  ${label.padEnd(16)}${value}`
+    return `  ${label.padEnd(17)}${value}`
+}
+
+/** Same as align() but without the 2-space indent — for top-level summary blocks. */
+export function alignSummary(label: string, value: string): string {
+    return `${label.padEnd(19)}${value}`
 }

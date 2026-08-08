@@ -9,10 +9,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `--json` flag on `scan` and `list-corrupt` — machine-parseable JSON output for CI/scripting
+- `--quiet` flag on `scan` — suppress per-task detail, summary only
+- `--verbose` flag on `repair-all` — show skipped (no-op) tasks
+- ANSI color support — red dry-run messages, `--no-color` flag, `NO_COLOR` env var, TTY detection
+- Version banner on every command output (included in JSON)
+- `→` arrow notation in repair output: `ui(ach→uim)`, `task(ach→hi)`, `size(calc→hi)`, `tokens(source→hi)`
+- Abbreviation docs in `additionalHelp`: `ach`, `hi`, `uim`, `idx`
+- `alignSummary()` helper for flush-left summary blocks
 - Integration test fixtures (`tests/fixtures/tasks/`) — 7 corrupt + 3 healthy task dirs scrambled for privacy
 - Scramble script (`scripts/scramble-fixture.ts`) — copies from source, exact byte-length lorem ipsum replacement per field, substring index→ACH sync, auto-detects folder orphans, computes SHA1 hashes
 - Scramble source generator (`scripts/generate_scramble.ts`) — fetches War & Peace + TypeScript checker.ts, produces ~535KB never-repeating mix
 - Integration tests (`src/lib/__tests__/integration/`) — scan, repair, restore against real(istic) fixture data
+
+### Changed
+
+- `repair-all` now rebuilds `_index.json` after individual repairs — fixes `folder_orphan` and stale index entries
+- `repair-all` output shows storage path and index rebuild summary
+- `repair-task` / `repair-all` use `→` arrow notation instead of bare aspect names
+- Non-zero exit codes: `scan` and `list-corrupt` exit with corruption count (capped at 255)
+- Summary blocks (Storage/Tasks/Index) no longer indented
+
+### Fixed
+
+- `writeJsonCompact` uses atomic tempfile→rename (crash-safe writes)
 
 ## [0.4.0] — 2026-08-08
 

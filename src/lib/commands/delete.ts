@@ -18,7 +18,7 @@ export const options = [
     ["--no-backup", "Skip creating a timestamped backup of _index.json"],
 ] as const
 
-const dryRunMsg = colorize("Dry-run — nothing deleted. Use --force to actually delete.", c.red)
+const dryRunMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
 
 export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean }): void {
     const root = resolveRoot()

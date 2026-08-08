@@ -23,8 +23,8 @@ export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],
 ] as const
 
-const dryRunDeleteMsg = colorize("Dry-run — nothing deleted. Use --force to actually delete.", c.red)
-const dryRunRestoreMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
+const dryRunDeleteMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
+const dryRunRestoreMsg = colorize("\n!!Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
 export function action(
     taskId: string | undefined,

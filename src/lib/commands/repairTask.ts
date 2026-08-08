@@ -35,7 +35,7 @@ export const options = [
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
 ] as const
 
-const dryRunMsg = colorize("Dry-run — nothing written. Use --force to apply changes.", c.red)
+const dryRunMsg = colorize("\n!! Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
 export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean; forceUim?: boolean; fixedInputToken?: number }): void {
     const root = resolveRoot()
