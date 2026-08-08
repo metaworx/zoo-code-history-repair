@@ -7,6 +7,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-08
+
+### Added
+
+- `truncate()` and `taskMatch()` format helpers in `src/lib/format.ts` (17 unit tests)
+- Corruption reasons documentation in `scan` command help via `.addHelpText('after', ...)`, including
+  the two type-declared but not-yet-produced reasons (`invalid_json`, `missing_task_dir`)
+
+### Changed
+
+- `scan` output keys renamed to `task.index` / `task.file` / `task.match` / `size.index` / `size.file`
+- Task fields truncated to 200 characters with `...` ellipsis in scan output
+- `task.match: YES/NO` field added to scan output (case-sensitive trimmed comparison; omitted when either task is absent)
+
 ## [0.2.1] — 2026-08-08
 
 ### Added

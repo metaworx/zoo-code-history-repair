@@ -5,6 +5,7 @@ import {scanStorage} from "./lib/scan.js"
 import {rebuildIndexFromDisk} from "./lib/rebuildIndex.js"
 import {repairTaskDir} from "./lib/repairTask.js"
 import {repairAllCorrupted} from "./lib/repairAll.js"
+import {taskMatch, truncate} from "./lib/format.js"
 
 const program = new Command()
 
@@ -29,6 +30,20 @@ function resolveRoot(): string {
 program
     .command("scan")
     .description("Scan _index.json + task directories for corruption")
+    .addHelpText("after", `
+Corruption reasons detected by scan:
+  1. placeholder_task_name — task field matches "Task #N" / "Task #N (Incomplete)" pattern
+  2. zero_size              — size field is 0 or null/missing (on disk or in index)
+  3. missing_task_text      — disk task field is empty or whitespace-only
+  4. missing_history_item   — history_item.json is missing or unreadable
+  5. invalid_json           — (not yet produced) a JSON file is syntactically invalid or truncated
+  6. missing_task_dir       — (not yet produced) an index entry has no corresponding task directory
+  7. empty_ui_messages      — ui_messages.json exists but contains an empty array
+  8. empty_api_history      — api_conversation_history.json exists but contains an empty array
+  9. index_orphan           — entry in _index.json has no task directory on disk
+ 10. folder_orphan          — task directory on disk is absent from _index.json
+ 11. ui_sync_mismatch       — (opt-in) ui_messages.json differs from ACH-derived reconstruction
+ 12. interrupted_task       — task appears interrupted (unanswered attempt_completion / tool_use)`)
     .option("--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false)
     .action((cmdOpts: { verifyUiSync?: boolean }) => {
         const result = scanStorage(resolveRoot(), {verifyUiSync: !!cmdOpts.verifyUiSync})
@@ -43,10 +58,12 @@ program
         for (const c of result.corruptions) {
             console.log(`- ${c.taskId}`)
             console.log(`  reasons: ${c.reasons.join(", ")}`)
-            if (c.indexItem?.task) console.log(`  index.task: ${JSON.stringify(c.indexItem.task)}`)
-            if (c.diskItem?.task) console.log(`  disk.task:  ${JSON.stringify(c.diskItem.task)}`)
-            if (c.indexItem?.size != null) console.log(`  index.size: ${c.indexItem.size}`)
-            if (c.diskItem?.size != null) console.log(`  disk.size:  ${c.diskItem.size}`)
+            console.log(`  task.index: ${JSON.stringify(truncate(c.indexItem?.task, 200))}`)
+            console.log(`  task.file:  ${JSON.stringify(truncate(c.diskItem?.task, 200))}`)
+            const tm = taskMatch(c.indexItem?.task, c.diskItem?.task)
+            if (tm) console.log(`  task.match: ${tm}`)
+            if (c.indexItem?.size != null) console.log(`  size.index: ${c.indexItem.size}`)
+            if (c.diskItem?.size != null) console.log(`  size.file:  ${c.diskItem.size}`)
         }
     })
 
