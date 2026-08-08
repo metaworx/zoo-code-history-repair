@@ -6,7 +6,7 @@ import {
     TASK_METADATA_NAME,
     UI_MESSAGES_NAME,
 } from "./paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "./readJson.js"
+import {backupFile, readJsonFile, readPartialJsonArray, writeJsonCompact} from "./readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {computeTaskSize} from "./size.js"
@@ -16,6 +16,7 @@ export interface RepairResult {
     uiRepaired: boolean
     taskRepaired: boolean
     sizeRepaired: boolean
+    apiTruncated: boolean
     errors: string[]
 }
 
@@ -37,6 +38,7 @@ export function repairTaskDir(
         uiRepaired: false,
         taskRepaired: false,
         sizeRepaired: false,
+        apiTruncated: false,
         errors: [],
     }
 
@@ -45,10 +47,20 @@ export function repairTaskDir(
     const apiPath = path.join(taskDir, API_HISTORY_NAME)
     const tmPath = path.join(taskDir, TASK_METADATA_NAME)
 
-    // Read existing files
-    const apiHistory = readJsonFile<unknown[]>(apiPath)
+    // Read existing files — try normal parse first, then partial recovery
+    let apiHistory = readJsonFile<unknown[]>(apiPath)
     const historyItem = readJsonFile<HistoryItem>(hiPath)
     const taskMetadata = readJsonFile<unknown>(tmPath)
+
+    if (!apiHistory || !Array.isArray(apiHistory)) {
+        const partial = readPartialJsonArray(apiPath)
+        if (partial && partial.data.length > 0) {
+            apiHistory = partial.data
+            if (partial.truncated) {
+                result.apiTruncated = true
+            }
+        }
+    }
 
     if (!apiHistory || !Array.isArray(apiHistory)) {
         result.errors.push("missing or invalid api_conversation_history.json — cannot repair")
