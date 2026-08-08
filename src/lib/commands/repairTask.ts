@@ -1,9 +1,10 @@
 import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {readJsonFile} from "../readJson.js"
+import {backupFile, readJsonFile, writeJsonCompact} from "../readJson.js"
 import {repairTaskDir} from "../repairTask.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
+import type {HistoryItem} from "../../types.js"
 
 export const name = "repair-task"
 export const summary = "Repair a single task (default: dry-run, use --force to write)"
@@ -75,6 +76,30 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
 
     if (parts.length > 0) {
         console.log(`${r.taskId}: repaired ${parts.join(", ")}`)
+    }
+
+    // Sync _index.json entry with repaired history_item.json
+    if (parts.length > 0 && cmdOpts.force) {
+        const repairedHi = readJsonFile<HistoryItem>(path.join(taskDir, "history_item.json"))
+        if (repairedHi && indexData) {
+            if (Array.isArray(indexData)) {
+                const idx = indexData.findIndex(e => e.id === taskId)
+                if (idx >= 0) {
+                    if (cmdOpts.backup !== false) backupFile(indexPath)
+                    indexData[idx] = {...indexData[idx], ...repairedHi}
+                    writeJsonCompact(indexPath, indexData)
+                    console.log(`  _index.json: synced`)
+                }
+            } else if (indexData.entries) {
+                const idx = indexData.entries.findIndex((e: {id: string}) => e.id === taskId)
+                if (idx >= 0) {
+                    if (cmdOpts.backup !== false) backupFile(indexPath)
+                    indexData.entries[idx] = {...indexData.entries[idx], ...repairedHi}
+                    writeJsonCompact(indexPath, indexData)
+                    console.log(`  _index.json: synced`)
+                }
+            }
+        }
     }
 
     if (r.backups.length > 0) {

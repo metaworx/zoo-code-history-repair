@@ -26,7 +26,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `repair-all` now rebuilds `_index.json` after individual repairs — fixes `folder_orphan` and stale index entries
 - `repair-all` output shows storage path and index rebuild summary
 - `repair-task` / `repair-all` use `→` arrow notation instead of bare aspect names
 - Non-zero exit codes: `scan` and `list-corrupt` exit with corruption count (capped at 255)
@@ -34,6 +33,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `repair-all` and `repair-task` now rebuild `_index.json` after individual repairs — fixes `folder_orphan` and stale index entries
 - `writeJsonCompact` uses atomic tempfile→rename (crash-safe writes)
 
 ## [0.4.0] — 2026-08-08
