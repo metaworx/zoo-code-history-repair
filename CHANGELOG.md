@@ -7,20 +7,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `readJson.spec.ts` (20 tests): `readJsonFile`, `readPartialJsonArray` truncated recovery, `writeJsonCompact`, `backupFile`
+- `rebuildUiMessages.spec.ts` (25 tests): `snakeToCamel`, `rebuildUiMessages` covering all 6 block types (text, reasoning, tool_use, tool_result, image), MCP descriptors, ts monotonicity, multi-turn reconstruction
+- `rebuildTaskField.spec.ts` (12 tests): `extractTaskFromApiHistory` including multi-block tag concatenation, first-user-turn-only
+- `size.spec.ts` (9 tests): `compactSizeBytes`, `computeTaskSize` determinism
+- `paths.spec.ts` (13 tests): constants, `resolveTasksDir`, `resolveIndexPath`, `listTaskDirs` filtering
+- `repairTask.spec.ts` (12 tests): full repair pipeline — ui rebuild, task extraction, size recomputation, dry-run, backup creation, partial ACH recovery, error paths
+- `repairAll.spec.ts` (4 tests): `repairAllCorrupted` orchestration, dry-run, zero-corruption case
+- `detectCorruptionV2.spec.ts` (12 tests): v0.2.0 features — `verifyUiSync` mismatch detection, `interrupted_task` (unmatched `attempt_completion`, last-turn `tool_use`), `missing_task_text`
+
 ### Changed
 
-- Migrated test runner from Jest to Vitest — zero test logic changes required
-- `jest.config.cjs` replaced by `vitest.config.ts` (`globals: true`, v8 coverage provider, `*.spec.ts` include pattern)
-- Test directory renamed `__test__/` → `__tests__/`, test files renamed `*.test.ts` → `*.spec.ts` (matches Zoo Code convention)
-- npm scripts: `test` → `vitest run`, `test:watch` → `vitest`, `test:coverage` → `vitest run --coverage`
-
-### Removed
-
-- `jest`, `ts-jest`, `@types/jest` devDependencies (replaced by `vitest` + `@vitest/coverage-v8`)
-
-### Fixed
-
-- `rebuildIndex.spec.ts` now reads `IndexFile.entries` instead of expecting flat `HistoryItem[]` array (test expectation was stale after v0.2.0 `IndexFile` wrapper introduction)
+- Test coverage expanded from 3/9 to 9/9 library modules (11 test files, 120 tests, 0 failures)
 
 ## [0.2.0] — 2026-08-08
 
