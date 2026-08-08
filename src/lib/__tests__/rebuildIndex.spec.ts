@@ -3,7 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import {rebuildIndexFromDisk} from "../rebuildIndex.js"
 import {readJsonFile} from "../readJson.js"
-import type {HistoryItem} from "../../types.js"
+import type {HistoryItem, IndexFile} from "../../types.js"
 
 describe("rebuildIndexFromDisk", () => {
     let root: string
@@ -56,8 +56,8 @@ describe("rebuildIndexFromDisk", () => {
         expect(items).toHaveLength(1)
         expect(backupPath).toBeTruthy()
 
-        const index = readJsonFile<HistoryItem[]>(path.join(tasksDir, "_index.json"))
-        expect(index).toEqual([
+        const index = readJsonFile<IndexFile>(path.join(tasksDir, "_index.json"))
+        expect(index?.entries).toEqual([
             expect.objectContaining({id: "t1", task: "Only", size: 5}),
         ])
     })

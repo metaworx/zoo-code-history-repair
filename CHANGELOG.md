@@ -7,10 +7,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- Jest configuration (`jest.config.cjs`) with ESM TypeScript support via `ts-jest`
-- 3 initial unit test files: `detectCorruption.test.ts` (isPlaceholderTaskName + inspectTaskDir), `rebuildIndex.test.ts` (rebuildIndexFromDisk), `scan.test.ts` (scanStorage)
+- Migrated test runner from Jest to Vitest — zero test logic changes required
+- `jest.config.cjs` replaced by `vitest.config.ts` (`globals: true`, v8 coverage provider, `*.spec.ts` include pattern)
+- Test directory renamed `__test__/` → `__tests__/`, test files renamed `*.test.ts` → `*.spec.ts` (matches Zoo Code convention)
+- npm scripts: `test` → `vitest run`, `test:watch` → `vitest`, `test:coverage` → `vitest run --coverage`
+
+### Removed
+
+- `jest`, `ts-jest`, `@types/jest` devDependencies (replaced by `vitest` + `@vitest/coverage-v8`)
+
+### Fixed
+
+- `rebuildIndex.spec.ts` now reads `IndexFile.entries` instead of expecting flat `HistoryItem[]` array (test expectation was stale after v0.2.0 `IndexFile` wrapper introduction)
 
 ## [0.2.0] — 2026-08-08
 
