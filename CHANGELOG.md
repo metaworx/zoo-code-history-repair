@@ -5,6 +5,13 @@ All notable changes to the **Zoo Code History Repair** (ZCHR) app will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Jest configuration (`jest.config.cjs`) with ESM TypeScript support via `ts-jest`
+- 3 initial unit test files: `detectCorruption.test.ts` (isPlaceholderTaskName + inspectTaskDir), `rebuildIndex.test.ts` (rebuildIndexFromDisk), `scan.test.ts` (scanStorage)
+
 ## [0.2.0] — 2026-08-08
 
 ### Added
