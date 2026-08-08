@@ -77,15 +77,14 @@ export function repairAllCorrupted(
     if (rebuildResult.items.length > 0) {
         indexEntries = rebuildResult.items.length
         const newIndexIds = new Set(rebuildResult.items.map(i => i.id))
-        const diskIds = new Set(scan.taskDirs.map(d => path.basename(d)))
 
-        // folder_orphan: on disk but not in old index → added
-        for (const id of diskIds) {
+        // added: in new index but not in old index
+        for (const id of newIndexIds) {
             if (!oldIndexIds.has(id)) indexAdded.push(id)
         }
-        // index_orphan: in old index but not on disk → removed
+        // removed: in old index but not in new index
         for (const id of oldIndexIds) {
-            if (!diskIds.has(id)) indexRemoved.push(id)
+            if (!newIndexIds.has(id)) indexRemoved.push(id)
         }
     }
 

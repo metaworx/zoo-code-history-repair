@@ -24,10 +24,13 @@ export function computeTaskSize(
     historyItem: HistoryItem,
     taskMetadata: unknown,
 ): number {
+    // Strip `size` from historyItem before measuring — otherwise the
+    // computation diverges on every write (size field auto-grows the payload).
+    const {size: _, ...hiWithoutSize} = historyItem as HistoryItem & {size?: number}
     return (
         compactSizeBytes(uiMessages) +
         compactSizeBytes(apiHistory) +
-        compactSizeBytes(historyItem) +
+        compactSizeBytes(hiWithoutSize) +
         compactSizeBytes(taskMetadata)
     )
 }

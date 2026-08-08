@@ -16,12 +16,15 @@ export function rebuildIndexFromDisk(
     for (const dir of dirs) {
         const id = path.basename(dir)
         const disk = readJsonFile<HistoryItem>(path.join(dir, HISTORY_ITEM_NAME))
-        if (disk && disk.id) {
+        // Only include tasks with a valid history_item.json that has both id and ts.
+        // Tasks without history_item.json (e.g. folder_orphan with only .gitkeep)
+        // MUST NOT be added to the index.
+        if (disk && disk.id && disk.ts != null) {
             items.push(disk)
-        } else if (disk) {
-            items.push({...disk, id})
+        } else if (disk && disk.id) {
+            items.push({...disk, id, ts: disk.ts ?? 0})
         }
-        // else: skip empty / missing — optionally reconstruct later from ui/api
+        // else: skip missing/invalid — do not index tasks without history_item.json
     }
 
     // newest first (common UI expectation)
