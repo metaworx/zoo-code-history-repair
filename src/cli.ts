@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {readFileSync} from "node:fs"
 import {Command} from "commander"
 import {guessStorageRoots, resolveTasksDir} from "./lib/paths.js"
 import {scanStorage} from "./lib/scan.js"
@@ -7,11 +8,17 @@ import {repairTaskDir} from "./lib/repairTask.js"
 import {repairAllCorrupted} from "./lib/repairAll.js"
 import {taskMatch, truncate} from "./lib/format.js"
 
+const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+) as { version: string }
+
 const program = new Command()
 
 program
     .name("zoo-code-history-repair")
     .description("Scan / repair Zoo Code task history index and corrupted task metadata")
+    .version(`Zoo Code History Repair, v${pkg.version}`, "-v, --version", "Print version information")
+    .option("--version-only", "Print version number only")
     .option(
         "-r, --root <path>",
         "Storage root (directory that contains tasks/). If omitted, tries common locations.",
@@ -151,5 +158,10 @@ program
         console.log(`\nRepaired: ${ra.repaired}, Failed: ${ra.failed}`)
         if (cmdOpts.dryRun) console.log("Dry-run only — nothing written")
     })
+
+if (process.argv.includes("--version-only")) {
+    console.log(pkg.version)
+    process.exit(0)
+}
 
 program.parse()
