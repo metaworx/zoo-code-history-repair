@@ -2,6 +2,7 @@ import path from "node:path"
 import type {HistoryItem, RepairOptions} from "../types.js"
 import {resolveIndexPath, resolveTasksDir} from "./paths.js"
 import {readJsonFile} from "./readJson.js"
+import {rebuildIndexFromDisk} from "./rebuildIndex.js"
 import {scanStorage} from "./scan.js"
 import {repairTaskDir} from "./repairTask.js"
 import type {RepairResult} from "./repairTask.js"
@@ -15,10 +16,16 @@ export interface RepairAllResult {
     repaired: number
     failed: number
     results: RepairResult[]
+    /** Number of entries in rebuilt _index.json (0 if dry-run skipped rebuild). */
+    indexEntries: number
+    /** Task IDs added to _index.json (previously folder_orphan). */
+    indexAdded: string[]
+    /** Task IDs removed from _index.json (previously index_orphan). */
+    indexRemoved: string[]
 }
 
 /**
- * Scan storage for corruption, then repair every corrupted task.
+ * Scan storage for corruption, then repair every corrupted task and rebuild _index.json.
  */
 export function repairAllCorrupted(
     storageRoot: string,
@@ -33,6 +40,7 @@ export function repairAllCorrupted(
     const indexItems: HistoryItem[] = Array.isArray(indexData)
         ? indexData
         : indexData?.entries ?? []
+    const oldIndexIds = new Set(indexItems.map(i => i.id))
 
     const results: RepairResult[] = []
     let repaired = 0
@@ -56,10 +64,38 @@ export function repairAllCorrupted(
         }
     }
 
+    // Rebuild _index.json from (now-repaired) disk state
+    let indexEntries = 0
+    let indexAdded: string[] = []
+    let indexRemoved: string[] = []
+
+    const rebuildResult = rebuildIndexFromDisk(storageRoot, {
+        dryRun: options.dryRun,
+        backup: options.backup !== false,
+    })
+
+    if (rebuildResult.items.length > 0) {
+        indexEntries = rebuildResult.items.length
+        const newIndexIds = new Set(rebuildResult.items.map(i => i.id))
+        const diskIds = new Set(scan.taskDirs.map(d => path.basename(d)))
+
+        // folder_orphan: on disk but not in old index → added
+        for (const id of diskIds) {
+            if (!oldIndexIds.has(id)) indexAdded.push(id)
+        }
+        // index_orphan: in old index but not on disk → removed
+        for (const id of oldIndexIds) {
+            if (!diskIds.has(id)) indexRemoved.push(id)
+        }
+    }
+
     return {
         total: corruptIds.length,
         repaired,
         failed,
         results,
+        indexEntries,
+        indexAdded,
+        indexRemoved,
     }
 }
