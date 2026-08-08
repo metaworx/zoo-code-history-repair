@@ -25,10 +25,22 @@ describe("restore against fixtures (integration)", () => {
     let tmpRoot: string;
     let tasksDir: string;
 
+    function stripBakFiles(dir: string): void {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                stripBakFiles(p);
+            } else if (entry.isFile() && /\.\d{8}-\d{6}\.bak\.json$/.test(entry.name)) {
+                fs.rmSync(p);
+            }
+        }
+    }
+
     beforeEach(() => {
         tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-restore-int-"));
         tasksDir = path.join(tmpRoot, "tasks");
         copyDir(FIXTURE_DIR, tasksDir);
+        stripBakFiles(tasksDir);
     });
 
     afterEach(() => {
@@ -105,7 +117,7 @@ describe("restore against fixtures (integration)", () => {
             expect(read(path.join(d, "history_item.json"))).toBe(orig);
         });
 
-        it("creates safety backup before overwriting", () => {
+        it("does NOT create safety backup before overwriting", () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
@@ -113,14 +125,50 @@ describe("restore against fixtures (integration)", () => {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
             });
 
-            // A safety backup should have been created
+            // No extra safety backup — only the original .bak.json remains
             const files = fs.readdirSync(d);
-            const safetyBaks = files.filter(
-                (f) =>
-                    /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f) &&
-                    f !== "history_item.json.20260808-054500.bak.json",
+            const bakFiles = files.filter((f) =>
+                /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f),
             );
-            expect(safetyBaks.length).toBe(1);
+            expect(bakFiles).toEqual(["history_item.json.20260808-054500.bak.json"]);
+        });
+
+        it("restore is idempotent — second run is no-op", () => {
+            const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
+
+            // First restore
+            const r1 = restoreFromBackups(tasksDir, {
+                taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
+            });
+            expect(r1.restored).toHaveLength(1);
+            expect(r1.skipped).toHaveLength(0);
+
+            // Second restore — should be no-op
+            const r2 = restoreFromBackups(tasksDir, {
+                taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
+            });
+            expect(r2.restored).toHaveLength(0);
+            expect(r2.skipped).toHaveLength(1);
+            expect(r2.skipped[0]).toContain("already matches backup");
+
+            // Backup count should NOT have grown
+            const bakFiles = fs.readdirSync(d).filter((f) => /\.bak\.json$/.test(f));
+            expect(bakFiles).toHaveLength(1);
+        });
+
+        it("backup count does not grow on repeated restores", () => {
+            const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
+
+            // Run restore 3 times
+            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+
+            // Should only have the original backup, no proliferation
+            const bakFiles = fs.readdirSync(d).filter((f) => /\.bak\.json$/.test(f));
+            expect(bakFiles).toHaveLength(1);
         });
     });
 

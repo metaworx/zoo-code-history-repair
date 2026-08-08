@@ -33,6 +33,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `restore` no longer creates safety backups before restoring — the `.bak.json` being restored from already serves as pre-restore backup; stops backup file proliferation on repeated restores
+- `restore` is now idempotent — restoring the same backup twice is a no-op (content already matches backup)
+- Integration test fixtures now strip stale `.bak.json` files before each test to prevent contamination from prior runs
 - `repair-all` and `repair-task` now rebuild `_index.json` after individual repairs — fixes `folder_orphan` and stale index entries
 - `writeJsonCompact` uses atomic tempfile→rename (crash-safe writes)
 

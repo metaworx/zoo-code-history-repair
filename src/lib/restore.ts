@@ -1,7 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
 import {listTaskDirs} from "./paths.js"
-import {backupFile} from "./readJson.js"
 
 export interface BackupEntry {
     taskId: string
@@ -95,11 +94,17 @@ export function restoreFromBackups(
             continue
         }
 
-        if (!opts.dryRun) {
-            // Safety backup of current file before overwriting
-            if (fs.existsSync(entry.basePath)) {
-                backupFile(entry.basePath)
+        // Idempotency: skip if current file already matches backup content
+        if (fs.existsSync(entry.basePath)) {
+            const currentContent = fs.readFileSync(entry.basePath)
+            const backupContent = fs.readFileSync(entry.bakPath)
+            if (currentContent.equals(backupContent)) {
+                skipped.push(`${entry.basePath} (already matches backup)`)
+                continue
             }
+        }
+
+        if (!opts.dryRun) {
             fs.copyFileSync(entry.bakPath, entry.basePath)
         }
         restored.push(entry)

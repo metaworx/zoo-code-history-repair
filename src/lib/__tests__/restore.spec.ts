@@ -2,7 +2,6 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import {deleteBackups, listBackups, parseTimestamp, restoreFromBackups} from "../restore.js"
-import {backupFile} from "../readJson.js"
 
 describe("parseTimestamp", () => {
     it("parses valid YYYYMMDD-HHmmss", () => {
@@ -173,7 +172,7 @@ describe("restoreFromBackups", () => {
         expect(readFile(path.join(d2, "history_item.json"))).toBe("restored-d")
     })
 
-    it("creates safety backup before overwriting", () => {
+    it("does NOT create safety backup before overwriting", () => {
         const d = makeTaskDir("task-abc")
         writeFile(path.join(d, "history_item.json"), "original-content")
         writeFile(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored-content")
@@ -183,14 +182,57 @@ describe("restoreFromBackups", () => {
         // The restored content should be in place
         expect(readFile(path.join(d, "history_item.json"))).toBe("restored-content")
 
-        // A safety backup should have been created
+        // No extra safety backup should be created — only the original .bak.json remains
         const files = fs.readdirSync(d)
-        const safetyBaks = files.filter(f =>
-            /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f) &&
-            f !== "history_item.json.20260808-054500.bak.json",
+        const bakFiles = files.filter(f =>
+            /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f),
         )
-        expect(safetyBaks.length).toBe(1)
-        expect(readFile(path.join(d, safetyBaks[0]))).toBe("original-content")
+        expect(bakFiles).toEqual(["history_item.json.20260808-054500.bak.json"])
+    })
+
+    it("restore is idempotent — second run is no-op", () => {
+        const d = makeTaskDir("task-abc")
+        writeFile(path.join(d, "history_item.json"), "original-content")
+        writeFile(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored-content")
+
+        // First restore
+        const r1 = restoreFromBackups(tasksDir, {taskId: "task-abc"})
+        expect(r1.restored).toHaveLength(1)
+        expect(r1.skipped).toHaveLength(0)
+        expect(readFile(path.join(d, "history_item.json"))).toBe("restored-content")
+
+        // Second restore — should be a no-op (content already matches backup)
+        const r2 = restoreFromBackups(tasksDir, {taskId: "task-abc"})
+        expect(r2.restored).toHaveLength(0)
+        expect(r2.skipped).toHaveLength(1)
+        expect(r2.skipped[0]).toContain("already matches backup")
+        expect(readFile(path.join(d, "history_item.json"))).toBe("restored-content")
+
+        // Backup count should NOT have grown
+        const bakFiles = fs.readdirSync(d).filter(f => /\.bak\.json$/.test(f))
+        expect(bakFiles).toHaveLength(1)
+    })
+
+    it("restore-all idempotent — second run is no-op for already-matching files", () => {
+        const d1 = makeTaskDir("task-abc")
+        const d2 = makeTaskDir("task-def")
+        writeFile(path.join(d1, "history_item.json"), "orig-a")
+        writeFile(path.join(d2, "history_item.json"), "orig-d")
+        writeFile(path.join(d1, "history_item.json.20260808-054500.bak.json"), "restored-a")
+        writeFile(path.join(d2, "history_item.json.20260808-054500.bak.json"), "restored-d")
+
+        // First restore all
+        const r1 = restoreFromBackups(tasksDir, {timestamp: "20260808-054500"})
+        expect(r1.restored).toHaveLength(2)
+        expect(r1.skipped).toHaveLength(0)
+
+        // Second restore all — both should be skipped (already match)
+        const r2 = restoreFromBackups(tasksDir, {timestamp: "20260808-054500"})
+        expect(r2.restored).toHaveLength(0)
+        expect(r2.skipped).toHaveLength(2)
+        for (const s of r2.skipped) {
+            expect(s).toContain("already matches backup")
+        }
     })
 
     it("dry-run does not modify files", () => {
