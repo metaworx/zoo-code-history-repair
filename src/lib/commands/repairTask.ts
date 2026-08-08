@@ -2,7 +2,7 @@ import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
 import {readJsonFile} from "../readJson.js"
 import {repairTaskDir} from "../repairTask.js"
-import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 
 export const name = "repair-task"
@@ -21,12 +21,7 @@ Use --fixed-input-token 0 to disable estimation.
 Falls back to partial ACH recovery if api_conversation_history.json is truncated.
 By default runs in dry-run mode. Use --force to actually write.`
 
-export const additionalHelp = `
-Output abbreviations:
-  ach  = api_conversation_history.json
-  calc = computed from task files on disk
-  hi   = history_item.json
-  uim  = ui_messages.json`
+export const additionalHelp = ABBREV_HELP
 
 export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],

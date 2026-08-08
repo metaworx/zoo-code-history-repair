@@ -9,6 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Corruption reasons annotated with file source: `placeholder_task_name(hi,idx)`, `zero_size(hi)`, `interrupted_task(ach)`
+- Abbreviation help in `list-corrupt` command (`additionalHelp`)
 - `--json` flag on `scan` and `list-corrupt` — machine-parseable JSON output for CI/scripting
 - `--quiet` flag on `scan` — suppress per-task detail, summary only
 - `--verbose` flag on `repair-all` — show skipped (no-op) tasks

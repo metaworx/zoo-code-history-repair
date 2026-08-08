@@ -36,7 +36,7 @@ export type CorruptionReason =
 export interface TaskCorruption {
     taskId: string
     dir?: string
-    reasons: CorruptionReason[]
+    reasons: Array<{reason: CorruptionReason; source: string}>
     indexItem?: HistoryItem | null
     diskItem?: HistoryItem | null
 }

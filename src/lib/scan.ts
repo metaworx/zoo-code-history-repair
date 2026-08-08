@@ -29,7 +29,7 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
         const c = inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
             verifyUiSync: options.verifyUiSync,
         })
-        if (!byId.has(taskId)) c.reasons.push("folder_orphan")
+        if (!byId.has(taskId)) c.reasons.push({reason: "folder_orphan", source: "hi"})
         if (c.reasons.length) corruptions.push(c)
     }
 
@@ -37,9 +37,13 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
     const dirIds = new Set(dirs.map((d) => path.basename(d)))
     for (const item of indexItems) {
         if (!dirIds.has(item.id)) {
+            const reasons: Array<{reason: import("../types.js").CorruptionReason; source: string}> = [
+                {reason: "index_orphan", source: "idx"},
+            ]
+            if (item.size === 0) reasons.push({reason: "zero_size", source: "idx"})
             corruptions.push({
                 taskId: item.id,
-                reasons: ["index_orphan", ...(item.size === 0 ? (["zero_size"] as const) : [])],
+                reasons,
                 indexItem: item,
                 diskItem: null,
             })

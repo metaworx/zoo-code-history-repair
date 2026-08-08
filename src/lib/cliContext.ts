@@ -42,3 +42,11 @@ export function getVersion(): string {
 export function getVersionBanner(): string {
     return `Zoo Code History Repair, v${_version}\n`
 }
+
+export const ABBREV_HELP = `
+Output abbreviations:
+  ach  = api_conversation_history.json
+  calc = computed from task files on disk
+  hi   = history_item.json
+  uim  = ui_messages.json
+  idx  = _index.json`

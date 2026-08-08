@@ -27,8 +27,8 @@ export function recoverabilityScore(c: TaskCorruption): string {
     let recoverable = 0
     const total = reasons.length
 
-    for (const r of reasons) {
-        switch (r as CorruptionReason) {
+    for (const {reason} of reasons) {
+        switch (reason as CorruptionReason) {
             case "placeholder_task_name":
                 recoverable += hasAch ? 1 : 0; break
             case "zero_tokens":

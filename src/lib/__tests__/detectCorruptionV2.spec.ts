@@ -35,7 +35,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             } satisfies HistoryItem)
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).toContain("missing_task_text")
+            expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
         it("flags undefined task", () => {
@@ -46,7 +46,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             } satisfies Partial<HistoryItem> as HistoryItem)
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).toContain("missing_task_text")
+            expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
         it("does not flag non-empty task", () => {
@@ -58,7 +58,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             })
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).not.toContain("missing_task_text")
+            expect(result.reasons).not.toContainEqual({reason: "missing_task_text", source: "hi"})
         })
     })
 
@@ -86,7 +86,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).not.toContain("interrupted_task")
+            expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
         it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", () => {
@@ -112,7 +112,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).not.toContain("interrupted_task")
+            expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
         it("gates interrupted_task when solo (co-occurrence required)", () => {
@@ -138,7 +138,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).not.toContain("interrupted_task")
+            expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
         it("keeps interrupted_task when co-occurring with other corruption", () => {
@@ -164,8 +164,8 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null)
-            expect(result.reasons).toContain("interrupted_task")
-            expect(result.reasons).toContain("zero_size")
+            expect(result.reasons).toContainEqual({reason: "interrupted_task", source: "ach"})
+            expect(result.reasons).toContainEqual({reason: "zero_size", source: "hi"})
         })
 
         it("does not flag completed task with matching tool_results", () => {
@@ -254,7 +254,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null, { verifyUiSync: true })
-            expect(result.reasons).toContain("ui_sync_mismatch")
+            expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
         it("detects ui_sync_mismatch when say/text content differs", () => {
@@ -277,7 +277,7 @@ describe("inspectTaskDir — v0.2.0 features", () => {
             ])
 
             const result = inspectTaskDir("abc", tmp, null, { verifyUiSync: true })
-            expect(result.reasons).toContain("ui_sync_mismatch")
+            expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
         it("does not flag matching ui/ACH (no false positive)", () => {

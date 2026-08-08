@@ -1,6 +1,6 @@
 import {repairAllCorrupted} from "../repairAll.js"
 import {resolveTasksDir} from "../paths.js"
-import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 import {alignSummary} from "../scanOutput.js"
 
@@ -16,13 +16,7 @@ Reports per-task results with source→target notation and a summary line.
 Rebuilds _index.json from repaired disk state.
 By default runs in dry-run mode. Use --force to actually write.`
 
-export const additionalHelp = `
-Output abbreviations:
-  ach    = api_conversation_history.json
-  calc   = computed from task files on disk
-  hi     = history_item.json
-  uim    = ui_messages.json
-  idx    = _index.json`
+export const additionalHelp = ABBREV_HELP
 
 export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],

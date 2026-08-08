@@ -28,7 +28,7 @@ describe("scanStorage", () => {
 
         const result = scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === "orphan-id")
-        expect(hit?.reasons).toContain("folder_orphan")
+        expect(hit?.reasons).toContainEqual({reason: "folder_orphan", source: "hi"})
     })
 
     it("reports index_orphan when index entry has no folder", () => {
@@ -40,7 +40,7 @@ describe("scanStorage", () => {
         const result = scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === "ghost")
         expect(hit?.reasons).toEqual(
-            expect.arrayContaining(["index_orphan", "zero_size"]),
+            expect.arrayContaining([{reason: "index_orphan", source: "idx"}, {reason: "zero_size", source: "idx"}]),
         )
     })
 
@@ -60,7 +60,7 @@ describe("scanStorage", () => {
         const result = scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === id)
         expect(hit?.reasons).toEqual(
-            expect.arrayContaining(["placeholder_task_name", "zero_size"]),
+            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi,idx"}, {reason: "zero_size", source: "hi,idx"}]),
         )
     })
 })

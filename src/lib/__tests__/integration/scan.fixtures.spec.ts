@@ -64,11 +64,12 @@ describe("scan against fixtures (integration)", () => {
         for (const [id, expectedReasons] of Object.entries(EXPECTED)) {
             const c = result.corruptions.find((x) => x.taskId === id);
             expect(c, `missing corruption entry for ${id}`).toBeDefined();
+            const reasonNames = c!.reasons.map(r => r.reason);
             for (const reason of expectedReasons) {
-                expect(c!.reasons, `${id}: expected ${reason}`).toContain(reason);
+                expect(reasonNames, `${id}: expected ${reason}`).toContain(reason);
             }
             // All reasons should be accounted for
-            expect(c!.reasons.length, `${id}: unexpected extra reasons: ${c!.reasons.join(", ")}`)
+            expect(reasonNames.length, `${id}: unexpected extra reasons: ${reasonNames.join(", ")}`)
                 .toBe(expectedReasons.length);
         }
     });
@@ -88,7 +89,7 @@ describe("scan against fixtures (integration)", () => {
 
     it("folder_orphan tasks have null indexItem", () => {
         const orphans = result.corruptions.filter((c) =>
-            c.reasons.includes("folder_orphan"),
+            c.reasons.some(r => r.reason === "folder_orphan"),
         );
         for (const o of orphans) {
             expect(o.indexItem).toBeNull();

@@ -55,6 +55,7 @@ program
     .summary(listCorruptCmd.summary)
     .description(listCorruptCmd.description)
     .addHelpText("before", version)
+    .addHelpText("after", listCorruptCmd.additionalHelp)
     .registerOptions(listCorruptCmd.options)
     .action(listCorruptCmd.action)
 
@@ -71,6 +72,7 @@ program
     .summary(repairTaskCmd.summary)
     .description(repairTaskCmd.description)
     .addHelpText("before", version)
+    .addHelpText("after", repairTaskCmd.additionalHelp)
     .registerOptions(repairTaskCmd.options)
     .action(repairTaskCmd.action)
 
@@ -79,6 +81,7 @@ program
     .summary(repairAllCmd.summary)
     .description(repairAllCmd.description)
     .addHelpText("before", version)
+    .addHelpText("after", repairAllCmd.additionalHelp)
     .registerOptions(repairAllCmd.options)
     .action(repairAllCmd.action)
 

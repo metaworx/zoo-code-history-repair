@@ -41,7 +41,7 @@ describe("inspectTaskDir", () => {
 
     it("flags missing history_item", () => {
         const result = inspectTaskDir("abc", tmp, null)
-        expect(result.reasons).toContain("missing_history_item")
+        expect(result.reasons).toContainEqual({reason: "missing_history_item", source: "hi"})
     })
 
     it("flags placeholder task + zero size from disk item", () => {
@@ -54,7 +54,7 @@ describe("inspectTaskDir", () => {
 
         const result = inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
-            expect.arrayContaining(["placeholder_task_name", "zero_size"]),
+            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi"}, {reason: "zero_size", source: "hi"}]),
         )
         expect(result.diskItem?.task).toBe("Task #1")
     })
@@ -70,7 +70,7 @@ describe("inspectTaskDir", () => {
 
         const result = inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
-            expect.arrayContaining(["empty_ui_messages", "empty_api_history"]),
+            expect.arrayContaining([{reason: "empty_ui_messages", source: "uim"}, {reason: "empty_api_history", source: "ach"}]),
         )
     })
 

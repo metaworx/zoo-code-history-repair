@@ -2,7 +2,7 @@ import {scanStorage} from "../scan.js"
 import {taskMatch, truncate} from "../format.js"
 import {align, alignSummary, countEntries, recoverabilityScore} from "../scanOutput.js"
 import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "../paths.js"
-import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 
 export const name = "scan"
 export const summary = "Scan _index.json + task directories for corruption"
@@ -29,12 +29,7 @@ Corruption reasons detected by scan:
  11. ui_sync_mismatch       — (opt-in) ui_messages.json differs from ACH-derived reconstruction
  12. interrupted_task       — task appears interrupted (last turn ends with tool_use + other corruption)
  13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries
-
-Output abbreviations:
-  ach  = api_conversation_history.json
-  hi   = history_item.json
-  uim  = ui_messages.json
-  idx  = _index.json`
+${ABBREV_HELP}`
 
 export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
@@ -57,7 +52,7 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?
             corruptions: result.corruptions.map(c => ({
                 taskId: c.taskId,
                 dir: c.dir,
-                reasons: c.reasons,
+                reasons: c.reasons.map(r => ({reason: r.reason, source: r.source})),
                 recoverability: recoverabilityScore(c),
                 achEntries: countEntries(c.dir, API_HISTORY_NAME),
                 uimEntries: countEntries(c.dir, UI_MESSAGES_NAME),
@@ -90,7 +85,7 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?
             const score = recoverabilityScore(c)
 
             console.log(`- ${c.taskId}`)
-            console.log(align("reasons:", c.reasons.join(", ")))
+            console.log(align("reasons:", c.reasons.map(r => `${r.reason}(${r.source})`).join(", ")))
             console.log(align("recoverability:", score))
             console.log(align("entries.ACH:", String(achCount)))
             console.log(align("entries.UIM:", String(uimCount)))

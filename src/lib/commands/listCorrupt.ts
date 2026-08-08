@@ -1,15 +1,17 @@
 import {scanStorage} from "../scan.js"
 import {recoverabilityScore} from "../scanOutput.js"
-import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 
 export const name = "list-corrupt"
 export const summary = "List only corrupted task ids"
 
 export const description = `${summary}.
 
-Output format: <taskId><PAD><recoverability%><PAD><reason1,reason2,…>
+Output format: <taskId><PAD><recoverability%><PAD><reason1(source),reason2(source),…>
 One line per corrupted task. Same corruption reasons as the scan command.
 With --json, outputs a JSON array of corruption entries.`
+
+export const additionalHelp = ABBREV_HELP
 
 export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
@@ -26,7 +28,7 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean }): voi
             corruptions: result.corruptions.map(c => ({
                 taskId: c.taskId,
                 recoverability: recoverabilityScore(c),
-                reasons: c.reasons,
+                reasons: c.reasons.map(r => ({reason: r.reason, source: r.source})),
             })),
         }
         console.log(JSON.stringify(out))
@@ -38,7 +40,7 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean }): voi
     console.log(getVersionBanner())
     for (const c of result.corruptions) {
         const score = recoverabilityScore(c)
-        console.log(`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons.join(",")}`)
+        console.log(`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons.map(r => `${r.reason}(${r.source})`).join(",")}`)
     }
 
     const exitCode = Math.min(result.corruptions.length, 255)

@@ -58,25 +58,39 @@ function detectInterruptedTask(apiHistory: unknown[]): boolean {
     return false
 }
 
+/** Build sorted comma-separated source string from a set of source abbreviations. */
+function joinSources(sources: Set<string>): string {
+    return [...sources].sort().join(",")
+}
+
 export function inspectTaskDir(
     taskId: string,
     dir: string,
     indexItem?: HistoryItem | null,
     options: InspectOptions = {},
 ): TaskCorruption {
-    const reasons: CorruptionReason[] = []
+    const reasonMap = new Map<CorruptionReason, Set<string>>()
     const historyPath = path.join(dir, HISTORY_ITEM_NAME)
     const diskItem = readJsonFile<HistoryItem>(historyPath)
 
     const apiPath = path.join(dir, API_HISTORY_NAME)
     const api = readJsonFile<unknown[]>(apiPath)
 
+    const add = (reason: CorruptionReason, source: string) => {
+        const sources = reasonMap.get(reason)
+        if (sources) {
+            sources.add(source)
+        } else {
+            reasonMap.set(reason, new Set([source]))
+        }
+    }
+
     if (!diskItem) {
-        reasons.push("missing_history_item")
+        add("missing_history_item", "hi")
     } else {
-        if (isPlaceholderTaskName(diskItem.task)) reasons.push("placeholder_task_name")
-        if (diskItem.size === 0 || diskItem.size == null) reasons.push("zero_size")
-        if (!diskItem.task?.trim()) reasons.push("missing_task_text")
+        if (isPlaceholderTaskName(diskItem.task)) add("placeholder_task_name", "hi")
+        if (diskItem.size === 0 || diskItem.size == null) add("zero_size", "hi")
+        if (!diskItem.task?.trim()) add("missing_task_text", "hi")
 
         // v0.3.0: zero token detection
         if (
@@ -86,50 +100,53 @@ export function inspectTaskDir(
             Array.isArray(api) &&
             api.length > 0
         ) {
-            reasons.push("zero_tokens")
+            add("zero_tokens", "hi")
         }
     }
 
     if (indexItem) {
-        if (isPlaceholderTaskName(indexItem.task)) reasons.push("placeholder_task_name")
-        if (indexItem.size === 0 || indexItem.size == null) reasons.push("zero_size")
+        if (isPlaceholderTaskName(indexItem.task)) add("placeholder_task_name", "idx")
+        if (indexItem.size === 0 || indexItem.size == null) add("zero_size", "idx")
     }
 
     const uiPath = path.join(dir, UI_MESSAGES_NAME)
     const ui = readJsonFile<unknown[]>(uiPath)
-    if (Array.isArray(ui) && ui.length === 0) reasons.push("empty_ui_messages")
+    if (Array.isArray(ui) && ui.length === 0) add("empty_ui_messages", "uim")
 
     if (Array.isArray(api) && api.length === 0) {
-        reasons.push("empty_api_history")
+        add("empty_api_history", "ach")
     }
 
     // v0.2.0: opt-in ui_messages.json sync verification
     if (options.verifyUiSync && Array.isArray(api) && api.length > 0) {
         if (detectUiSyncMismatch(uiPath, api)) {
-            reasons.push("ui_sync_mismatch")
+            add("ui_sync_mismatch", "uim,ach")
         }
     }
 
     // v0.2.0: interrupted task detection
     if (Array.isArray(api) && api.length > 0) {
         if (detectInterruptedTask(api)) {
-            reasons.push("interrupted_task")
+            add("interrupted_task", "ach")
         }
     }
 
-    // de-dupe
-    const unique = [...new Set(reasons)]
+    // Convert map to sorted array
+    const reasons = [...reasonMap.entries()].map(([reason, sources]) => ({
+        reason,
+        source: joinSources(sources),
+    }))
 
     // v0.3.0: gate interrupted_task — only flag when co-occurring
     // with other corruption. Solo interrupted_task = user simply moved on.
-    if (unique.includes("interrupted_task") && unique.length === 1) {
-        unique.splice(unique.indexOf("interrupted_task"), 1)
+    if (reasons.length === 1 && reasons[0].reason === "interrupted_task") {
+        reasons.length = 0
     }
 
     return {
         taskId,
         dir,
-        reasons: unique,
+        reasons,
         indexItem: indexItem ?? null,
         diskItem,
     }
