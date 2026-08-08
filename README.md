@@ -19,7 +19,11 @@ This tool detects and repairs common corruption patterns in these files.
 ## Quick Start
 
 ```bash
-# Install
+# Run directly (no install required)
+npx zoo-code-history-repair scan
+npx zoo-code-history-repair repair-all --dry-run
+
+# Or install globally
 npm install -g zoo-code-history-repair
 
 # Scan for corruption
@@ -39,6 +43,8 @@ zoo-code-history-repair rebuild-index
 ```
 
 All repair commands support `--dry-run` and `--no-backup` flags.
+
+> **Tip:** Use `npx` to run the latest version without installing globally. Ideal for one-off repairs or CI pipelines.
 
 ## Corruption Detection
 
