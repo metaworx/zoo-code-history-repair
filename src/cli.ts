@@ -10,6 +10,7 @@ import * as rebuildIndexCmd from "./lib/commands/rebuildIndex.js"
 import * as repairTaskCmd from "./lib/commands/repairTask.js"
 import * as repairAllCmd from "./lib/commands/repairAll.js"
 import * as deleteCmd from "./lib/commands/delete.js"
+import * as restoreCmd from "./lib/commands/restore.js"
 
 const pkg = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -85,6 +86,14 @@ program
     .addHelpText("before", version)
     .registerOptions(deleteCmd.options)
     .action(deleteCmd.action)
+
+program
+    .command(`${restoreCmd.name} [taskId] [timestamp]`)
+    .summary(restoreCmd.summary)
+    .description(restoreCmd.description)
+    .addHelpText("before", version)
+    .registerOptions(restoreCmd.options)
+    .action(restoreCmd.action)
 
 if (process.argv.includes("--version-only")) {
     console.log(pkg.version)

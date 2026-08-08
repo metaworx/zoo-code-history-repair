@@ -82,12 +82,20 @@ export function writeJsonCompact(filePath: string, data: unknown): void {
     fs.writeFileSync(filePath, text, "utf8")
 }
 
+function formatTimestamp(): string {
+    const d = new Date()
+    const Y = String(d.getFullYear())
+    const M = String(d.getMonth() + 1).padStart(2, "0")
+    const D = String(d.getDate()).padStart(2, "0")
+    const h = String(d.getHours()).padStart(2, "0")
+    const m = String(d.getMinutes()).padStart(2, "0")
+    const s = String(d.getSeconds()).padStart(2, "0")
+    return `${Y}${M}${D}-${h}${m}${s}`
+}
+
 export function backupFile(filePath: string): string | null {
     if (!fs.existsSync(filePath)) return null
-    const ext = filePath.lastIndexOf(".")
-    const base = ext > 0 ? filePath.slice(0, ext) : filePath
-    const suffix = ext > 0 ? filePath.slice(ext) : ""
-    const bak = `${base}.${Date.now()}${suffix}`
+    const bak = `${filePath}.${formatTimestamp()}.bak.json`
     fs.copyFileSync(filePath, bak)
     return bak
 }

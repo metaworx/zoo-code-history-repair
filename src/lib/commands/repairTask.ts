@@ -1,3 +1,4 @@
+import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
 import {readJsonFile} from "../readJson.js"
 import {repairTaskDir} from "../repairTask.js"
@@ -22,10 +23,11 @@ By default runs in dry-run mode. Use --force to actually write.`
 export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],
     ["--no-backup", "Do not create timestamped backup files"],
+    ["--force-uim", "Force ui_messages.json rebuild even when not corrupt", false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
 ] as const
 
-export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean; fixedInputToken?: number }): void {
+export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean; forceUim?: boolean; fixedInputToken?: number }): void {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
     const taskDir = `${tasksDir}/${taskId}`
@@ -38,19 +40,31 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
     const r = repairTaskDir(taskDir, {
         dryRun: !cmdOpts.force,
         backup: cmdOpts.backup !== false,
+        forceUim: cmdOpts.forceUim,
         fixedInputToken: cmdOpts.fixedInputToken,
         indexItems,
     })
 
+    const fileLabel = (aspect: boolean, files: string[]): string => {
+        if (!aspect) return ""
+        const relevant = files.filter(f => r.touchedFiles.includes(f))
+        if (relevant.length === 0) return ""
+        return ` (${relevant.join(", ")})`
+    }
+
     console.log(`Task: ${r.taskId}`)
-    console.log(`  ui_messages.json repaired: ${r.uiRepaired}`)
-    console.log(`  task field repaired:      ${r.taskRepaired}`)
-    console.log(`  size field repaired:      ${r.sizeRepaired}`)
-    console.log(`  token fields repaired:    ${r.tokensRepaired}`)
+    console.log(`  ui_messages.json repaired: ${r.uiRepaired}${fileLabel(r.uiRepaired, ["ui_messages.json"])}`)
+    console.log(`  task field repaired:      ${r.taskRepaired}${fileLabel(r.taskRepaired, ["history_item.json"])}`)
+    console.log(`  size field repaired:      ${r.sizeRepaired}${fileLabel(r.sizeRepaired, ["history_item.json"])}`)
+    console.log(`  token fields repaired:    ${r.tokensRepaired}${fileLabel(r.tokensRepaired, ["history_item.json"])}`)
     if (r.tokensRecoverySource) console.log(`  token source:             ${r.tokensRecoverySource}`)
     if (r.errors.length) {
         console.log(`  errors:`)
         for (const e of r.errors) console.log(`    - ${e}`)
+    }
+    if (r.backups.length > 0) {
+        console.log(`  Backups:`)
+        for (const b of r.backups) console.log(`    ${path.basename(b)}`)
     }
     if (!cmdOpts.force) console.log("Dry-run — nothing written. Use --force to apply changes.")
 }

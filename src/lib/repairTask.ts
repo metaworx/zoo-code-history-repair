@@ -26,6 +26,8 @@ export interface RepairResult {
     tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
     errors: string[]
+    touchedFiles: string[]
+    backups: string[]
 }
 
 /**
@@ -39,6 +41,8 @@ export interface RepairResult {
 export interface RepairTaskOptions {
     dryRun?: boolean
     backup?: boolean
+    /** Force ui_messages.json rebuild even when not corrupt. */
+    forceUim?: boolean
     /** User-supplied tokensIn override. 0 = disable estimation (keep zeros). */
     fixedInputToken?: number
     /** Index entries for token recovery lookup. */
@@ -58,6 +62,8 @@ export function repairTaskDir(
         tokensRepaired: false,
         apiTruncated: false,
         errors: [],
+        touchedFiles: [],
+        backups: [],
     }
 
     const uiPath = path.join(taskDir, UI_MESSAGES_NAME)
@@ -88,15 +94,20 @@ export function repairTaskDir(
     // --- 1. Rebuild ui_messages.json ---
     const existingUi = readJsonFile<unknown[]>(uiPath)
     const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
+    const shouldRebuildUi = existingIsEmpty || options.forceUim
 
-    if (existingIsEmpty) {
+    if (shouldRebuildUi) {
         const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
         if (newUi.length > 0) {
             if (!options.dryRun) {
-                if (options.backup !== false) backupFile(uiPath)
+                if (options.backup !== false) {
+                    const bak = backupFile(uiPath)
+                    if (bak) result.backups.push(bak)
+                }
                 writeJsonCompact(uiPath, newUi)
             }
             result.uiRepaired = true
+            result.touchedFiles.push(UI_MESSAGES_NAME)
         } else {
             result.errors.push("ui_messages reconstruction produced 0 events")
         }
@@ -199,8 +210,14 @@ export function repairTaskDir(
         }
 
         if (modified && !options.dryRun) {
-            if (options.backup !== false) backupFile(hiPath)
+            if (options.backup !== false) {
+                const bak = backupFile(hiPath)
+                if (bak) result.backups.push(bak)
+            }
             writeJsonCompact(hiPath, historyItem)
+        }
+        if (modified && !result.touchedFiles.includes(HISTORY_ITEM_NAME)) {
+            result.touchedFiles.push(HISTORY_ITEM_NAME)
         }
     } else {
         result.errors.push("missing history_item.json — cannot repair task or size")
