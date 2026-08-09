@@ -1,7 +1,5 @@
 import path from "node:path"
-import type {HistoryItem, RepairOptions} from "../types.js"
-import {resolveIndexPath, resolveTasksDir} from "./paths.js"
-import {JsonFileTransaction} from "./file.js";
+import type {RepairOptions} from "../types.js"
 import {rebuildIndexFromDisk} from "./rebuildIndex.js"
 import {scanStorage} from "./scan.js"
 import {repairTaskDir} from "./repairTask.js"
@@ -9,12 +7,14 @@ import type {RepairResult} from "./repairTask.js"
 
 export interface RepairAllOptions extends RepairOptions {
     fixedInputToken?: number
+    verifyUiSync?: boolean
 }
 
 export interface RepairAllResult {
     total: number
     repaired: number
     failed: number
+    unrepairable: number
     results: RepairResult[]
     /** Number of entries in rebuilt _index.json (0 if dry-run skipped rebuild). */
     indexEntries: number
@@ -31,21 +31,17 @@ export function repairAllCorrupted(
     storageRoot: string,
     options: RepairAllOptions = {},
 ): RepairAllResult {
-    const scan = scanStorage(storageRoot)
+    const scan = scanStorage(storageRoot, {verifyUiSync: options.verifyUiSync})
     const corruptIds = scan.corruptions.map(c => c.taskId)
 
-    // Load index entries for token recovery
-    const indexPath = resolveIndexPath(scan.tasksDir)
-    const indexTx = new JsonFileTransaction(indexPath, true, [])
-    const indexData = indexTx.read() as HistoryItem[] | { entries: HistoryItem[] } | null
-    const indexItems: HistoryItem[] = Array.isArray(indexData)
-        ? indexData
-        : indexData?.entries ?? []
+    // R-6: Reuse scan.indexItems instead of re-reading _index.json
+    const indexItems = scan.indexItems
     const oldIndexIds = new Set(indexItems.map(i => i.id))
 
     const results: RepairResult[] = []
     let repaired = 0
     let failed = 0
+    let unrepairable = 0
 
     for (const taskId of corruptIds) {
         const taskDir = path.join(scan.tasksDir, taskId)
@@ -57,11 +53,16 @@ export function repairAllCorrupted(
         })
 
         results.push(r)
-        const fixed = [r.uiRepaired, r.taskRepaired, r.sizeRepaired, r.tokensRepaired].filter(Boolean).length
-        if (fixed > 0) {
-            repaired++
+        // R-8: Distinguish unrepairable from failed
+        if (r.unrepairable) {
+            unrepairable++
         } else {
-            failed++
+            const fixed = [r.uiRepaired, r.taskRepaired, r.sizeRepaired, r.tokensRepaired].filter(Boolean).length
+            if (fixed > 0) {
+                repaired++
+            } else {
+                failed++
+            }
         }
     }
 
@@ -93,6 +94,7 @@ export function repairAllCorrupted(
         total: corruptIds.length,
         repaired,
         failed,
+        unrepairable,
         results,
         indexEntries,
         indexAdded,

@@ -24,6 +24,7 @@ export const options = [
     ["--no-backup", "Skip creating timestamped backup files"],
     ["--verbose", "Show all processed tasks including skipped", false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
+    ["--verify-ui-sync", "Verify ui_messages.json sync with ACH reconstruction", false],
 ] as const
 
 const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
@@ -73,6 +74,6 @@ export function action(cmdOpts: {
         console.log(`_index.json rebuilt: ${ra.indexEntries} entries${extra}`)
     }
 
-    console.log(`\nRepaired: ${ra.repaired}, Failed: ${ra.failed}`)
+    console.log(`\nRepaired: ${ra.repaired}, Unrepairable: ${ra.unrepairable}, Failed: ${ra.failed}`)
     if (!cmdOpts.force) console.log(dryRunMsg)
 }

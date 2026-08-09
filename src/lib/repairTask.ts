@@ -17,6 +17,7 @@ export interface RepairResult {
     tokensRepaired: boolean
     tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
+    unrepairable: boolean
     errors: string[]
     touchedFiles: string[]
     backups: string[]
@@ -73,6 +74,7 @@ export function repairTaskDir(
         sizeRepaired: false,
         tokensRepaired: false,
         apiTruncated: false,
+        unrepairable: false,
         errors: [],
         touchedFiles: [],
         backups: [],
@@ -103,6 +105,7 @@ export function repairTaskDir(
     }
 
     if (!apiHistory || !Array.isArray(apiHistory)) {
+        result.unrepairable = true
         result.errors.push("missing or invalid api_conversation_history.json — cannot repair")
         return result
     }
