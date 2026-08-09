@@ -2,12 +2,12 @@ import path from "node:path"
 import fs from "node:fs";
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
 import {API_HISTORY_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME,} from "./paths.js"
-import {JsonFileTransaction, readJsonFile, resolveTarget} from "./file.js";
+import {JsonFileTransaction, resolveTarget} from "./file.js";
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {validateIndex} from "./validate/index.js";
 import {validateHistoryItem} from "./validate/historyItem.js";
-import {validateApiConversationHistory} from "./validate/apiConversationHistory.js";
-import {validateUiMessages} from "./validate/uiMessages.js";
+import {validateApiConversationHistory, validateInterruptedTask} from "./validate/apiConversationHistory.js";
+import {validateUiMessages, validateUiSync} from "./validate/uiMessages.js";
 import {validateTaskMetadata} from "./validate/taskMetadata.js";
 import {resolveRoot} from "./cliContext.js";
 
@@ -47,51 +47,34 @@ export function isPlaceholderTaskName(task?: string): boolean {
     return PLACEHOLDER_TASK_RE.test(task.trim())
 }
 
-function detectUiSyncMismatch(uiPath: string, apiHistory: unknown[]): boolean {
-    const existing = readJsonFile<unknown[]>(uiPath)
-    if (!Array.isArray(existing) || existing.length === 0) return false
-
-    const reconstructed = rebuildUiMessages(
-        apiHistory as Parameters<typeof rebuildUiMessages>[0],
-    )
-    if (reconstructed.length === 0) return false
-
-    // Compare event count and say+text content (ignore ts differences)
-    if (existing.length !== reconstructed.length) return true
-
-    for (let i = 0; i < existing.length; i++) {
-        const ex = existing[i] as Record<string, unknown> | null
-        const re = reconstructed[i]
-        if (!ex || typeof ex !== "object") return true
-        if (ex.say !== re.say || ex.text !== re.text) return true
-    }
-
-    return false
-}
-
-function detectInterruptedTask(apiHistory: unknown[]): boolean {
-    if (!Array.isArray(apiHistory) || apiHistory.length === 0) return false
-
-    // Only Trigger B: last turn is assistant ending with tool_use.
-    // Trigger A (unanswered attempt_completion) removed — normal child-task
-    // behavior; the tool_result goes to the parent's ACH, not the child's.
-    const lastTurn = apiHistory[apiHistory.length - 1] as Record<string, unknown> | null
-    if (lastTurn && lastTurn.role === "assistant" && Array.isArray(lastTurn.content)) {
-        const blocks = lastTurn.content as Array<Record<string, unknown>>
-        if (blocks.length > 0) {
-            const lastBlock = blocks[blocks.length - 1]
-            if (lastBlock && lastBlock.type === "tool_use") {
-                return true
-            }
-        }
-    }
-
-    return false
-}
-
 /** Build sorted comma-separated source string from a set of source abbreviations. */
 function joinSources(sources: Set<string>): string {
     return [...sources].sort().join(",")
+}
+
+/** Map validator issue codes to CorruptionReason (context-free). */
+function issueToReason(issue: {code: string}): CorruptionReason | null {
+    const map: Record<string, CorruptionReason> = {
+        "PLACEHOLDER_TASK": "placeholder_task_name",
+        "ZERO_SIZE": "zero_size",
+        "MISSING_TASK": "missing_task_text",
+        "ZERO_TOKENS_IN": "zero_tokens",
+        "ZERO_TOKENS_OUT": "zero_tokens",
+        "ZERO_TOTAL_COST": "zero_tokens",
+        "EMPTY_ARRAY": "empty_ui_messages",
+        "INTERRUPTED_TASK": "interrupted_task",
+        "UI_SYNC_MISMATCH": "ui_sync_mismatch",
+    }
+    return map[issue.code] ?? null
+}
+
+/** File basename to source abbreviation for CorruptionReason.source */
+function fileSource(filePath: string): string {
+    const base = path.basename(filePath)
+    if (base === HISTORY_ITEM_NAME) return "hi"
+    if (base === API_HISTORY_NAME) return "ach"
+    if (base === UI_MESSAGES_NAME) return "uim"
+    return base
 }
 
 export function inspectTaskDir(
@@ -101,13 +84,6 @@ export function inspectTaskDir(
     options: InspectOptions = {},
 ): TaskCorruption {
     const reasonMap = new Map<CorruptionReason, Set<string>>()
-    const historyPath = path.join(dir, HISTORY_ITEM_NAME)
-    const hiTx = new JsonFileTransaction(historyPath)
-    const diskItem = hiTx.read(false) as HistoryItem | null
-
-    const apiPath = path.join(dir, API_HISTORY_NAME)
-    const apiTx = new JsonFileTransaction(apiPath)
-    const api = apiTx.read(false) as unknown[] | null
 
     const add = (reason: CorruptionReason, source: string) => {
         const sources = reasonMap.get(reason)
@@ -118,51 +94,63 @@ export function inspectTaskDir(
         }
     }
 
-    if (!diskItem) {
-        add("missing_history_item", "hi")
-    } else {
-        if (isPlaceholderTaskName(diskItem.task)) add("placeholder_task_name", "hi")
-        if (diskItem.size === 0 || diskItem.size == null) add("zero_size", "hi")
-        if (!diskItem.task?.trim()) add("missing_task_text", "hi")
-
-        // v0.3.0: zero token detection
-        if (
-            diskItem.tokensIn === 0 &&
-            diskItem.tokensOut === 0 &&
-            diskItem.totalCost === 0 &&
-            Array.isArray(api) &&
-            api.length > 0
-        ) {
-            add("zero_tokens", "hi")
+    // File-level validation via JsonFileTransaction with auto-registered validators
+    const historyPath = path.join(dir, HISTORY_ITEM_NAME)
+    const hiTx = new JsonFileTransaction(historyPath)
+    const hiResult = hiTx.validate()
+    const diskItem = hiTx.read(false) as HistoryItem | null
+    for (const issue of hiResult.issues) {
+        if (issue.code === "NOT_FOUND") add("missing_history_item", "hi")
+        else {
+            const reason = issueToReason(issue)
+            if (reason) add(reason, fileSource(historyPath))
         }
     }
 
-    if (indexItem) {
-        if (isPlaceholderTaskName(indexItem.task)) add("placeholder_task_name", "idx")
-        if (indexItem.size === 0 || indexItem.size == null) add("zero_size", "idx")
+    const apiPath = path.join(dir, API_HISTORY_NAME)
+    const apiTx = new JsonFileTransaction(apiPath)
+    const apiResult = apiTx.validate()
+    const api = apiTx.read(false) as unknown[] | null
+    for (const issue of apiResult.issues) {
+        // EMPTY_ARRAY from ACH → "empty_api_history"
+        const reason = issue.code === "EMPTY_ARRAY" ? "empty_api_history" : issueToReason(issue)
+        if (reason) add(reason, fileSource(apiPath))
     }
 
     const uiPath = path.join(dir, UI_MESSAGES_NAME)
     const uiTx = new JsonFileTransaction(uiPath)
+    const uiResult = uiTx.validate()
     const ui = uiTx.read(false) as unknown[] | null
-    if (Array.isArray(ui) && ui.length === 0) add("empty_ui_messages", "uim")
-
-    if (Array.isArray(api) && api.length === 0) {
-        add("empty_api_history", "ach")
+    for (const issue of uiResult.issues) {
+        const reason = issueToReason(issue)
+        if (reason) add(reason, fileSource(uiPath))
     }
 
-    // v0.2.0: opt-in ui_messages.json sync verification
-    if (options.verifyUiSync && Array.isArray(api) && api.length > 0) {
-        if (detectUiSyncMismatch(uiPath, api)) {
-            add("ui_sync_mismatch", "uim,ach")
+    // Cross-file validators (not auto-registered — take multiple inputs)
+    if (options.verifyUiSync && Array.isArray(api) && api.length > 0 && Array.isArray(ui) && ui.length > 0) {
+        const reconstructed = rebuildUiMessages(api as Parameters<typeof rebuildUiMessages>[0])
+        if (reconstructed.length > 0) {
+            const syncResult = validateUiSync(ui, reconstructed)
+            for (const issue of syncResult.issues) {
+                const reason = issueToReason(issue)
+                if (reason) add(reason, "uim,ach")
+            }
         }
     }
 
-    // v0.2.0: interrupted task detection
+    // Interrupted task detection
     if (Array.isArray(api) && api.length > 0) {
-        if (detectInterruptedTask(api)) {
-            add("interrupted_task", "ach")
+        const intResult = validateInterruptedTask(api)
+        for (const issue of intResult.issues) {
+            const reason = issueToReason(issue)
+            if (reason) add(reason, "ach")
         }
+    }
+
+    // Index item checks (no file to validate — manual checks)
+    if (indexItem) {
+        if (isPlaceholderTaskName(indexItem.task)) add("placeholder_task_name", "idx")
+        if (indexItem.size === 0 || indexItem.size == null) add("zero_size", "idx")
     }
 
     // Convert map to sorted array

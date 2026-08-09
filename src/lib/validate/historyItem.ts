@@ -126,6 +126,7 @@ export function validateHistoryItem(
 
     const szErr = checkInteger(e, "size", true)
     if (szErr) e2("MISSING_SIZE", "size", szErr)
+    else if ((e.size as number) === 0) w2("ZERO_SIZE", "size", "size is 0")
 
     const wsErr = checkString(e, "workspace", true)
     if (wsErr) e2("MISSING_WORKSPACE", "workspace", wsErr)

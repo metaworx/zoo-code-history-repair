@@ -1,5 +1,5 @@
 import type {ValidationResult} from "../validation.js"
-import {error, validationOk} from "../validation.js"
+import {error, validationOk, warning} from "../validation.js"
 
 export function validateApiConversationHistory(data: unknown): ValidationResult {
     if (data === null || data === undefined) {
@@ -17,6 +17,15 @@ export function validateApiConversationHistory(data: unknown): ValidationResult 
             issues: [error("NOT_ARRAY", "", "api_conversation_history must be an array")],
             errorCount: 1,
             warningCount: 0
+        }
+    }
+
+    if (data.length === 0) {
+        return {
+            valid: true,
+            issues: [warning("EMPTY_ARRAY", "", "api_conversation_history array is empty")],
+            errorCount: 0,
+            warningCount: 1
         }
     }
 
@@ -64,4 +73,31 @@ export function validateApiConversationHistory(data: unknown): ValidationResult 
         errorCount: errors.length,
         warningCount: issues.length - errors.length,
     }
+}
+
+/**
+ * Content-pattern validator: detect interrupted tasks where the last turn
+ * ends with an assistant tool_use (no tool_result follows).
+ * Returns an INTERRUPTED_TASK warning if the pattern is detected.
+ */
+export function validateInterruptedTask(apiHistory: unknown[]): ValidationResult {
+    if (!Array.isArray(apiHistory) || apiHistory.length === 0) return validationOk()
+
+    const lastTurn = apiHistory[apiHistory.length - 1] as Record<string, unknown> | null
+    if (lastTurn && lastTurn.role === "assistant" && Array.isArray(lastTurn.content)) {
+        const blocks = lastTurn.content as Array<Record<string, unknown>>
+        if (blocks.length > 0) {
+            const lastBlock = blocks[blocks.length - 1]
+            if (lastBlock && lastBlock.type === "tool_use") {
+                return {
+                    valid: true,
+                    issues: [warning("INTERRUPTED_TASK", "", "last turn ends with tool_use — task may be interrupted")],
+                    errorCount: 0,
+                    warningCount: 1
+                }
+            }
+        }
+    }
+
+    return validationOk()
 }

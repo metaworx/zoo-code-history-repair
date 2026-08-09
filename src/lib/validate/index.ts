@@ -12,7 +12,21 @@ export function validateIndex(data: unknown): ValidationResult {
         }
     }
 
-    if (typeof data !== "object" || Array.isArray(data)) {
+    // Tolerate legacy array-only format: treat as {version:0, entries:data}
+    // Only if the array contains objects (HistoryItem-like), not primitives
+    if (Array.isArray(data)) {
+        if (data.length > 0 && data.every(e => e && typeof e === "object")) {
+            return validateIndex({version: 0, entries: data})
+        }
+        return {
+            valid: false,
+            issues: [error("NOT_OBJECT", "", "index must be an object")],
+            errorCount: 1,
+            warningCount: 0
+        }
+    }
+
+    if (typeof data !== "object") {
         return {
             valid: false,
             issues: [error("NOT_OBJECT", "", "index must be an object")],
