@@ -176,6 +176,268 @@ Computes the correct `size` value as the sum of compact UTF-8 byte sizes of all 
 size = compactBytes(ui_messages) + compactBytes(api_history) + compactBytes(history_item) + compactBytes(task_metadata)
 ```
 
+## Architecture
+
+### Validation Infrastructure
+
+```mermaid
+flowchart TB
+    subgraph Validators["File-Type Validators (src/lib/validate/)"]
+        direction TB
+        V1["validateHistoryItem — 30+ checks, status rules"]
+        V2["validateIndex — structure + cross-references"]
+        V3["validateApiConversationHistory — turns, roles, blocks"]
+        V4["validateUiMessages — events, say/text, ts"]
+        V5["validateTaskMetadata — JSON object"]
+        V6["validateUiSync — cross-file ui vs ACH"]
+        V7["validateInterruptedTask — tool_use pattern"]
+    end
+
+    subgraph FileIO["File I/O (src/lib/file.ts)"]
+        direction TB
+        F1["FileTransaction: snapshot→read, validate→write, atomic rename"]
+        F2["JsonFileTransaction: JSON parse/write + auto-validator"]
+        F3["backupFile / writeJsonCompact / readJsonFile"]
+    end
+
+    subgraph Detection["Corruption Detection (src/lib/validation.ts)"]
+        direction TB
+        D1["inspectTaskDir — validator-driven"]
+        D2["validatePath — root or single file"]
+        D3["getValidatorByFile — filename→ValidatorFn"]
+        D4["issueToReason — ValidationIssue→CorruptionReason"]
+    end
+
+    DetCmd["validate CLI"] --> D2
+    D2 --> FileIO
+    FileIO --> Validators
+    D1 --> FileIO
+    D1 --> Validators
+```
+
+### `scanStorage` + `inspectTaskDir` (Detection)
+
+```mermaid
+flowchart TB
+    subgraph scan["scanStorage(storageRoot)"]
+        direction TB
+        A["JsonFileTransaction → read _index.json"]
+        A --> B["listTaskDirs → dirs"]
+        A --> C["Build Map id→HistoryItem"]
+        B --> D{"For each dir"}
+        D --> E["→ inspectTaskDir"]
+        E --> F{"byId.has?"}
+        F -->|no| G["folder_orphan"]
+        F -->|yes| H{"reasons?"}
+        G --> H
+        H -->|yes| I["push corruption"]
+        H -->|no| J["skip"]
+        I --> D
+        J --> D
+        D -->|done| K["Check index_orphan"]
+        K --> L["Return ScanResult"]
+    end
+
+    scan --> inspect
+
+    subgraph inspect["inspectTaskDir(taskId, dir, indexItem, opts)"]
+        direction TB
+        M["validateAndMap: FileTransaction.validate() on hi, ACH, ui"]
+        M --> N["Map issues→CorruptionReason"]
+        N --> O{"verifyUiSync?"}
+        O -->|yes| P["validateUiSync(reconstructed, ui)"]
+        O -->|no| Q["skip"]
+        P --> Q
+        Q --> R["validateInterruptedTask(ACH)"]
+        R --> S["Check indexItem: placeholder, zero_size"]
+        S --> T["Solo interrupted_task→clear"]
+        T --> U["Return TaskCorruption"]
+    end
+```
+
+### `repairTaskDir` (Repair)
+
+```mermaid
+flowchart TB
+    subgraph repair["repairTaskDir(taskDir, options)"]
+        direction TB
+        A["JsonFileTransaction ×4 → tolerant reads"]
+        A --> B{"ACH valid?"}
+        B -->|no| C["readPartialJsonArray"]
+        C --> D{"recovered?"}
+        D -->|no| E["unrepairable=true → return"]
+        D -->|yes| F["partial ACH"]
+        B -->|yes| F
+        F --> G["R-2: inspectTaskDir → reasons"]
+        G --> H{"empty_ui or forceUim?"}
+        H -->|yes| I["rebuildUiMessages→uiTx.save"]
+        H -->|no| J["skip ui"]
+        I --> J
+        J --> K{"historyItem?"}
+        K -->|no| L["return"]
+        K -->|yes| M{"placeholder? (R-1)"}
+        M -->|yes| N["extractTask→taskRepaired"]
+        M -->|no| O["skip task"]
+        N --> O
+        O --> P{"size wrong?"}
+        P -->|yes| Q["recompute→sizeRepaired"]
+        P -->|no| R["skip size"]
+        Q --> R
+        R --> S{"tokens=0 && ACH? (R-5)"}
+        S -->|yes| T["index→override→estimate"]
+        S -->|no| U["skip tokens"]
+        T --> U
+        U --> V{"modified && !dry?"}
+        V -->|yes| W["backup+hiTx.save"]
+        V -->|no| X["Return RepairResult"]
+        W --> X
+    end
+```
+
+### `repairAllCorrupted` (repair-all)
+
+```mermaid
+flowchart TB
+    subgraph ra["repairAllCorrupted(storageRoot, opts)"]
+        direction TB
+        A["scanStorage(root, {verifyUiSync})"]
+        A --> B["R-6: scan.indexItems"]
+        B --> C{"For each corruptId"}
+        C --> D["→repairTaskDir"]
+        D --> E{"unrepairable? (R-8)"}
+        E -->|yes| F["unrepairable++"]
+        E -->|no| G{"fixed>0?"}
+        G -->|yes| H["repaired++"]
+        G -->|no| I["failed++"]
+        F --> C
+        H --> C
+        I --> C
+        C -->|done| J["→rebuildIndexFromDisk"]
+        J --> K["indexAdded/Removed"]
+        K --> L["Return RepairAllResult"]
+    end
+```
+
+### `rebuildIndexFromDisk`
+
+```mermaid
+flowchart TB
+    subgraph ri["rebuildIndexFromDisk(storageRoot, opts)"]
+        direction TB
+        A["listTaskDirs"]
+        A --> B{"For each dir"}
+        B --> C["JsonFileTransaction→read hi"]
+        C --> D["R-3: validateHistoryItem→warnings"]
+        D --> E{"disk.id+ts?"}
+        E -->|yes| F["push items[]"]
+        E -->|id only| G["push {ts:0}"]
+        E -->|no| H["skip"]
+        F --> B
+        G --> B
+        H --> B
+        B -->|done| I["sort newest first"]
+        I --> J{"dryRun?"}
+        J -->|yes| K["Return {items, warnings}"]
+        J -->|no| L["writeJsonCompact→_index.json"]
+        L --> M["Return {items, backupPath, warnings}"]
+    end
+```
+
+### `repairIndex`
+
+```mermaid
+flowchart TB
+    subgraph rpi["repairIndex(storageRoot, indexItems, opts)"]
+        direction TB
+        A{"For each entry"}
+        A --> B["validateHistoryItem(idx) vs disk"]
+        B --> C{"idx clean?"}
+        C -->|yes| D["keep"]
+        C -->|no, disk valid| E["replace from disk"]
+        C -->|both corrupt| F["backup→disk, remove"]
+        D --> A
+        E --> A
+        F --> A
+        A -->|done| G["Return {items, warnings, counters}"]
+    end
+```
+
+### Command: `scan`
+
+```mermaid
+flowchart TB
+    A["scan [--verify-ui-sync] [--json] [--quiet]"] --> B["resolveRoot → scanStorage"]
+    B --> C{"--json?"}
+    C -->|yes| D["JSON output → exit(min(corruptions,255))"]
+    C -->|no| E["Print banner + summary"]
+    E --> F{"--quiet?"}
+    F -->|no| G["Per-task detail → exit"]
+    F -->|yes| G
+```
+
+### Command: `list-corrupted`
+
+```mermaid
+flowchart TB
+    A["list-corrupted [--verify-ui-sync] [--json]"] --> B["resolveRoot → scanStorage"]
+    B --> C{"--json?"}
+    C -->|yes| D["JSON array → exit(min(corruptions,255))"]
+    C -->|no| E["Print taskId recoverability reasons → exit"]
+```
+
+### Command: `rebuild-index`
+
+```mermaid
+flowchart TB
+    A["rebuild-index [--force] [--no-backup]"] --> B["resolveRoot → rebuildIndexFromDisk"]
+    B --> C["Print 'Rebuilt index with N items'"]
+    C --> D{"--force?"}
+    D -->|no| E["Print dry-run warning"]
+    D -->|yes| F["Print written path + backup path"]
+```
+
+### Command: `repair-task`
+
+```mermaid
+flowchart TB
+    A["repair-task <id> [--force] [--no-backup] [--force-uim] [--fixed-input-token N]"] --> B["resolveRoot → read index → repairTaskDir"]
+    B --> C{"errors?"}
+    C -->|yes| D["Print errors → done"]
+    C -->|no| E["formatRepairParts → '[DRY-RUN] would repair X' | 'repaired X'"]
+    E --> F["Print backups + dry-run msg"]
+```
+
+### Command: `repair-all`
+
+```mermaid
+flowchart TB
+    A["repair-all [--force] [--no-backup] [--verbose] [--fixed-input-token N] [--verify-ui-sync]"] --> B["resolveRoot → repairAllCorrupted"]
+    B --> C["Print 'Found N corrupted tasks'"]
+    C --> D["Per-task: [DRY-RUN] X | UNREPAIRABLE | FAILED"]
+    D --> E{"indexEntries>0?"}
+    E -->|yes| F["Print '_index.json rebuilt: N (+added, -removed)'"]
+    E -->|no| G["skip"]
+    F --> H["Print 'Repaired: N, Unrepairable: N, Failed: N' + dry-run"]
+    G --> H
+```
+
+### Command: `validate`
+
+```mermaid
+flowchart TB
+    A["validate [<file>] [--root <path>] [--json] [--warnings]"] --> B["validatePath(target, root)"]
+    B --> C{"target dir?"}
+    C -->|yes| D["FileTransaction.validate() on index + all task files"]
+    C -->|no| E["FileTransaction.validate() on single file"]
+    D --> F{"--json?"}
+    E --> F
+    F -->|yes| G["JSON {files: {path: ValidationResult}} → exit(1 if errors)"]
+    F -->|no| H{"--warnings?"}
+    H -->|yes| I["errors + warnings per file"]
+    H -->|no| J["errors only per file"]
+    I --> K["exit(1 if any error-level issues)"]
+    J --> K
+```
 ## Development
 
 ### Integration Test Fixtures

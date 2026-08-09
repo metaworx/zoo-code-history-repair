@@ -16,6 +16,10 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 | History disappearing from UI (index missing entries) | ✔️ `rebuild-index` + `folder_orphan` detection      |
 | Cancel / resume race conditions (interrupted tasks)  | ✔️ `interrupted_task` detection                     |
 | Gray-screen / unusable UI after large JSON           | ⚠️ Not yet addressed (needs Zoo Code-side fix)      |
+| Schema-level validation (30+ checks, 5 file types)   | ✔️ `validate` command + auto-registered validators   |
+| Safe file writes with concurrent modification check  | ✔️ `JsonFileTransaction` atomic write + snapshot     |
+| Validator-driven corruption detection                | ✔️ `inspectTaskDir` delegates to validators          |
+| `repairIndex` — validate index entries vs disk       | ✔️ Replace from disk or backup + remove              |
 | Cancel / resume race conditions                      | ⚠️ Not yet addressed (needs Zoo Code-side fix)      |
 | Concurrent writes to task files                      | ⚠️ Not yet addressed (needs Zoo Code-side fix)      |
 
