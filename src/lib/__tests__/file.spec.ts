@@ -128,11 +128,11 @@ describe("FileTransaction", () => {
     })
 
     describe("constructor", () => {
-        it("defaults readOnly to false", () => {
+        it("defaults readOnly to true", () => {
             const fp = path.join(tmp, "test.txt")
             fs.writeFileSync(fp, "hello", "utf8")
             const ft = new FileTransaction(fp)
-            expect(ft.readOnly).toBe(false)
+            expect(ft.readOnly).toBe(true)
         })
 
         it("auto-registers validator via getValidatorByFile for _index.json", () => {

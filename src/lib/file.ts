@@ -92,7 +92,7 @@ export class FileTransaction {
     private hasRead = false
     private readonly validators: ValidatorFn[] = []
 
-    constructor(filePath: string, readOnly: boolean = false, validators: ValidatorFn[] | undefined = undefined) {
+    constructor(filePath: string, readOnly: boolean = true, validators: ValidatorFn[] | undefined = undefined) {
         this.filePath = path.resolve(filePath)
         this.readOnly = readOnly
 
