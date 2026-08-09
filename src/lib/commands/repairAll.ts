@@ -52,8 +52,13 @@ export function action(cmdOpts: {
     for (const r of ra.results) {
         const parts = formatRepairParts(r)
 
-        if (parts.length > 0) {
-            console.log(`  ${r.taskId}: repaired ${parts.join(", ")}`)
+        if (r.unrepairable) {
+            console.log(`  ${r.taskId}: UNREPAIRABLE — ${r.errors.join("; ")}`)
+            shown++
+        } else if (parts.length > 0) {
+            const prefix = cmdOpts.force ? "" : "[DRY-RUN] "
+            const verb = cmdOpts.force ? "repaired" : "would repair"
+            console.log(`  ${prefix}${r.taskId}: ${verb} ${parts.join(", ")}`)
             shown++
         } else if (r.errors.length) {
             console.log(`  ${r.taskId}: FAILED — ${r.errors.join("; ")}`)
@@ -74,6 +79,7 @@ export function action(cmdOpts: {
         console.log(`_index.json rebuilt: ${ra.indexEntries} entries${extra}`)
     }
 
-    console.log(`\nRepaired: ${ra.repaired}, Unrepairable: ${ra.unrepairable}, Failed: ${ra.failed}`)
+    const prefix = cmdOpts.force ? "" : "[DRY-RUN] "
+    console.log(`\n${prefix}Repaired: ${ra.repaired}, Unrepairable: ${ra.unrepairable}, Failed: ${ra.failed}`)
     if (!cmdOpts.force) console.log(dryRunMsg)
 }

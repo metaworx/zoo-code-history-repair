@@ -16,7 +16,7 @@ Repairs four aspects of a task directory:
   3. size field        — recompute as the compact UTF-8 byte size of all task JSON files (calc→hi).
   4. token fields      — recover from _index.json or estimate from ACH content (source→hi).
 
-Token repair priority: index recovery → estimation (default) → user override.
+Token repair priority: index recovery → user override → estimation (default).
 Use --fixed-input-token 0 to disable estimation.
 Falls back to partial ACH recovery if api_conversation_history.json is truncated.
 By default runs in dry-run mode. Use --force to actually write.`
@@ -73,7 +73,7 @@ export function action(taskId: string, cmdOpts: {
     const parts = formatRepairParts(r)
 
     if (parts.length > 0) {
-        console.log(`${r.taskId}: repaired ${parts.join(", ")}`)
+        console.log(`${cmdOpts.force ? "" : "[DRY-RUN] "}${r.taskId}: ${cmdOpts.force ? "repaired" : "would repair"} ${parts.join(", ")}`)
     }
 
     if (r.backups.length > 0) {
