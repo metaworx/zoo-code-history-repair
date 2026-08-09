@@ -2,7 +2,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import {rebuildIndexFromDisk} from "../rebuildIndex.js"
-import {readJsonFile} from "../readJson.js"
+import {readJsonFile} from "../file.js";
 import type {HistoryItem, IndexFile} from "../../types.js"
 
 describe("rebuildIndexFromDisk", () => {

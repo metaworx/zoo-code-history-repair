@@ -1,17 +1,6 @@
 // src/lib/readJson.ts
 import fs from "node:fs"
 
-export function readJsonFile<T = unknown>(filePath: string): T | null {
-    try {
-        if (!fs.existsSync(filePath)) return null
-        const raw = fs.readFileSync(filePath, "utf8")
-        if (!raw.trim()) return null
-        return JSON.parse(raw) as T
-    } catch {
-        return null
-    }
-}
-
 export interface PartialArrayResult<T> {
     data: T[]
     truncated: boolean
@@ -77,27 +66,3 @@ export function readPartialJsonArray<T = unknown>(filePath: string): PartialArra
     return null
 }
 
-export function writeJsonCompact(filePath: string, data: unknown): void {
-    const text = JSON.stringify(data) // compact, matches plugin style
-    const tmpPath = filePath + ".tmp"
-    fs.writeFileSync(tmpPath, text, "utf8")
-    fs.renameSync(tmpPath, filePath)
-}
-
-function formatTimestamp(): string {
-    const d = new Date()
-    const Y = String(d.getFullYear())
-    const M = String(d.getMonth() + 1).padStart(2, "0")
-    const D = String(d.getDate()).padStart(2, "0")
-    const h = String(d.getHours()).padStart(2, "0")
-    const m = String(d.getMinutes()).padStart(2, "0")
-    const s = String(d.getSeconds()).padStart(2, "0")
-    return `${Y}${M}${D}-${h}${m}${s}`
-}
-
-export function backupFile(filePath: string): string | null {
-    if (!fs.existsSync(filePath)) return null
-    const bak = `${filePath}.${formatTimestamp()}.bak.json`
-    fs.copyFileSync(filePath, bak)
-    return bak
-}

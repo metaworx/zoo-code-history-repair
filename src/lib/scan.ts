@@ -1,9 +1,9 @@
 import path from "node:path"
 import type {HistoryItem, IndexFile, ScanResult, TaskCorruption} from "../types.js"
 import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
-import {readJsonFile} from "./readJson.js"
-import {inspectTaskDir} from "./detectCorruption.js"
-import type {InspectOptions} from "./detectCorruption.js"
+import {readJsonFile} from "./file.js";
+import {inspectTaskDir} from "./validation.js"
+import type {InspectOptions} from "./validation.js"
 
 export interface ScanOptions extends InspectOptions {
     // future scan-level options

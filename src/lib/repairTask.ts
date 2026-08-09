@@ -6,7 +6,8 @@ import {
     TASK_METADATA_NAME,
     UI_MESSAGES_NAME,
 } from "./paths.js"
-import {backupFile, readJsonFile, readPartialJsonArray, writeJsonCompact} from "./readJson.js"
+import {backupFile, readJsonFile, writeJsonCompact} from "./file.js";
+import {readPartialJsonArray} from "./readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {computeTaskSize} from "./size.js"

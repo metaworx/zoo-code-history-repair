@@ -9,6 +9,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `validate` command — JSON schema validation for all task storage files (`_index.json`, `history_item.json`, `api_conversation_history.json`, `ui_messages.json`, `task_metadata.json`), with optional `--warnings` flag
+- Validation framework (`src/lib/validate/`) — per-file-type validators with machine-readable error codes, severity levels (error/warning), field paths, and cross-reference checks
+- `history_item.json` validator — UUID format checks, required/optional field type checks, status-specific consistency rules (`delegated`→`delegatedToId` required, `active`→`awaitingChildId` forbidden), dangling reference detection against full index
+- `_index.json` validator — structure checks (version, updatedAt, entries array), per-entry validation via `validateHistoryItem` with cross-reference id map
+- `api_conversation_history.json` validator — turn structure checks (role, content array, block types)
+- `ui_messages.json` validator — event structure checks (ts, type, say, text fields)
+- `task_metadata.json` validator — minimal type guard (must be JSON object if present)
+- `FileTransaction` / `JsonFileTransaction` classes — snapshot-based concurrent modification detection, validator pipeline, read/save/validate lifecycle with atomic tempfile writes
+- `resolveTarget()` helper — resolves CLI target path against storage root with absolute/relative handling
+- `getValidatorByFile()` — maps filename to validator function for automatic validator registration
+- `readJsonFile`, `writeJsonCompact`, `backupFile` moved to new `src/lib/file.ts` module
+- `vitest/globals` types added to `tsconfig.json`
+
+### Changed
+
+- `detectCorruption.ts` renamed to `validation.ts` — now hosts both corruption detection and the new validation framework (core types, helper factories, `validatePath()` entrypoint)
+- `detectCorruptionV2.spec.ts` renamed to `validation.spec.ts` — renamed to match new module
+- `readJson.ts` simplified to only export `readPartialJsonArray()` — all file I/O primitives moved to `file.ts`
+- All consumers (`scan`, `rebuildIndex`, `repairAll`, `repairTask`, `scanOutput`, `delete`, `repairTask` commands) updated to import from `file.ts` instead of `readJson.ts`
+- Library index (`src/index.ts`) re-exports point to `validation.ts` instead of `detectCorruption.ts`
+
+### Removed
+
+- `detectCorruption.spec.ts` — tests migrated to `file.spec.ts` (file I/O primitives) and `validation.spec.ts` (corruption detection + validation)
+
 - Corruption reasons annotated with file source: `placeholder_task_name(hi,idx)`, `zero_size(hi)`, `interrupted_task(ach)`
 - Abbreviation help in `list-corrupt` command (`additionalHelp`)
 - `--json` flag on `scan` and `list-corrupt` — machine-parseable JSON output for CI/scripting

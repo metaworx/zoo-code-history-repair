@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem, IndexFile, RepairOptions} from "../types.js"
 import {HISTORY_ITEM_NAME, listTaskDirs, resolveIndexPath, resolveTasksDir} from "./paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "./readJson.js"
+import {backupFile, readJsonFile, writeJsonCompact} from "./file.js";
 
 export function rebuildIndexFromDisk(
     storageRoot: string,

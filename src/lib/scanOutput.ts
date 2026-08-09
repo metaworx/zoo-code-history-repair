@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {CorruptionReason, TaskCorruption} from "../types.js"
 import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "./paths.js"
-import {readJsonFile} from "./readJson.js"
+import {readJsonFile} from "./file.js";
 
 /** Count entries in a JSON array file. Returns 0 if missing or not an array. */
 export function countEntries(dir: string | undefined, filename: string): number {

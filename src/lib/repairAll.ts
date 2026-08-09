@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem, RepairOptions} from "../types.js"
 import {resolveIndexPath, resolveTasksDir} from "./paths.js"
-import {readJsonFile} from "./readJson.js"
+import {readJsonFile} from "./file.js";
 import {rebuildIndexFromDisk} from "./rebuildIndex.js"
 import {scanStorage} from "./scan.js"
 import {repairTaskDir} from "./repairTask.js"

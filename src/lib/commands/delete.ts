@@ -1,7 +1,7 @@
 import {existsSync, rmSync} from "node:fs"
 import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "../readJson.js"
+import {backupFile, readJsonFile, writeJsonCompact} from "../file.js";
 import {getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 

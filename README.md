@@ -34,6 +34,12 @@ zoo-code-history-repair scan --json                      # machine-parseable JSO
 zoo-code-history-repair list-corrupt
 zoo-code-history-repair list-corrupt --json               # JSON array
 
+# Validate task storage files against schema rules
+zoo-code-history-repair validate                         # validate entire storage root
+zoo-code-history-repair validate <file>                  # validate a specific file
+zoo-code-history-repair validate --json                   # machine-parseable JSON
+zoo-code-history-repair validate --warnings               # also show warning-level issues
+
 # Repair a single task
 zoo-code-history-repair repair-task <taskId>
 zoo-code-history-repair repair-task <taskId> --force          # actually write
@@ -84,6 +90,33 @@ zoo-code-history-repair scan --json | jq '.corruptions[] | {id: .taskId, reasons
 ```
 
 > **Tip:** Use `npx` to run the latest version without installing globally. Ideal for one-off repairs or CI pipelines.
+
+## Validation
+
+The `validate` command checks task storage files against comprehensive schema rules. It produces structured, machine-readable issue reports with error codes, severity levels, and dotted field paths:
+
+```bash
+# Validate everything
+zoo-code-history-repair validate
+
+# Validate a specific file
+zoo-code-history-repair validate ~/.zoo-code/.../_index.json
+
+# JSON output for CI
+zoo-code-history-repair validate --json --warnings
+```
+
+Each validated file type has its own validator:
+
+| File | Validates |
+|------|-----------|
+| `_index.json` | `version`=1, `updatedAt` (finite number), `entries` array, per-entry cross-reference integrity |
+| `history_item.json` | UUID format on `id`/`parentTaskId`/`rootTaskId`/etc., required fields (`id`, `ts`, `task`, `workspace`, `mode`, `apiConfigName`), number types on `tokensIn`/`tokensOut`/`totalCost`, status-specific consistency rules (`delegated`→`delegatedToId` required, `active`→`awaitingChildId` forbidden), dangling reference detection |
+| `api_conversation_history.json` | Array structure, turn-level `role` ("user"/"assistant"), `content` array, block `type` field |
+| `ui_messages.json` | Array structure, event-level `ts` (number), `type` ("say"), `say` (text/reasoning/tool), `text` (string) |
+| `task_metadata.json` | Must be a JSON object if present (no required fields) |
+
+All validators produce errors (invalid data) and warnings (suspicious but non-fatal). Use `--warnings` to see both; by default only errors are shown.
 
 ## Corruption Detection
 

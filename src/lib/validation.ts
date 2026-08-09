@@ -1,19 +1,50 @@
 import path from "node:path"
+import fs from "node:fs";
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
 import {API_HISTORY_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME,} from "./paths.js"
-import {readJsonFile} from "./readJson.js"
+import {JsonFileTransaction, readJsonFile, resolveTarget} from "./file.js";
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
+import {validateIndex} from "./validate/index.js";
+import {validateHistoryItem} from "./validate/historyItem.js";
+import {validateApiConversationHistory} from "./validate/apiConversationHistory.js";
+import {validateUiMessages} from "./validate/uiMessages.js";
+import {validateTaskMetadata} from "./validate/taskMetadata.js";
+import {resolveRoot} from "./cliContext.js";
 
 const PLACEHOLDER_TASK_RE =
     /^Task\s*#\s*\d+(\s*\((Incomplete|No messages)\))?$/i
 
-export function isPlaceholderTaskName(task?: string): boolean {
-    if (!task || !task.trim()) return true
-    return PLACEHOLDER_TASK_RE.test(task.trim())
-}
+export type Severity = "error" | "warning"
+
+export type ValidateResult = { file: string; result: ValidationResult }
+
+export type ValidatorFn = (data: unknown) => ValidationResult
 
 export interface InspectOptions {
     verifyUiSync?: boolean
+}
+
+export interface ValidationIssue {
+    /** Machine-readable issue code, e.g. "MISSING_ID", "INVALID_UUID", "STATUS_UNKNOWN" */
+    code: string
+    severity: Severity
+    /** Dotted path to the field, e.g. "entries[3].tokensIn" or "tokensIn" */
+    field: string
+    message: string
+    context?: Record<string, unknown>
+}
+
+export interface ValidationResult {
+    /** False if any error-level issues exist */
+    valid: boolean
+    issues: ValidationIssue[]
+    errorCount: number
+    warningCount: number
+}
+
+export function isPlaceholderTaskName(task?: string): boolean {
+    if (!task || !task.trim()) return true
+    return PLACEHOLDER_TASK_RE.test(task.trim())
 }
 
 function detectUiSyncMismatch(uiPath: string, apiHistory: unknown[]): boolean {
@@ -150,4 +181,77 @@ export function inspectTaskDir(
         indexItem: indexItem ?? null,
         diskItem,
     }
+}
+
+export function validationOk(): ValidationResult {
+    return {valid: true, issues: [], errorCount: 0, warningCount: 0}
+}
+
+export function error(code: string, field: string, message: string, context?: Record<string, unknown>): ValidationIssue {
+    return {code, severity: "error", field, message, context}
+}
+
+export function warning(code: string, field: string, message: string, context?: Record<string, unknown>): ValidationIssue {
+    return {code, severity: "warning", field, message, context}
+}
+
+export function getValidatorByFile(filePath: string): ValidatorFn | undefined {
+    const base = path.basename(filePath)
+
+    if (base === "_index.json")
+        return validateIndex
+
+    if (base === "history_item.json")
+        return validateHistoryItem
+
+    if (base === "api_conversation_history.json")
+        return validateApiConversationHistory
+
+    if (base === "ui_messages.json")
+        return validateUiMessages
+
+    if (base === "task_metadata.json")
+        return validateTaskMetadata
+
+    return undefined;
+}
+
+export function validatePath(target: string | undefined): ValidateResult[] {
+    const root = resolveRoot()
+    const resolved = resolveTarget(target, root)
+
+    const results: ValidateResult[] = []
+
+    const stat = fs.statSync(resolved, {throwIfNoEntry: false})
+
+    if (!stat) {
+        throw new Error(`File not found: ${resolved}`)
+    }
+
+    if (stat.isDirectory()) {
+        // Validate all task dirs + index
+        const indexPath = path.join(resolved, "_index.json")
+        if (fs.existsSync(indexPath)) {
+            const file = new JsonFileTransaction(indexPath, true)
+            results.push({file: indexPath, result: file.validate()})
+        }
+
+        const entries = fs.readdirSync(resolved, {withFileTypes: true})
+        for (const entry of entries) {
+            if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+            const taskDir = path.join(resolved, entry.name)
+            for (const f of ["history_item.json", "api_conversation_history.json", "ui_messages.json", "task_metadata.json"]) {
+                const fp = path.join(taskDir, f)
+                if (fs.existsSync(fp)) {
+                    const file = new JsonFileTransaction(fp, true)
+                    results.push({file: fp, result: file.validate()})
+                }
+            }
+        }
+    } else {
+        const file = new JsonFileTransaction(resolved, true)
+        results.push({file: resolved, result: file.validate()})
+    }
+
+    return results;
 }
