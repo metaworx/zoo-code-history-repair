@@ -1,0 +1,38 @@
+It would have been senseless, first because Napoleon’s disorganized
+army was flying from Russia with all possible
+derives
+    // from the given base class.
+    function isPropertyInClassDerivedFrom(prop: Symbol, baseClass: Type | undefined) {
+        return forEachProperty(prop, sp => {
+            const sourceClass = getDeclaringClass(sp);
+            return sourceClass ? hasBaseType(sourceClass, baseClass) : false;
+        });
+    }
+
+    // Return true if source property is a valid override of protected parts of target property.
+    function isValidOverrideOf(sourceProp: Symbol, targetProp: Symbol) {
+        return !forEachProperty(targetProp, tp =>
+            getDeclarationModifierFlagsFromSymbol(tp) & ModifierFlags.Protected ?
+                !isPropertyInClassDerivedFrom(sourceProp, getDeclaringClass(tp)) : false);
+    }
+
+    // Return true if the given class derives from each of the declaring classes of the protected
+    // constituents of the given property.
+    function isClassDerivedFromDeclaringClasses<T extends Type>(checkClass: T, prop: Symbol, writing: boolean) {
+        return forEachProperty(prop, p =>
+                getDeclarationModifierFlagsFromSymbol(p, writing) & ModifierFlags.Protected ?
+                    !hasBaseType(checkClass, getDeclaringClass(p)) : false) ? undefined : checkClass;
+    }
+
+    // Return true if the given type is deeply nested. We consider this to be the case when the given stack contains
+    // maxDepth or more occurrences of types with the same
+refreshed by having ridden off the dusty
+highroad along which the troops were moving. But not far from Bald Hills
+he again came out on the road and overtook his regiment at its halting
+place by the dam of a small pond. It was past one o’clock. The sun,
+a red ball through the dust, burned and scorched his back intolerably
+through his black coat. The dust always hung motionless above the buzz
+of talk that came from the resting troops. There was no wind. As he
+crossed the dam Prince Andrew smelled the ooze and freshness of the
+pond. He longed to get into that water, however dirty it might be,
+own words.
