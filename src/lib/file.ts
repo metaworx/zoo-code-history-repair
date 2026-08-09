@@ -163,8 +163,8 @@ export class FileTransaction {
         }
 
         if (this.validators.length === 0) {
-            const result: ValidationResult = {
-                valid: true,
+            return {
+                valid: null,
                 issues: [{
                     code: "NO_VALIDATOR",
                     severity: "warning",
@@ -174,8 +174,6 @@ export class FileTransaction {
                 errorCount: 0,
                 warningCount: 1,
             }
-            if ($throw) throw new Error(`Validation failed for ${this.filePath}`, {cause: result})
-            return result
         }
 
         // Aggregate results from ALL validators
@@ -215,8 +213,12 @@ export class FileTransaction {
      *
      * @returns The parsed data, or null if the file cannot be read.
      */
-    protected _read(): string {
+    protected _read(): string | null {
         this.snapshot = statSnapshot(this.filePath)
+        if (!this.snapshot) {
+            this.hasRead = true
+            return null
+        }
         const s = fs.readFileSync(this.filePath, "utf8");
         this.hasRead = true
         return s
@@ -251,8 +253,12 @@ export class JsonFileTransaction extends FileTransaction {
 
     protected _read(): any {
         const raw = super._read()
-        if (!raw.trim()) return null
-        return JSON.parse(raw)
+        if (raw == null || !raw.trim()) return null
+        try {
+            return JSON.parse(raw)
+        } catch {
+            return null
+        }
     }
 
     protected _write(data: unknown): void {

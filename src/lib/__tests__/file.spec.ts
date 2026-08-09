@@ -309,12 +309,12 @@ describe("FileTransaction", () => {
             expect(result.issues).toHaveLength(2)
         })
 
-        it("throws ENOENT for missing file (read happens before NOT_FOUND check)", () => {
+        it("returns NOT_FOUND for missing file", () => {
             const fp = path.join(tmp, "missing.txt")
             const ft = new FileTransaction(fp)
-            // validate() calls read() which calls _read() which calls fs.readFileSync
-            // on a missing file → throws ENOENT before NOT_FOUND logic is reached
-            expect(() => ft.validate()).toThrow()
+            const result = ft.validate()
+            expect(result.valid).toBe(false)
+            expect(result.issues.some(i => i.code === "NOT_FOUND")).toBe(true)
         })
 
         it("throws on error with validate($throw=true)", () => {
@@ -335,6 +335,7 @@ describe("FileTransaction", () => {
             fs.writeFileSync(fp, "content", "utf8")
             const ft = new FileTransaction(fp, false, []) // empty validators
             const result = ft.validate()
+            expect(result.valid).toBeNull()
             expect(result.issues.some(i => i.code === "NO_VALIDATOR")).toBe(true)
         })
     })

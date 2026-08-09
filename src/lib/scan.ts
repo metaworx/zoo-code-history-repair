@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem, IndexFile, ScanResult, TaskCorruption} from "../types.js"
 import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
-import {readJsonFile} from "./file.js";
+import {JsonFileTransaction} from "./file.js";
 import {inspectTaskDir} from "./validation.js"
 import type {InspectOptions} from "./validation.js"
 
@@ -13,7 +13,8 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
     const tasksDir = resolveTasksDir(storageRoot)
     const indexPath = resolveIndexPath(tasksDir)
 
-    const indexRaw = readJsonFile<HistoryItem[] | IndexFile>(indexPath)
+    const indexTx = new JsonFileTransaction(indexPath, true, [])
+    const indexRaw = indexTx.read() as HistoryItem[] | IndexFile | null
     const indexItems: HistoryItem[] = Array.isArray(indexRaw)
         ? indexRaw
         : indexRaw?.entries ?? []

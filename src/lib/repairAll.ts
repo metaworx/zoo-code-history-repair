@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem, RepairOptions} from "../types.js"
 import {resolveIndexPath, resolveTasksDir} from "./paths.js"
-import {readJsonFile} from "./file.js";
+import {JsonFileTransaction} from "./file.js";
 import {rebuildIndexFromDisk} from "./rebuildIndex.js"
 import {scanStorage} from "./scan.js"
 import {repairTaskDir} from "./repairTask.js"
@@ -36,7 +36,8 @@ export function repairAllCorrupted(
 
     // Load index entries for token recovery
     const indexPath = resolveIndexPath(scan.tasksDir)
-    const indexData = readJsonFile<HistoryItem[] | { entries: HistoryItem[] }>(indexPath)
+    const indexTx = new JsonFileTransaction(indexPath, true, [])
+    const indexData = indexTx.read() as HistoryItem[] | { entries: HistoryItem[] } | null
     const indexItems: HistoryItem[] = Array.isArray(indexData)
         ? indexData
         : indexData?.entries ?? []

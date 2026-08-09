@@ -36,7 +36,7 @@ export interface ValidationIssue {
 
 export interface ValidationResult {
     /** False if any error-level issues exist */
-    valid: boolean
+    valid: boolean|null
     issues: ValidationIssue[]
     errorCount: number
     warningCount: number
@@ -102,10 +102,12 @@ export function inspectTaskDir(
 ): TaskCorruption {
     const reasonMap = new Map<CorruptionReason, Set<string>>()
     const historyPath = path.join(dir, HISTORY_ITEM_NAME)
-    const diskItem = readJsonFile<HistoryItem>(historyPath)
+    const hiTx = new JsonFileTransaction(historyPath)
+    const diskItem = hiTx.read(false) as HistoryItem | null
 
     const apiPath = path.join(dir, API_HISTORY_NAME)
-    const api = readJsonFile<unknown[]>(apiPath)
+    const apiTx = new JsonFileTransaction(apiPath)
+    const api = apiTx.read(false) as unknown[] | null
 
     const add = (reason: CorruptionReason, source: string) => {
         const sources = reasonMap.get(reason)
@@ -141,7 +143,8 @@ export function inspectTaskDir(
     }
 
     const uiPath = path.join(dir, UI_MESSAGES_NAME)
-    const ui = readJsonFile<unknown[]>(uiPath)
+    const uiTx = new JsonFileTransaction(uiPath)
+    const ui = uiTx.read(false) as unknown[] | null
     if (Array.isArray(ui) && ui.length === 0) add("empty_ui_messages", "uim")
 
     if (Array.isArray(api) && api.length === 0) {
@@ -232,7 +235,7 @@ export function validatePath(target: string | undefined): ValidateResult[] {
         // Validate all task dirs + index
         const indexPath = path.join(resolved, "_index.json")
         if (fs.existsSync(indexPath)) {
-            const file = new JsonFileTransaction(indexPath, true)
+            const file = new JsonFileTransaction(indexPath)
             results.push({file: indexPath, result: file.validate()})
         }
 
@@ -243,13 +246,13 @@ export function validatePath(target: string | undefined): ValidateResult[] {
             for (const f of ["history_item.json", "api_conversation_history.json", "ui_messages.json", "task_metadata.json"]) {
                 const fp = path.join(taskDir, f)
                 if (fs.existsSync(fp)) {
-                    const file = new JsonFileTransaction(fp, true)
+                    const file = new JsonFileTransaction(fp)
                     results.push({file: fp, result: file.validate()})
                 }
             }
         }
     } else {
-        const file = new JsonFileTransaction(resolved, true)
+        const file = new JsonFileTransaction(resolved)
         results.push({file: resolved, result: file.validate()})
     }
 

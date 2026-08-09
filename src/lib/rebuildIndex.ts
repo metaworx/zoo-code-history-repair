@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem, IndexFile, RepairOptions} from "../types.js"
 import {HISTORY_ITEM_NAME, listTaskDirs, resolveIndexPath, resolveTasksDir} from "./paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "./file.js";
+import {backupFile, JsonFileTransaction, writeJsonCompact} from "./file.js";
 
 export function rebuildIndexFromDisk(
     storageRoot: string,
@@ -15,7 +15,8 @@ export function rebuildIndexFromDisk(
 
     for (const dir of dirs) {
         const id = path.basename(dir)
-        const disk = readJsonFile<HistoryItem>(path.join(dir, HISTORY_ITEM_NAME))
+        const hiTx = new JsonFileTransaction(path.join(dir, HISTORY_ITEM_NAME), true)
+        const disk = hiTx.read(false) as HistoryItem | null
         // Only include tasks with a valid history_item.json that has both id and ts.
         // Tasks without history_item.json (e.g. folder_orphan with only .gitkeep)
         // MUST NOT be added to the index.

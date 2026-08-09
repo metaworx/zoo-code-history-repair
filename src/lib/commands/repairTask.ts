@@ -1,6 +1,6 @@
 import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "../file.js";
+import {backupFile, JsonFileTransaction, writeJsonCompact} from "../file.js";
 import {repairTaskDir} from "../repairTask.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
@@ -39,7 +39,8 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
     const taskDir = `${tasksDir}/${taskId}`
 
     const indexPath = resolveIndexPath(tasksDir)
-    const indexData = readJsonFile<Array<{ id: string }> | { entries: Array<{ id: string }> }>(indexPath)
+    const indexTx = new JsonFileTransaction(indexPath)
+    const indexData = indexTx.read() as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
     const indexItems: Array<{ id: string; tokensIn?: number; tokensOut?: number; totalCost?: number }> =
         Array.isArray(indexData) ? indexData : (indexData as { entries: Array<{ id: string }> })?.entries ?? []
 
