@@ -1,3 +1,4 @@
+import {formatRepairParts} from "../repairTask.js"
 import {repairAllCorrupted} from "../repairAll.js"
 import {resolveTasksDir} from "../paths.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
@@ -27,7 +28,12 @@ export const options = [
 
 const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
 
-export function action(cmdOpts: { force?: boolean; backup?: boolean; verbose?: boolean; fixedInputToken?: number }): void {
+export function action(cmdOpts: {
+    force?: boolean;
+    backup?: boolean;
+    verbose?: boolean;
+    fixedInputToken?: number
+}): void {
     const root = resolveRoot()
     const ra = repairAllCorrupted(root, {
         dryRun: !cmdOpts.force,
@@ -43,14 +49,7 @@ export function action(cmdOpts: { force?: boolean; backup?: boolean; verbose?: b
     console.log(`Found ${ra.total} corrupted tasks`)
     let shown = 0
     for (const r of ra.results) {
-        const parts: string[] = []
-        if (r.uiRepaired) parts.push("ui(ach→uim)")
-        if (r.taskRepaired) parts.push("task(ach→hi)")
-        if (r.sizeRepaired) parts.push("size(calc→hi)")
-        if (r.tokensRepaired) {
-            const src = r.tokensRecoverySource ?? "?"
-            parts.push(`tokens(${src}→hi)`)
-        }
+        const parts = formatRepairParts(r)
 
         if (parts.length > 0) {
             console.log(`  ${r.taskId}: repaired ${parts.join(", ")}`)

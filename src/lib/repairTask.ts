@@ -1,22 +1,13 @@
 import path from "node:path"
 import type {HistoryItem} from "../types.js"
-import {
-    API_HISTORY_NAME,
-    HISTORY_ITEM_NAME,
-    TASK_METADATA_NAME,
-    UI_MESSAGES_NAME,
-} from "./paths.js"
+import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
 import {backupFile, JsonFileTransaction} from "./file.js";
+import {inspectTaskDir, isPlaceholderTaskName} from "./validation.js";
 import {readPartialJsonArray} from "./readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {computeTaskSize} from "./size.js"
-import {
-    estimateCacheReads,
-    estimateTokensIn,
-    estimateTokensOut,
-    estimateTotalCost,
-} from "./estimateTokens.js"
+import {estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost,} from "./estimateTokens.js"
 
 export interface RepairResult {
     taskId: string
@@ -29,6 +20,19 @@ export interface RepairResult {
     errors: string[]
     touchedFiles: string[]
     backups: string[]
+}
+
+/** Format repair result as human-readable parts array (e.g. ["ui(ach→uim)", "task(ach→hi)"]). */
+export function formatRepairParts(r: RepairResult): string[] {
+    const parts: string[] = []
+    if (r.uiRepaired) parts.push("ui(ach→uim)")
+    if (r.taskRepaired) parts.push("task(ach→hi)")
+    if (r.sizeRepaired) parts.push("size(calc→hi)")
+    if (r.tokensRepaired) {
+        const src = r.tokensRecoverySource ?? "?"
+        parts.push(`tokens(${src}→hi)`)
+    }
+    return parts
 }
 
 /**
@@ -47,7 +51,14 @@ export interface RepairTaskOptions {
     /** User-supplied tokensIn override. 0 = disable estimation (keep zeros). */
     fixedInputToken?: number
     /** Index entries for token recovery lookup. */
-    indexItems?: Array<{ id: string; tokensIn?: number; tokensOut?: number; totalCost?: number; cacheReads?: number; cacheWrites?: number }>
+    indexItems?: Array<{
+        id: string;
+        tokensIn?: number;
+        tokensOut?: number;
+        totalCost?: number;
+        cacheReads?: number;
+        cacheWrites?: number
+    }>
 }
 
 export function repairTaskDir(
@@ -96,11 +107,15 @@ export function repairTaskDir(
         return result
     }
 
+    // R-2: Pre-repair detection — drive repair from detected corruption reasons
+    const corruption = inspectTaskDir(taskId, taskDir, null, {})
+    const reasonSet = new Set(corruption.reasons.map(r => r.reason))
+
     // --- 1. Rebuild ui_messages.json ---
     const uiTx = new JsonFileTransaction(uiPath, false, [])
     const existingUi = uiTx.read(false) as unknown[] | null
     const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
-    const shouldRebuildUi = existingIsEmpty || options.forceUim
+    const shouldRebuildUi = existingIsEmpty || options.forceUim || reasonSet.has("empty_ui_messages")
 
     if (shouldRebuildUi) {
         const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
@@ -125,7 +140,7 @@ export function repairTaskDir(
 
         const taskText = historyItem.task?.trim()
         const isMissing = !taskText
-        const isPlaceholder = /^Task\s*#\s*\d+(\s*\(.*\))?$/i.test(taskText ?? "")
+        const isPlaceholder = isPlaceholderTaskName(taskText ?? "")
 
         if (isMissing || isPlaceholder) {
             const extracted = extractTaskFromApiHistory(apiHistory)
@@ -157,7 +172,9 @@ export function repairTaskDir(
         if (
             historyItem.tokensIn === 0 &&
             historyItem.tokensOut === 0 &&
-            historyItem.totalCost === 0
+            historyItem.totalCost === 0 &&
+            Array.isArray(apiHistory) &&
+            apiHistory.length > 0
         ) {
             // a. Try index recovery first
             const idxEntry = options.indexItems?.find(e => e.id === taskId)

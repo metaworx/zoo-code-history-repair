@@ -1,7 +1,7 @@
 import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {backupFile, JsonFileTransaction, writeJsonCompact} from "../file.js";
-import {repairTaskDir} from "../repairTask.js"
+import {backupFile, JsonFileTransaction, readJsonFile, writeJsonCompact} from "../file.js";
+import {formatRepairParts, repairTaskDir} from "../repairTask.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 import type {HistoryItem} from "../../types.js"
@@ -33,7 +33,12 @@ export const options = [
 
 const dryRunMsg = colorize("\n!! Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
-export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean; forceUim?: boolean; fixedInputToken?: number }): void {
+export function action(taskId: string, cmdOpts: {
+    force?: boolean;
+    backup?: boolean;
+    forceUim?: boolean;
+    fixedInputToken?: number
+}): void {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
     const taskDir = `${tasksDir}/${taskId}`
@@ -66,14 +71,7 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
         return
     }
 
-    const parts: string[] = []
-    if (r.uiRepaired) parts.push("ui(ach→uim)")
-    if (r.taskRepaired) parts.push("task(ach→hi)")
-    if (r.sizeRepaired) parts.push("size(calc→hi)")
-    if (r.tokensRepaired) {
-        const src = r.tokensRecoverySource ?? "?"
-        parts.push(`tokens(${src}→hi)`)
-    }
+    const parts = formatRepairParts(r)
 
     if (parts.length > 0) {
         console.log(`${r.taskId}: repaired ${parts.join(", ")}`)
@@ -92,7 +90,7 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
                     console.log(`  _index.json: synced`)
                 }
             } else if (indexData.entries) {
-                const idx = indexData.entries.findIndex((e: {id: string}) => e.id === taskId)
+                const idx = indexData.entries.findIndex((e: { id: string }) => e.id === taskId)
                 if (idx >= 0) {
                     if (cmdOpts.backup !== false) backupFile(indexPath)
                     indexData.entries[idx] = {...indexData.entries[idx], ...repairedHi}

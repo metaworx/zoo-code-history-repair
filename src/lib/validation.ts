@@ -36,7 +36,7 @@ export interface ValidationIssue {
 
 export interface ValidationResult {
     /** False if any error-level issues exist */
-    valid: boolean|null
+    valid: boolean | null
     issues: ValidationIssue[]
     errorCount: number
     warningCount: number
@@ -53,7 +53,7 @@ function joinSources(sources: Set<string>): string {
 }
 
 /** Map validator issue codes to CorruptionReason (context-free). */
-function issueToReason(issue: {code: string}): CorruptionReason | null {
+function issueToReason(issue: { code: string }): CorruptionReason | null {
     const map: Record<string, CorruptionReason> = {
         "PLACEHOLDER_TASK": "placeholder_task_name",
         "ZERO_SIZE": "zero_size",
@@ -94,37 +94,33 @@ export function inspectTaskDir(
         }
     }
 
+    /** Validate a file and map issues to corruption reasons. Returns parsed data (or null). */
+    function validateAndMap(filePath: string, fileName: string): unknown {
+        const tx = new JsonFileTransaction(filePath)
+        const result = tx.validate()
+        const data = tx.read(false)
+        for (const issue of result.issues) {
+            if (issue.code === "NOT_FOUND") {
+                if (fileName === HISTORY_ITEM_NAME) add("missing_history_item", "hi")
+                continue
+            }
+            const reason = issue.code === "EMPTY_ARRAY" && fileName === API_HISTORY_NAME
+                ? "empty_api_history"
+                : issueToReason(issue)
+            if (reason) add(reason, fileSource(filePath))
+        }
+        return data
+    }
+
     // File-level validation via JsonFileTransaction with auto-registered validators
     const historyPath = path.join(dir, HISTORY_ITEM_NAME)
-    const hiTx = new JsonFileTransaction(historyPath)
-    const hiResult = hiTx.validate()
-    const diskItem = hiTx.read(false) as HistoryItem | null
-    for (const issue of hiResult.issues) {
-        if (issue.code === "NOT_FOUND") add("missing_history_item", "hi")
-        else {
-            const reason = issueToReason(issue)
-            if (reason) add(reason, fileSource(historyPath))
-        }
-    }
+    const diskItem = validateAndMap(historyPath, HISTORY_ITEM_NAME) as HistoryItem | null
 
     const apiPath = path.join(dir, API_HISTORY_NAME)
-    const apiTx = new JsonFileTransaction(apiPath)
-    const apiResult = apiTx.validate()
-    const api = apiTx.read(false) as unknown[] | null
-    for (const issue of apiResult.issues) {
-        // EMPTY_ARRAY from ACH → "empty_api_history"
-        const reason = issue.code === "EMPTY_ARRAY" ? "empty_api_history" : issueToReason(issue)
-        if (reason) add(reason, fileSource(apiPath))
-    }
+    const api = validateAndMap(apiPath, API_HISTORY_NAME) as unknown[] | null
 
     const uiPath = path.join(dir, UI_MESSAGES_NAME)
-    const uiTx = new JsonFileTransaction(uiPath)
-    const uiResult = uiTx.validate()
-    const ui = uiTx.read(false) as unknown[] | null
-    for (const issue of uiResult.issues) {
-        const reason = issueToReason(issue)
-        if (reason) add(reason, fileSource(uiPath))
-    }
+    const ui = validateAndMap(uiPath, UI_MESSAGES_NAME) as unknown[] | null
 
     // Cross-file validators (not auto-registered — take multiple inputs)
     if (options.verifyUiSync && Array.isArray(api) && api.length > 0 && Array.isArray(ui) && ui.length > 0) {

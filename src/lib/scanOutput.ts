@@ -1,12 +1,13 @@
 import path from "node:path"
 import type {CorruptionReason, TaskCorruption} from "../types.js"
-import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "./paths.js"
-import {readJsonFile} from "./file.js";
+import {API_HISTORY_NAME} from "./paths.js"
+import {JsonFileTransaction} from "./file.js";
 
 /** Count entries in a JSON array file. Returns 0 if missing or not an array. */
 export function countEntries(dir: string | undefined, filename: string): number {
     if (!dir) return 0
-    const data = readJsonFile<unknown[]>(path.join(dir, filename))
+    const tx = new JsonFileTransaction(path.join(dir, filename))
+    const data = tx.read() as unknown[] | null
     return Array.isArray(data) ? data.length : 0
 }
 
@@ -21,7 +22,6 @@ export function recoverabilityScore(c: TaskCorruption): string {
 
     const hasIndex = c.indexItem != null
     const hasAch = c.dir ? countEntries(c.dir, API_HISTORY_NAME) > 0 : false
-    const hasUim = c.dir ? countEntries(c.dir, UI_MESSAGES_NAME) > 0 : false
     const idxHasTokens = (c.indexItem?.tokensIn ?? 0) > 0
 
     let recoverable = 0
@@ -30,27 +30,36 @@ export function recoverabilityScore(c: TaskCorruption): string {
     for (const {reason} of reasons) {
         switch (reason as CorruptionReason) {
             case "placeholder_task_name":
-                recoverable += hasAch ? 1 : 0; break
+                recoverable += hasAch ? 1 : 0;
+                break
             case "zero_tokens":
-                recoverable += idxHasTokens ? 1 : (hasAch ? 0.5 : 0); break
+                recoverable += idxHasTokens ? 1 : (hasAch ? 0.5 : 0);
+                break
             case "zero_size":
-                recoverable += 1; break
+                recoverable += 1;
+                break
             case "missing_task_text":
-                recoverable += hasAch ? 1 : 0; break
+                recoverable += hasAch ? 1 : 0;
+                break
             case "empty_ui_messages":
-                recoverable += hasAch ? 1 : 0; break
+                recoverable += hasAch ? 1 : 0;
+                break
             case "empty_api_history":
             case "missing_history_item":
             case "invalid_json":
             case "missing_task_dir":
             case "index_orphan":
-                recoverable += 0; break
+                recoverable += 0;
+                break
             case "interrupted_task":
-                recoverable += 0; break
+                recoverable += 0;
+                break
             case "ui_sync_mismatch":
-                recoverable += hasAch ? 1 : 0; break
+                recoverable += hasAch ? 1 : 0;
+                break
             case "folder_orphan":
-                recoverable += hasIndex ? 1 : 0; break
+                recoverable += hasIndex ? 1 : 0;
+                break
             default:
                 recoverable += 0
         }

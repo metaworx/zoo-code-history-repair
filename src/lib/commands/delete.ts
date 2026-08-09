@@ -1,7 +1,7 @@
 import {existsSync, rmSync} from "node:fs"
 import path from "node:path"
 import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {backupFile, readJsonFile, writeJsonCompact} from "../file.js";
+import {backupFile, JsonFileTransaction, writeJsonCompact} from "../file.js";
 import {getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 
@@ -42,7 +42,8 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
     }
 
     const indexPath = resolveIndexPath(tasksDir)
-    const indexData = readJsonFile<Array<{ id: string }> | { entries: Array<{ id: string }> }>(indexPath)
+    const indexTx = new JsonFileTransaction(indexPath, true, [])
+    const indexData = indexTx.read() as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
     if (!indexData) {
         console.log("Index not found — nothing to strip")
         return
