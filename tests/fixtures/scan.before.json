@@ -1,0 +1,168 @@
+{
+    "version": "0.4.0",
+    "storageRoot": ".\\tests\\fixtures\\",
+    "tasksDir": "tests\\fixtures\\tasks",
+    "indexPath": "tests\\fixtures\\tasks\\_index.json",
+    "indexItemCount": 9,
+    "taskDirCount": 11,
+    "corruptions": [
+        {
+            "taskId": "019ede5a-9327-70cc-9c54-2d227182e4d1",
+            "dir": "tests\\fixtures\\tasks\\019ede5a-9327-70cc-9c54-2d227182e4d1",
+            "reasons": [
+                {
+                    "reason": "missing_history_item",
+                    "source": "hi"
+                },
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "0%",
+            "achEntries": 0,
+            "uimEntries": 0
+        },
+        {
+            "taskId": "019f0f12-02f9-70df-a35e-2b110efe4107",
+            "dir": "tests\\fixtures\\tasks\\019f0f12-02f9-70df-a35e-2b110efe4107",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ],
+            "recoverability": "50%",
+            "achEntries": 256,
+            "uimEntries": 113,
+            "indexTask": "Task #1 (Incomplete)",
+            "diskTask": "Task #1 (Incomplete)",
+            "taskMatch": "YES",
+            "sizeIndex": 1910133,
+            "sizeDisk": 1910133
+        },
+        {
+            "taskId": "019fb786-503a-76ca-8708-fee1243c878d",
+            "dir": "tests\\fixtures\\tasks\\019fb786-503a-76ca-8708-fee1243c878d",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi"
+                },
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ],
+            "recoverability": "67%",
+            "achEntries": 516,
+            "uimEntries": 1,
+            "indexTask": "egan in a mild voice such as children use when they wish to be\npraised. “We have had an explanation today.”\n\n“Well, what happened? What did he say? Natásha, how glad I am\nyou’re not angry with me! Tel...",
+            "diskTask": "Task #1 (Incomplete)",
+            "taskMatch": "NO",
+            "sizeIndex": 2294380,
+            "sizeDisk": 1682678
+        },
+        {
+            "taskId": "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913",
+            "dir": "tests\\fixtures\\tasks\\019fdc9c-a59f-75d9-bf05-4fd3d4fe4913",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "zero_size",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "empty_ui_messages",
+                    "source": "uim"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ],
+            "recoverability": "70%",
+            "achEntries": 142,
+            "uimEntries": 0,
+            "indexTask": "Task #1 (No messages)",
+            "diskTask": "Task #1 (No messages)",
+            "taskMatch": "YES",
+            "sizeIndex": 0,
+            "sizeDisk": 0
+        },
+        {
+            "taskId": "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e",
+            "dir": "tests\\fixtures\\tasks\\019fdcf5-64ad-709f-a1d1-00d1a59c6f8e",
+            "reasons": [
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                },
+                {
+                    "reason": "zero_size",
+                    "source": "idx"
+                }
+            ],
+            "recoverability": "50%",
+            "achEntries": 178,
+            "uimEntries": 438,
+            "indexTask": "<user_message>nJSPropertyAccess(node);\r\n        if (commonJSPropertyAccess) {\r\n            const name = (getLeftmostAccessExpression(commonJSPropertyAccess.expression) as CallExpression).arguments[0] ...",
+            "diskTask": "<user_message>nJSPropertyAccess(node);\r\n        if (commonJSPropertyAccess) {\r\n            const name = (getLeftmostAccessExpression(commonJSPropertyAccess.expression) as CallExpression).arguments[0] ...",
+            "taskMatch": "YES",
+            "sizeIndex": 0,
+            "sizeDisk": 1766515
+        },
+        {
+            "taskId": "019fddaa-5136-7106-abef-adac81fd56a3",
+            "dir": "tests\\fixtures\\tasks\\019fddaa-5136-7106-abef-adac81fd56a3",
+            "reasons": [
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "50%",
+            "achEntries": 1,
+            "uimEntries": 3,
+            "indexTask": "did not\ndesire war",
+            "diskTask": "did not\ndesire war",
+            "taskMatch": "YES",
+            "sizeIndex": 88,
+            "sizeDisk": 88
+        },
+        {
+            "taskId": "019fde29-32cc-76c3-a156-e5287fc5fd2c",
+            "dir": "tests\\fixtures\\tasks\\019fde29-32cc-76c3-a156-e5287fc5fd2c",
+            "reasons": [
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "0%",
+            "achEntries": 84,
+            "uimEntries": 188,
+            "diskTask": "her and that she loved both and was\nafraid of grieving either.\n\nA rumor immediately spread in Petersburg, not that Hélène wanted to\nbe divorced from her husband (had such a report spread many would ha...",
+            "sizeDisk": 447058
+        }
+    ]
+}

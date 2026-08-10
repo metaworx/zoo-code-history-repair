@@ -1,0 +1,115 @@
+{
+    "version": "0.4.0",
+    "corruptions": [
+        {
+            "taskId": "019ede5a-9327-70cc-9c54-2d227182e4d1",
+            "recoverability": "0%",
+            "reasons": [
+                {
+                    "reason": "missing_history_item",
+                    "source": "hi"
+                },
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ]
+        },
+        {
+            "taskId": "019f0f12-02f9-70df-a35e-2b110efe4107",
+            "recoverability": "50%",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ]
+        },
+        {
+            "taskId": "019fb786-503a-76ca-8708-fee1243c878d",
+            "recoverability": "67%",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi"
+                },
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ]
+        },
+        {
+            "taskId": "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913",
+            "recoverability": "70%",
+            "reasons": [
+                {
+                    "reason": "placeholder_task_name",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "zero_size",
+                    "source": "hi,idx"
+                },
+                {
+                    "reason": "empty_ui_messages",
+                    "source": "uim"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                }
+            ]
+        },
+        {
+            "taskId": "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e",
+            "recoverability": "50%",
+            "reasons": [
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                },
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                },
+                {
+                    "reason": "zero_size",
+                    "source": "idx"
+                }
+            ]
+        },
+        {
+            "taskId": "019fddaa-5136-7106-abef-adac81fd56a3",
+            "recoverability": "50%",
+            "reasons": [
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
+                }
+            ]
+        },
+        {
+            "taskId": "019fde29-32cc-76c3-a156-e5287fc5fd2c",
+            "recoverability": "0%",
+            "reasons": [
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ]
+        }
+    ]
+}

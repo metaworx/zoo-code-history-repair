@@ -3,21 +3,9 @@
  * Copies fixtures to temp dir, runs repair, verifies output against SHA1 hashes.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import crypto from "node:crypto";
-import { repairTaskDir } from "../../repairTask.js";
-
-const FIXTURE_DIR = path.resolve("tests/fixtures/tasks");
-const HASHES_FILE = path.resolve("tests/fixtures/hashes.json");
-
-function sha1(filePath: string): string {
-    return crypto.createHash("sha1").update(fs.readFileSync(filePath)).digest("hex");
-}
-
-function copyDir(src: string, dst: string): void {
-    fs.cpSync(src, dst, { recursive: true });
-}
+import {repairTaskDir} from "../../repairTask.js";
+import {copyFixtureTasks, createTempDir, HASHES_FILE, sha1} from "../testHelpers.js";
 
 describe("repair against fixtures (integration)", () => {
     let hashes: Record<string, string>;
@@ -29,15 +17,18 @@ describe("repair against fixtures (integration)", () => {
     describe("dry-run mode", () => {
         let tmpRoot: string;
         let tasksDir: string;
+        let cleanup: () => void;
 
         beforeEach(() => {
-            tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-repair-int-"));
-            tasksDir = path.join(tmpRoot, "tasks");
-            copyDir(FIXTURE_DIR, tasksDir);
+            const td = createTempDir("zoo-repair-int-");
+            tmpRoot = td.root;
+            tasksDir = td.tasksDir;
+            cleanup = td.cleanup;
+            copyFixtureTasks(tasksDir);
         });
 
         afterEach(() => {
-            fs.rmSync(tmpRoot, { recursive: true, force: true });
+            cleanup();
         });
 
         it("reports repairs but does not modify files", () => {
@@ -59,15 +50,18 @@ describe("repair against fixtures (integration)", () => {
     describe("write mode", () => {
         let tmpRoot: string;
         let tasksDir: string;
+        let cleanup: () => void;
 
         beforeEach(() => {
-            tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-repair-int-"));
-            tasksDir = path.join(tmpRoot, "tasks");
-            copyDir(FIXTURE_DIR, tasksDir);
+            const td = createTempDir("zoo-repair-int-");
+            tmpRoot = td.root;
+            tasksDir = td.tasksDir;
+            cleanup = td.cleanup;
+            copyFixtureTasks(tasksDir);
         });
 
         afterEach(() => {
-            fs.rmSync(tmpRoot, { recursive: true, force: true });
+            cleanup();
         });
 
         it("repairs empty ui_messages.json", () => {

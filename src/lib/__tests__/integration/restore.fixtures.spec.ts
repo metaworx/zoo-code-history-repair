@@ -3,27 +3,14 @@
  * Copies fixtures to temp dir, creates .bak.json files, tests restore operations.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { listBackups, restoreFromBackups, deleteBackups } from "../../restore.js";
-
-const FIXTURE_DIR = path.resolve("tests/fixtures/tasks");
-
-function copyDir(src: string, dst: string): void {
-    fs.cpSync(src, dst, { recursive: true });
-}
-
-function touch(filePath: string, content: string) {
-    fs.writeFileSync(filePath, content, "utf8");
-}
-
-function read(filePath: string): string {
-    return fs.readFileSync(filePath, "utf8");
-}
+import {deleteBackups, listBackups, restoreFromBackups} from "../../restore.js";
+import {copyFixtureTasks, createTempDir, read, touch} from "../testHelpers.js";
 
 describe("restore against fixtures (integration)", () => {
     let tmpRoot: string;
     let tasksDir: string;
+    let cleanup: () => void;
 
     function stripBakFiles(dir: string): void {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -37,14 +24,16 @@ describe("restore against fixtures (integration)", () => {
     }
 
     beforeEach(() => {
-        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-restore-int-"));
-        tasksDir = path.join(tmpRoot, "tasks");
-        copyDir(FIXTURE_DIR, tasksDir);
+        const td = createTempDir("zoo-restore-int-");
+        tmpRoot = td.root;
+        tasksDir = td.tasksDir;
+        cleanup = td.cleanup;
+        copyFixtureTasks(tasksDir);
         stripBakFiles(tasksDir);
     });
 
     afterEach(() => {
-        fs.rmSync(tmpRoot, { recursive: true, force: true });
+        cleanup();
     });
 
     describe("listBackups", () => {

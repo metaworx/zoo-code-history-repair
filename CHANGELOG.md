@@ -28,6 +28,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `contentHash()` utility — SHA1 checksum of JSON files with volatile fields (`updatedAt`, `ts`) stripped via `stripVolatile()`
 - `IndexTransaction` class exported from library index (`src/index.ts`)
 - Integration test: `repairTask.indexUpdate.spec.ts` — validate→repair-task→validate workflow with backup existence + checksum verification
+- Shared test helpers (`src/lib/__tests__/testHelpers.ts`) — temp dir lifecycle, fixture copying, JSON I/O, backup listing, hash utilities, and `assertJsonEqual` with `normalizeJson` for deep comparison with path replacements, prop ignores, and `maxLength` truncation
+- Full pipeline integration test (`src/lib/__tests__/integration/fullPipeline.spec.ts`) — 11-phase scan→repair→validate→idempotency cycle using CLI commands with text + `--json` output parsing, backup/hash verification, and fixture-based snapshot comparison
+- Unrepairable task hint — `RepairResult.hint` field printed in `repair-task` and `repair-all` output suggesting `delete <taskId> --force` for tasks that cannot be repaired
+- JSON fixture files for scan/list-corrupt snapshot comparison — `tests/fixtures/scan.before.json`, `scan.after.json`, `list-corrupt.before.json`, `list-corrupt.after.json`
 
 ### Changed
 

@@ -7,9 +7,14 @@
  * Workflow: list-corrupt → validate → repair-task --force → list-corrupt → validate
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import {action as repairTaskAction} from "../../commands/repairTask.js";
+import {action as validateAction} from "../../commands/validate.js";
+import {action as listCorruptAction} from "../../commands/listCorrupt.js";
+import {contentHash} from "../../file.js";
+import {HISTORY_ITEM_NAME} from "../../paths.js";
+import {copyFixtureTasks, createTempDir, listBackupFiles} from "../testHelpers.js";
 
 const mockSetRoot = vi.hoisted(() => vi.fn());
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"));
@@ -27,33 +32,21 @@ vi.mock("../../format.js", () => ({
     colorize: vi.fn((s: string) => s),
 }));
 
-import {action as repairTaskAction} from "../../commands/repairTask.js";
-import {action as validateAction} from "../../commands/validate.js";
-import {action as listCorruptAction} from "../../commands/listCorrupt.js";
-import {contentHash} from "../../file.js";
-import {HISTORY_ITEM_NAME} from "../../paths.js";
-
-const FIXTURE_DIR = path.resolve("tests/fixtures/tasks");
 const TASK_ID = "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913";
-
-function copyDir(src: string, dst: string): void {
-    fs.cpSync(src, dst, {recursive: true});
-}
-
-function listBackupFiles(dir: string): string[] {
-    return fs.readdirSync(dir).filter(f => f.endsWith(".bak.json"));
-}
 
 describe("repair-task → index update (integration)", () => {
     let tmpRoot: string;
     let tasksDir: string;
+    let cleanup: () => void;
     let consoleLogSpy: ReturnType<typeof vi.spyOn>;
     let exitSpy: ReturnType<typeof vi.spyOn<typeof process, "exit">>;
 
     beforeEach(() => {
-        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-repair-idx-"));
-        tasksDir = path.join(tmpRoot, "tasks");
-        copyDir(FIXTURE_DIR, tasksDir);
+        const td = createTempDir("zoo-repair-idx-");
+        tmpRoot = td.root;
+        tasksDir = td.tasksDir;
+        cleanup = td.cleanup;
+        copyFixtureTasks(tasksDir);
         mockResolveRoot.mockReturnValue(tmpRoot);
         consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
         exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
@@ -61,7 +54,7 @@ describe("repair-task → index update (integration)", () => {
 
     afterEach(() => {
         vi.clearAllMocks();
-        fs.rmSync(tmpRoot, {recursive: true, force: true});
+        cleanup();
     });
 
     it("preserves all index entries after targeted repair", () => {

@@ -1,0 +1,27 @@
+{
+    "version": "0.4.0",
+    "storageRoot": ".\\tests\\fixtures\\",
+    "tasksDir": "tests\\fixtures\\tasks",
+    "indexPath": "tests\\fixtures\\tasks\\_index.json",
+    "indexItemCount": 10,
+    "taskDirCount": 11,
+    "corruptions": [
+        {
+            "taskId": "019ede5a-9327-70cc-9c54-2d227182e4d1",
+            "dir": "tests\\fixtures\\tasks\\019ede5a-9327-70cc-9c54-2d227182e4d1",
+            "reasons": [
+                {
+                    "reason": "missing_history_item",
+                    "source": "hi"
+                },
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "0%",
+            "achEntries": 0,
+            "uimEntries": 0
+        }
+    ]
+}
