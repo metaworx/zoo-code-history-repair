@@ -56,6 +56,7 @@ export function action(cmdOpts: {
 
         if (r.unrepairable) {
             console.log(`  ${r.taskId}: UNREPAIRABLE — ${r.errors.join("; ")}`)
+            if (r.hint) console.log(`    hint: ${r.hint}`)
             shown++
         } else if (parts.length > 0) {
             const prefix = cmdOpts.force ? "" : "[DRY-RUN] "

@@ -21,6 +21,8 @@ export interface RepairResult {
     errors: string[]
     touchedFiles: string[]
     backups: string[]
+    /** User-facing hint (e.g. delete suggestion for unrepairable tasks). */
+    hint?: string
 }
 
 /** Format repair result as human-readable parts array (e.g. ["ui(ach→uim)", "task(ach→hi)"]). */
@@ -107,6 +109,7 @@ export function repairTaskDir(
     if (!apiHistory || !Array.isArray(apiHistory)) {
         result.unrepairable = true
         result.errors.push("missing or invalid api_conversation_history.json — cannot repair")
+        result.hint = `This task cannot be repaired. Remove it with: zoo-code-history-repair delete ${taskId} --force`
         return result
     }
 
@@ -241,6 +244,7 @@ export function repairTaskDir(
         }
     } else {
         result.errors.push("missing history_item.json — cannot repair task or size")
+        result.hint = `This task cannot be repaired. Remove it with: zoo-code-history-repair delete ${taskId} --force`
     }
 
     return result

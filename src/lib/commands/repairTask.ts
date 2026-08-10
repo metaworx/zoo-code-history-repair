@@ -65,6 +65,7 @@ export function action(taskId: string, cmdOpts: {
         console.log(`Task: ${r.taskId}`)
         console.log(`  errors:`)
         for (const e of r.errors) console.log(`    - ${e}`)
+        if (r.hint) console.log(`  hint: ${r.hint}`)
         if (r.backups.length > 0) {
             console.log(`  Backups:`)
             for (const b of r.backups) console.log(`    ${path.basename(b)}`)
