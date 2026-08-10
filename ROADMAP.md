@@ -25,7 +25,7 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 
 ## Future Directions
 
-### v0.3.0 — Plugin Integration
+### v0.6.0 — Plugin Integration
 
 - [ ] Use real Zoo Code TypeScript types (`ClineMessage`, `ApiMessage`, etc.) via optional dependency
 - [ ] Reuse Zoo Code's `safeWriteJson` / path helpers where available
@@ -33,7 +33,7 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 - [ ] Register as a VS Code extension command (via Extension Host)
 - [ ] In-IDE notification when corruption is detected on task open
 
-### v0.4.0 — Preventive Measures
+### v0.7.0 — Preventive Measures
 
 - [ ] File watcher — detect corruption as it happens (file size drops to 0, invalid JSON on write)
 - [ ] Automatic backup rotation — keep last N versions of task JSON files
