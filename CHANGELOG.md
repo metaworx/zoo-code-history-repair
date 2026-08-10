@@ -36,6 +36,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `repairTaskDir` now captures backup paths from `JsonFileTransaction.save()` into `result.backups`
 - `repair-task` command captures `_index.json` backup from `replaceId()`, merges with task backups, prints all
 - `repairTaskDir` size recomputation moved after token repair — size now accounts for token/cache fields added during repair, making repair-task idempotent
+- `zero_tokens` detection: now requires all three zero-field codes (`ZERO_TOKENS_IN`, `ZERO_TOKENS_OUT`, `ZERO_TOTAL_COST`) present — `totalCost` alone being 0 no longer triggers false positive
 - All internal `.read()` call sites migrated to `.load().getData()` pattern
 - `detectCorruption.ts` renamed to `validation.ts` — now hosts both corruption detection and the new validation framework (core types, helper factories, `validatePath()` entrypoint)
 - `detectCorruptionV2.spec.ts` renamed to `validation.spec.ts` — renamed to match new module

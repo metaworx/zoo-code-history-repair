@@ -99,10 +99,17 @@ export function inspectTaskDir(
         const tx = new JsonFileTransaction(filePath)
         const result = tx.validate()
         const data = tx.load(false).getData()
+        const codes = new Set(result.issues.map(i => i.code))
+        // zero_tokens requires all three zero-field codes present
+        const hasAllZeroTokens = codes.has("ZERO_TOKENS_IN") && codes.has("ZERO_TOKENS_OUT") && codes.has("ZERO_TOTAL_COST")
         for (const issue of result.issues) {
             if (issue.code === "NOT_FOUND") {
                 if (fileName === HISTORY_ITEM_NAME) add("missing_history_item", "hi")
                 continue
+            }
+            // Skip individual zero-token codes; only report if all three present
+            if (issue.code === "ZERO_TOKENS_IN" || issue.code === "ZERO_TOKENS_OUT" || issue.code === "ZERO_TOTAL_COST") {
+                if (!hasAllZeroTokens) continue
             }
             const reason = issue.code === "EMPTY_ARRAY" && fileName === API_HISTORY_NAME
                 ? "empty_api_history"
