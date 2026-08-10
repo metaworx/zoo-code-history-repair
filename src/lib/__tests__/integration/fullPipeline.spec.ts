@@ -55,7 +55,7 @@ describe("full pipeline (integration)", () => {
         mockResolveRoot.mockReturnValue(tmpRoot);
         consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
         });
-        exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+        exitSpy = vi.spyOn(process, "exit" as any).mockImplementation(() => undefined) as any;
     });
 
     afterEach(() => {
