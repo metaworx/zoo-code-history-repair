@@ -44,7 +44,7 @@ export function action(taskId: string, cmdOpts: {
 
     const indexPath = resolveIndexPath(tasksDir)
     const indexTx = new JsonFileTransaction(indexPath)
-    const indexData = indexTx.read() as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
+    const indexData = indexTx.read(false) as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
     const indexItems: Array<{ id: string; tokensIn?: number; tokensOut?: number; totalCost?: number }> =
         Array.isArray(indexData) ? indexData : (indexData as { entries: Array<{ id: string }> })?.entries ?? []
 

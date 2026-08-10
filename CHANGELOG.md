@@ -69,6 +69,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `scan` command no longer crashes on corrupted `ui_messages.json` fixtures — `countEntries` now uses tolerant `tx.read(false)` instead of throwing on validation failures
 - Added 5 integration tests for scan output helpers (`countEntries`, `recoverabilityScore`) against scrambled fixture data
 - `repair-all --verify-ui-sync` was silently ignored — option declared but never read from `cmdOpts` or passed to `repairAllCorrupted`; now wired through
+- `repair-task` crashed when reading `_index.json` with dangling references — changed to tolerant `tx.read(false)`; index read is only for token recovery lookup, not validation
 
 ## [0.4.0] — 2026-08-08
 
