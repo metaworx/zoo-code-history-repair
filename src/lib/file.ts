@@ -60,7 +60,7 @@ export function backupFile(filePath: string): string | null {
     return bak
 }
 
-export function saveFileWithSnapshot(filePath: string, data: string, snapshot: FileSnapshot | null = null) {
+export function saveFileWithSnapshot(filePath: string, data: string, snapshot: FileSnapshot | null = null): FileSnapshot | null {
 
     let tmpPath: string = ''
 
@@ -82,6 +82,8 @@ export function saveFileWithSnapshot(filePath: string, data: string, snapshot: F
     }
 
     fs.renameSync(tmpPath, filePath)
+
+    return statSnapshot(filePath)
 }
 
 export class FileTransaction {
@@ -238,7 +240,11 @@ export class FileTransaction {
      * @param data The in-memory data to serialize and write.
      */
     protected _write(data: unknown): void {
-        saveFileWithSnapshot(this.filePath, String(data), this.snapshot)
+        const snapshot = saveFileWithSnapshot(this.filePath, String(data), this.snapshot)
+
+        if (this.snapshot) {
+            this.snapshot = snapshot
+        }
     }
 }
 
