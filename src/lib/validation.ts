@@ -1,7 +1,7 @@
 import path from "node:path"
 import fs from "node:fs";
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
-import {API_HISTORY_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME,} from "./paths.js"
+import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
 import {JsonFileTransaction, resolveTarget} from "./file.js";
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {validateIndex} from "./validate/index.js";
@@ -216,22 +216,36 @@ export function validatePath(target: string | undefined): ValidateResult[] {
     }
 
     if (stat.isDirectory()) {
-        // Validate all task dirs + index
-        const indexPath = path.join(resolved, "_index.json")
-        if (fs.existsSync(indexPath)) {
-            const file = new JsonFileTransaction(indexPath)
-            results.push({file: indexPath, result: file.validate()})
-        }
+        // Detect if this is a task directory (contains task JSON files)
+        const isTaskDir = fs.existsSync(path.join(resolved, HISTORY_ITEM_NAME))
 
-        const entries = fs.readdirSync(resolved, {withFileTypes: true})
-        for (const entry of entries) {
-            if (!entry.isDirectory() || entry.name.startsWith(".")) continue
-            const taskDir = path.join(resolved, entry.name)
-            for (const f of ["history_item.json", "api_conversation_history.json", "ui_messages.json", "task_metadata.json"]) {
-                const fp = path.join(taskDir, f)
+        if (isTaskDir) {
+            // Validate a single task directory's files
+            for (const f of [HISTORY_ITEM_NAME, API_HISTORY_NAME, UI_MESSAGES_NAME, TASK_METADATA_NAME]) {
+                const fp = path.join(resolved, f)
                 if (fs.existsSync(fp)) {
                     const file = new JsonFileTransaction(fp)
                     results.push({file: fp, result: file.validate()})
+                }
+            }
+        } else {
+            // Validate all task dirs + index (storage root)
+            const indexPath = path.join(resolved, "_index.json")
+            if (fs.existsSync(indexPath)) {
+                const file = new JsonFileTransaction(indexPath)
+                results.push({file: indexPath, result: file.validate()})
+            }
+
+            const entries = fs.readdirSync(resolved, {withFileTypes: true})
+            for (const entry of entries) {
+                if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+                const taskDir = path.join(resolved, entry.name)
+                for (const f of [HISTORY_ITEM_NAME, API_HISTORY_NAME, UI_MESSAGES_NAME, TASK_METADATA_NAME]) {
+                    const fp = path.join(taskDir, f)
+                    if (fs.existsSync(fp)) {
+                        const file = new JsonFileTransaction(fp)
+                        results.push({file: fp, result: file.validate()})
+                    }
                 }
             }
         }

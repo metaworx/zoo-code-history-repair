@@ -1,10 +1,15 @@
-import {getVersionBanner} from "../cliContext.js"
+import path from "node:path"
+import {getVersionBanner, resolveRoot} from "../cliContext.js"
+import {resolveTasksDir} from "../paths.js"
 import {validatePath, ValidateResult} from "../validation.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const name = "validate"
 export const summary = "Validate task storage files against schema rules"
 export const description = `Validate Zoo Code task storage files against comprehensive schema rules.
-By default validates the entire storage root. Pass a file argument to validate a specific file.
+By default validates the entire storage root. Pass a file argument to validate a specific file,
+or a task UUID to validate that task's directory.
 Errors are shown by default; use --warnings to also show warnings.`
 
 export const options = [
@@ -15,12 +20,17 @@ export const options = [
 export function action(target: string | undefined, cmdOpts: { json?: boolean; warnings?: boolean }): void {
     let results: ValidateResult[] = []
 
-    try {
-        results = validatePath(target);
-    } catch (e) {
+    // Resolve UUID targets to task directories
+    let resolvedTarget = target
+    if (target && UUID_RE.test(target)) {
+        const root = path.resolve(resolveRoot())
+        resolvedTarget = path.join(resolveTasksDir(root), target)
+    }
 
-        // @ts-ignore
-        console.error(e.message, e);
+    try {
+        results = validatePath(resolvedTarget);
+    } catch (e) {
+        console.error((e as Error).message)
         process.exit(1)
     }
 

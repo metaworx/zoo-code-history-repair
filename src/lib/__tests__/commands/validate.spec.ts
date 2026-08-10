@@ -1,9 +1,12 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+import path from "node:path"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"))
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
+// path.resolve("/fake/root") on POSIX returns "/fake/root" unchanged
+const mockResolveTasksDir = vi.hoisted(() => vi.fn((root: string) => path.join(root, "tasks")))
 const mockValidatePath = vi.hoisted(() => vi.fn())
 
 vi.mock("../../cliContext.js", () => ({
@@ -11,6 +14,10 @@ vi.mock("../../cliContext.js", () => ({
     setVersion: mockSetVersion,
     getVersionBanner: mockGetVersionBanner,
     resolveRoot: mockResolveRoot,
+}))
+
+vi.mock("../../paths.js", () => ({
+    resolveTasksDir: mockResolveTasksDir,
 }))
 
 vi.mock("../../validation.js", () => ({
@@ -25,9 +32,12 @@ describe("validate command", () => {
     let exitSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
-        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any)
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
+        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        })
+        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        }) as any)
         mockResolveRoot.mockReturnValue("/fake/root")
     })
 
@@ -53,16 +63,18 @@ describe("validate command", () => {
 
     it("with errors: prints errors and exits 1", () => {
         mockValidatePath.mockReturnValue([
-            {file: "bad.json", result: {
-                valid: false,
-                errorCount: 2,
-                warningCount: 1,
-                issues: [
-                    {severity: "error", field: "id", message: "missing id field"},
-                    {severity: "error", field: "ts", message: "invalid timestamp"},
-                    {severity: "warning", field: "size", message: "size is zero"},
-                ],
-            }},
+            {
+                file: "bad.json", result: {
+                    valid: false,
+                    errorCount: 2,
+                    warningCount: 1,
+                    issues: [
+                        {severity: "error", field: "id", message: "missing id field"},
+                        {severity: "error", field: "ts", message: "invalid timestamp"},
+                        {severity: "warning", field: "size", message: "size is zero"},
+                    ],
+                }
+            },
         ])
 
         action(undefined, {})
@@ -80,15 +92,17 @@ describe("validate command", () => {
 
     it("--warnings flag: shows warnings alongside errors", () => {
         mockValidatePath.mockReturnValue([
-            {file: "f.json", result: {
-                valid: true,
-                errorCount: 0,
-                warningCount: 2,
-                issues: [
-                    {severity: "warning", field: "task", message: "task is placeholder"},
-                    {severity: "warning", field: "size", message: "size mismatch"},
-                ],
-            }},
+            {
+                file: "f.json", result: {
+                    valid: true,
+                    errorCount: 0,
+                    warningCount: 2,
+                    issues: [
+                        {severity: "warning", field: "task", message: "task is placeholder"},
+                        {severity: "warning", field: "size", message: "size mismatch"},
+                    ],
+                }
+            },
         ])
 
         action(undefined, {warnings: true})
@@ -102,7 +116,14 @@ describe("validate command", () => {
 
     it("JSON mode: outputs structured JSON", () => {
         mockValidatePath.mockReturnValue([
-            {file: "f.json", result: {valid: false, errorCount: 1, warningCount: 0, issues: [{severity: "error", field: "id", message: "bad"}]}},
+            {file: "f.json",
+                result: {
+                    valid: false,
+                    errorCount: 1,
+                    warningCount: 0,
+                    issues: [{severity: "error", field: "id", message: "bad"}]
+                }
+            },
         ])
 
         action(undefined, {json: true})
@@ -139,5 +160,23 @@ describe("validate command", () => {
         action(undefined, {})
 
         expect(mockValidatePath).toHaveBeenCalledWith(undefined)
+    })
+
+    it("UUID target: resolves to task directory path", () => {
+        mockValidatePath.mockReturnValue([])
+        const taskId = "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913"
+
+        action(taskId, {})
+
+        const expectedPath = path.join(path.resolve("/fake/root"), "tasks", taskId)
+        expect(mockValidatePath).toHaveBeenCalledWith(expectedPath)
+    })
+
+    it("non-UUID target: passed through as-is", () => {
+        mockValidatePath.mockReturnValue([])
+
+        action("some/file.json", {})
+
+        expect(mockValidatePath).toHaveBeenCalledWith("some/file.json")
     })
 })
