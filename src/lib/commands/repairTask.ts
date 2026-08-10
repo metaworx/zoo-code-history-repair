@@ -79,19 +79,22 @@ export function action(taskId: string, cmdOpts: {
         console.log(`${cmdOpts.force ? "" : "[DRY-RUN] "}${r.taskId}: ${cmdOpts.force ? "repaired" : "would repair"} ${parts.join(", ")}`)
     }
 
-    if (r.backups.length > 0) {
-        console.log(`  Backups:`)
-        for (const b of r.backups) console.log(`    ${path.basename(b)}`)
-    }
-
     // Targeted index update: replace only this task's entry, never touch others
+    let idxBak: string | null = null
     if (cmdOpts.force && parts.length > 0) {
         const hiTx = new JsonFileTransaction(path.join(taskDir, HISTORY_ITEM_NAME), true)
         const diskEntry = hiTx.load(false).getData() as Record<string, unknown> | null
         if (diskEntry) {
             const writeIdx = new IndexTransaction(false)
-            writeIdx.replaceId(taskId, diskEntry, true, false)
+            idxBak = writeIdx.replaceId(taskId, diskEntry, true, false)
         }
+    }
+
+    const allBackups = [...r.backups]
+    if (idxBak) allBackups.push(idxBak)
+    if (allBackups.length > 0) {
+        console.log(`  Backups:`)
+        for (const b of allBackups) console.log(`    ${path.basename(b)}`)
     }
 
     if (!cmdOpts.force) console.log(dryRunMsg)

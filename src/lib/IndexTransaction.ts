@@ -101,7 +101,7 @@ export class IndexTransaction extends JsonFileTransaction {
      * @param saveToDisk If true (default), writes immediately. Set false for batch edits.
      * @param validate   If true (default), runs validateHistoryItem before replacing.
      */
-    replaceId(id: string, entry: Record<string, unknown>, saveToDisk: boolean = true, validate: boolean = true): void {
+    replaceId(id: string, entry: Record<string, unknown>, saveToDisk: boolean = true, validate: boolean = true): string | null {
         this.getEntries()
         if (validate) {
             const fullIndex = this.getFullIndex()
@@ -116,8 +116,9 @@ export class IndexTransaction extends JsonFileTransaction {
         this.index[id] = entry
 
         if (saveToDisk) {
-            this.setData({entries: Object.values(this.index)}, false).save(false)
+            return this.setData({entries: Object.values(this.index)}, false).save(false)
         }
+        return null
     }
 
     /**

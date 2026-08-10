@@ -124,7 +124,8 @@ export function repairTaskDir(
         const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
         if (newUi.length > 0) {
             if (!options.dryRun) {
-                uiTx.setData(newUi).save(true, options.backup !== false)
+                const bak = uiTx.setData(newUi).save(true, options.backup !== false)
+                if (bak) result.backups.push(bak)
             }
             result.uiRepaired = true
             result.touchedFiles.push(UI_MESSAGES_NAME)
@@ -232,7 +233,8 @@ export function repairTaskDir(
         }
 
         if (modified && !options.dryRun) {
-            hiTx.setData(historyItem).save(true, options.backup !== false)
+            const bak = hiTx.setData(historyItem).save(true, options.backup !== false)
+            if (bak) result.backups.push(bak)
         }
         if (modified && !result.touchedFiles.includes(HISTORY_ITEM_NAME)) {
             result.touchedFiles.push(HISTORY_ITEM_NAME)

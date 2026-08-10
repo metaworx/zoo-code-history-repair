@@ -22,13 +22,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `readJsonFile`, `writeJsonCompact`, `backupFile` moved to new `src/lib/file.ts` module
 - `vitest/globals` types added to `tsconfig.json`
 - Command unit tests (`src/lib/__tests__/commands/`) — 8 test files (51 tests) covering all CLI command wrappers: import validity, parameter mapping from CLI options to library functions, and output formatting branches (dry-run/force, JSON/text, success/error)
+- `contentHash()` utility — SHA1 checksum of JSON files with volatile fields (`updatedAt`, `ts`) stripped via `stripVolatile()`
+- `IndexTransaction` class exported from library index (`src/index.ts`)
+- Integration test: `repairTask.indexUpdate.spec.ts` — validate→repair-task→validate workflow with backup existence + checksum verification
 
 ### Changed
 
 - `FileTransaction`: `read()` replaced by `load():this` + `getData():unknown` — fluid API; `load()` populates in-memory data and returns `this` for chaining with `setData()`/`save()`; `getData()` returns loaded data
 - `IndexTransaction.load()` overrides parent to rebuild `this.index` from loaded `_index.json` entries after load
-- `IndexTransaction.replaceId()` and `removeById()` now ensure index is loaded from disk via `this.getEntries()` guard before mutating — fixes single-entry overwrite when called on fresh instance and silent no-op from empty index
+- `IndexTransaction.replaceId()` now returns the backup path (`string | null`); lazy-load guard via `this.getEntries()` prevents single-entry overwrite when called on fresh instance
+- `IndexTransaction.removeById()` now ensures index is loaded via `this.getEntries()` guard (was silent no-op from empty index)
 - `FileTransaction.load()` early-return fixed to return `this` instead of `this.data`
+- `repairTaskDir` now captures backup paths from `JsonFileTransaction.save()` into `result.backups`
+- `repair-task` command captures `_index.json` backup from `replaceId()`, merges with task backups, prints all
 - All internal `.read()` call sites migrated to `.load().getData()` pattern
 - `detectCorruption.ts` renamed to `validation.ts` — now hosts both corruption detection and the new validation framework (core types, helper factories, `validatePath()` entrypoint)
 - `detectCorruptionV2.spec.ts` renamed to `validation.spec.ts` — renamed to match new module

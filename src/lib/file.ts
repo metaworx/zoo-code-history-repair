@@ -1,3 +1,4 @@
+import crypto from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
 import {getValidatorByFile, ValidationResult, ValidatorFn} from "./validation.js"
@@ -58,6 +59,32 @@ export function backupFile(filePath: string): string | null {
     const bak = `${filePath}.${backupTimestamp}.bak.json`
     fs.copyFileSync(filePath, bak)
     return bak
+}
+
+/** Compute a SHA1 checksum of a JSON file with volatile fields (updatedAt, ts) stripped. */
+export function contentHash(filePath: string): string | null {
+    if (!fs.existsSync(filePath)) return null
+    try {
+        const raw = fs.readFileSync(filePath, "utf8")
+        const data = JSON.parse(raw)
+        stripVolatile(data)
+        return crypto.createHash("sha1").update(JSON.stringify(data)).digest("hex")
+    } catch {
+        return null
+    }
+}
+
+/** Recursively remove volatile timestamp fields from an object (mutates in place). */
+function stripVolatile(obj: unknown): void {
+    if (!obj || typeof obj !== "object") return
+    if (Array.isArray(obj)) {
+        for (const item of obj) stripVolatile(item)
+        return
+    }
+    const rec = obj as Record<string, unknown>
+    delete rec.updatedAt
+    delete rec.ts
+    for (const v of Object.values(rec)) stripVolatile(v)
 }
 
 export function saveFileWithSnapshot(filePath: string, data: string, snapshot: FileSnapshot | null = null): FileSnapshot | null {
