@@ -3,9 +3,12 @@
  * Read-only — works directly on tests/fixtures/, no temp copy needed.
  */
 import path from "node:path";
-import { scanStorage } from "../../scan.js";
+import {scanStorage} from "../../scan.js";
+import {countEntries, recoverabilityScore} from "../../scanOutput.js";
+import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "../../paths.js";
 
 const FIXTURE_ROOT = path.resolve("tests/fixtures");
+const TASKS_DIR = path.join(FIXTURE_ROOT, "tasks");
 
 // Expected corruption patterns per task (must match actual fixture data)
 const EXPECTED: Record<string, string[]> = {
@@ -93,6 +96,69 @@ describe("scan against fixtures (integration)", () => {
         );
         for (const o of orphans) {
             expect(o.indexItem).toBeNull();
+        }
+    });
+});
+
+describe("scan output helpers against fixtures (integration)", () => {
+    const result = scanStorage(FIXTURE_ROOT);
+
+    // Expected entry counts per corrupt task (matching CLI output)
+    const ENTRY_COUNTS: Record<string, { ach: number; uim: number }> = {
+        "019ede5a-9327-70cc-9c54-2d227182e4d1": {ach: 0, uim: 0},
+        "019f0f12-02f9-70df-a35e-2b110efe4107": {ach: 256, uim: 113},
+        "019fb786-503a-76ca-8708-fee1243c878d": {ach: 516, uim: 1},
+        "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": {ach: 142, uim: 0},
+        "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": {ach: 178, uim: 438},
+        "019fddaa-5136-7106-abef-adac81fd56a3": {ach: 1, uim: 3},
+        "019fde29-32cc-76c3-a156-e5287fc5fd2c": {ach: 84, uim: 188},
+    };
+
+    it("countEntries returns correct ACH/UIM counts for all corrupt tasks", () => {
+        for (const c of result.corruptions) {
+            const expected = ENTRY_COUNTS[c.taskId];
+            expect(expected, `no expected counts for ${c.taskId}`).toBeDefined();
+            const ach = countEntries(c.dir, API_HISTORY_NAME);
+            const uim = countEntries(c.dir, UI_MESSAGES_NAME);
+            expect(ach, `${c.taskId}: ACH entries`).toBe(expected.ach);
+            expect(uim, `${c.taskId}: UIM entries`).toBe(expected.uim);
+        }
+    });
+
+    it("countEntries does not throw on corrupt ui_messages.json (regression)", () => {
+        // Task 019f0f12-02f9-70df-a35e-2b110efe4107 has scrambled say/type fields
+        // that triggered the validation crash before the fix.
+        const taskDir = path.join(TASKS_DIR, "019f0f12-02f9-70df-a35e-2b110efe4107");
+        const uimCount = countEntries(taskDir, UI_MESSAGES_NAME);
+        expect(uimCount).toBe(113);
+        const achCount = countEntries(taskDir, API_HISTORY_NAME);
+        expect(achCount).toBe(256);
+    });
+
+    it("countEntries returns 0 for missing file", () => {
+        const taskDir = path.join(TASKS_DIR, "019ede5a-9327-70cc-9c54-2d227182e4d1");
+        const count = countEntries(taskDir, UI_MESSAGES_NAME);
+        expect(count).toBe(0);
+    });
+
+    it("countEntries returns 0 for undefined dir", () => {
+        expect(countEntries(undefined, UI_MESSAGES_NAME)).toBe(0);
+    });
+
+    it("recoverabilityScore matches expected values", () => {
+        const EXPECTED_SCORES: Record<string, string> = {
+            "019ede5a-9327-70cc-9c54-2d227182e4d1": "0%",
+            "019f0f12-02f9-70df-a35e-2b110efe4107": "50%",
+            "019fb786-503a-76ca-8708-fee1243c878d": "67%",
+            "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": "70%",
+            "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": "50%",
+            "019fddaa-5136-7106-abef-adac81fd56a3": "50%",
+            "019fde29-32cc-76c3-a156-e5287fc5fd2c": "0%",
+        };
+        for (const c of result.corruptions) {
+            const expected = EXPECTED_SCORES[c.taskId];
+            expect(expected, `no expected score for ${c.taskId}`).toBeDefined();
+            expect(recoverabilityScore(c), `${c.taskId} score`).toBe(expected);
         }
     });
 });

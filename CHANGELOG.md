@@ -66,6 +66,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `repair-all` index-added/removed counts now compare old index against new index (not disk directories), eliminating misleading "+ added" for tasks not actually indexed
 - `repair-all` and `repair-task` now rebuild `_index.json` after individual repairs — fixes `folder_orphan` and stale index entries
 - `writeJsonCompact` uses atomic tempfile→rename (crash-safe writes)
+- `scan` command no longer crashes on corrupted `ui_messages.json` fixtures — `countEntries` now uses tolerant `tx.read(false)` instead of throwing on validation failures
+- Added 5 integration tests for scan output helpers (`countEntries`, `recoverabilityScore`) against scrambled fixture data
 
 ## [0.4.0] — 2026-08-08
 
