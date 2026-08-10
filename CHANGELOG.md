@@ -21,6 +21,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `getValidatorByFile()` — maps filename to validator function for automatic validator registration
 - `readJsonFile`, `writeJsonCompact`, `backupFile` moved to new `src/lib/file.ts` module
 - `vitest/globals` types added to `tsconfig.json`
+- Command unit tests (`src/lib/__tests__/commands/`) — 8 test files (51 tests) covering all CLI command wrappers: import validity, parameter mapping from CLI options to library functions, and output formatting branches (dry-run/force, JSON/text, success/error)
 
 ### Changed
 
