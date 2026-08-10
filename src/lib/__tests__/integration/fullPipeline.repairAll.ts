@@ -213,14 +213,14 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     consoleLogSpy.mockClear();
     scanAction({json: true});
     const scanJson2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
-    assertJsonEqual(readJson(FIXTURE_SCAN_AFTER_FILE), scanJson2, {
+    expect(readJson(FIXTURE_SCAN_AFTER_FILE)).toDeepEqualJson(scanJson2, {
         ignoreProps: ['version', 'taskMatch', 'storageRoot'],
         replacements: {
             [`^${quotePathRegex(tmpRoot)}` as any]: "",
             [`^${quotePathRegex("tests/fixtures")}` as any]: "",
         },
         maxLength: 200,
-    })
+    }, "scan json output before")
 
     // ── Phase 4: list-corrupt after repair (fewer reasons) ──
     consoleLogSpy.mockClear();

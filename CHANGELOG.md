@@ -72,7 +72,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `fullPipeline.spec.ts` modularized — test bodies outsourced to `fullPipeline.repairAll.ts`, `fullPipeline.repairTask.ts` (renamed from `repairTask.indexUpdate.spec.ts`), `fullPipeline.delete.ts`; suite shell handles describe/beforeEach/mock setup, factory functions receive `(tmpRoot, tasksDir, consoleLogSpy)`
+- `fullPipeline.spec.ts` modularized — test bodies outsourced to `fullPipeline.repairAll.ts`, `fullPipeline.repairTask.ts` (renamed from `repairTask.indexUpdate.spec.ts`), `fullPipeline.delete.ts`, `fullPipeline.rebuildIndex.ts`; suite shell handles describe/beforeEach/mock setup, factory functions receive `(tmpRoot, tasksDir, consoleLogSpy)`
 - `repair-all` output shows storage path and index rebuild summary
 - `repair-task` / `repair-all` use `→` arrow notation instead of bare aspect names
 - Non-zero exit codes: `scan` and `list-corrupt` exit with corruption count (capped at 255)

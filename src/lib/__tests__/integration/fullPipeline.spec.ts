@@ -18,6 +18,7 @@ import {copyFixtureTasks, createTempDir} from "../testHelpers.js";
 import repairAll from './fullPipeline.repairAll.js'
 import repairTask from './fullPipeline.repairTask.js'
 import deleteTask from './fullPipeline.delete.js'
+import rebuildIndex from './fullPipeline.rebuildIndex.js'
 
 const mockSetRoot = vi.hoisted(() => vi.fn());
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"));
@@ -43,7 +44,7 @@ describe("full pipeline (integration)", () => {
     let tasksDir: string;
     let cleanup: () => void;
     let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-    let exitSpy: ReturnType<typeof vi.spyOn<typeof process, "exit">>;
+    let exitSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
         const td = createTempDir("zoo-full-pl-");
@@ -65,5 +66,6 @@ describe("full pipeline (integration)", () => {
     it("scan→repair→validate cycle reduces corruption and is idempotent", () => repairAll(tmpRoot, tasksDir, consoleLogSpy)());
     it("repair-task → index update (preserves all index entries after targeted repair)", () => repairTask(tasksDir, consoleLogSpy)());
     it("delete unrepairable task removes it from list-corrupt and is idempotent", () => deleteTask(tasksDir, consoleLogSpy)());
+    it("rebuild-index removes index_orphans and adds folder_orphans from disk", () => rebuildIndex(tasksDir, consoleLogSpy, tmpRoot)());
 
 });

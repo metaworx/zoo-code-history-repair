@@ -55,8 +55,7 @@ describe("delete command", () => {
     beforeEach(() => {
         consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
         })
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
-        }) as () => never)
+        exitSpy = vi.spyOn(process, "exit" as any).mockImplementation(() => undefined) as any
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
         mockResolveIndexPath.mockReturnValue("/fake/root/tasks/_index.json")
