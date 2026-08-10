@@ -33,13 +33,15 @@ export function action(cmdOpts: {
     force?: boolean;
     backup?: boolean;
     verbose?: boolean;
-    fixedInputToken?: number
+    fixedInputToken?: number;
+    verifyUiSync?: boolean;
 }): void {
     const root = resolveRoot()
     const ra = repairAllCorrupted(root, {
         dryRun: !cmdOpts.force,
         backup: cmdOpts.backup !== false,
         fixedInputToken: cmdOpts.fixedInputToken,
+        verifyUiSync: cmdOpts.verifyUiSync,
     })
 
     console.log(getVersionBanner())
