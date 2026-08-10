@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import {expect} from 'vitest';
+import {expect, vi} from 'vitest';
 
 /** Absolute path to the fixture tasks directory. */
 export const FIXTURE_DIR = path.resolve("tests/fixtures/tasks");
@@ -216,4 +216,10 @@ export function quotePathRegex(basePath: string): string {
     // 2. Make separators flexible: replace any escaped '\' or '/' with a matcher for either slash
     // This allows a Windows path variable to match a Unix format in your JSON and vice-versa
     return escaped.replace(/\\\\|\//g, '[\\\\/]');
+}
+
+/** Extract and parse the JSON payload from the most recent consoleLogSpy call list. */
+export function getJsonOutput(spy: ReturnType<typeof vi.spyOn>): unknown {
+    const text = spy.mock.calls.map(c => c[0]).join("");
+    return JSON.parse(text);
 }

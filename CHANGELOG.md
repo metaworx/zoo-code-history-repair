@@ -27,7 +27,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Command unit tests (`src/lib/__tests__/commands/`) — 8 test files (51 tests) covering all CLI command wrappers: import validity, parameter mapping from CLI options to library functions, and output formatting branches (dry-run/force, JSON/text, success/error)
 - `contentHash()` utility — SHA1 checksum of JSON files with volatile fields (`updatedAt`, `ts`) stripped via `stripVolatile()`
 - `IndexTransaction` class exported from library index (`src/index.ts`)
-- Integration test: `repairTask.indexUpdate.spec.ts` — validate→repair-task→validate workflow with backup existence + checksum verification
+- Integration test: `fullPipeline.repairTask.ts` — validate→repair-task→validate workflow with backup existence + checksum verification
 - Shared test helpers (`src/lib/__tests__/testHelpers.ts`) — temp dir lifecycle, fixture copying, JSON I/O, backup listing, hash utilities, and `assertJsonEqual` with `normalizeJson` for deep comparison with path replacements, prop ignores, and `maxLength` truncation
 - Full pipeline integration test (`src/lib/__tests__/integration/fullPipeline.spec.ts`) — 11-phase scan→repair→validate→idempotency cycle using CLI commands with text + `--json` output parsing, backup/hash verification, and fixture-based snapshot comparison
 - Unrepairable task hint — `RepairResult.hint` field printed in `repair-task` and `repair-all` output suggesting `delete <taskId> --force` for tasks that cannot be repaired
@@ -72,6 +72,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `fullPipeline.spec.ts` modularized — test bodies outsourced to `fullPipeline.repairAll.ts`, `fullPipeline.repairTask.ts` (renamed from `repairTask.indexUpdate.spec.ts`), `fullPipeline.delete.ts`; suite shell handles describe/beforeEach/mock setup, factory functions receive `(tmpRoot, tasksDir, consoleLogSpy)`
 - `repair-all` output shows storage path and index rebuild summary
 - `repair-task` / `repair-all` use `→` arrow notation instead of bare aspect names
 - Non-zero exit codes: `scan` and `list-corrupt` exit with corruption count (capped at 255)
