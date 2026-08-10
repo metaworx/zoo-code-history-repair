@@ -483,25 +483,13 @@ All functionality is available programmatically — useful for IDE plugin integr
 ```typescript
 import {
     scanStorage,
-    rebuildIndexFromDisk,
+    IndexTransaction,
     repairTaskDir,
     repairAllCorrupted,
     rebuildUiMessages,
     extractTaskFromApiHistory,
     computeTaskSize,
     compactSizeBytes,
-    estimateTokensOut,
-    estimateTokensIn,
-    estimateTotalCost,
-    estimateCacheReads,
-    listBackups,
-    restoreFromBackups,
-    deleteBackups,
-    parseTimestamp,
-    truncate,
-    taskMatch,
-    recoverabilityScore,
-    countEntries,
 } from "zoo-code-history-repair"
 ```
 

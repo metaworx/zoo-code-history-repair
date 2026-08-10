@@ -1,7 +1,7 @@
 import path from "node:path"
 import type {HistoryItem} from "../types.js"
 import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
-import {backupFile, JsonFileTransaction} from "./file.js";
+import {JsonFileTransaction} from "./file.js";
 import {inspectTaskDir, isPlaceholderTaskName} from "./validation.js";
 import {readPartialJsonArray} from "./readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
@@ -90,9 +90,9 @@ export function repairTaskDir(
     const hiTx = new JsonFileTransaction(hiPath, false, [])
     const tmTx = new JsonFileTransaction(tmPath, false, [])
 
-    let apiHistory = apiTx.read(false) as unknown[] | null
-    const historyItem = hiTx.read(false) as HistoryItem | null
-    const taskMetadata = tmTx.read(false)
+    let apiHistory = apiTx.load(false).getData() as unknown[] | null
+    const historyItem = hiTx.load(false).getData() as HistoryItem | null
+    const taskMetadata = tmTx.load(false).getData()
 
     if (!apiHistory || !Array.isArray(apiHistory)) {
         const partial = readPartialJsonArray(apiPath)
@@ -116,7 +116,7 @@ export function repairTaskDir(
 
     // --- 1. Rebuild ui_messages.json ---
     const uiTx = new JsonFileTransaction(uiPath, false, [])
-    const existingUi = uiTx.read(false) as unknown[] | null
+    const existingUi = uiTx.load(false).getData() as unknown[] | null
     const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
     const shouldRebuildUi = existingIsEmpty || options.forceUim || reasonSet.has("empty_ui_messages")
 
@@ -124,11 +124,7 @@ export function repairTaskDir(
         const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
         if (newUi.length > 0) {
             if (!options.dryRun) {
-                if (options.backup !== false) {
-                    const bak = backupFile(uiPath)
-                    if (bak) result.backups.push(bak)
-                }
-                uiTx.save(newUi)
+                uiTx.setData(newUi).save(true, options.backup !== false)
             }
             result.uiRepaired = true
             result.touchedFiles.push(UI_MESSAGES_NAME)
@@ -157,7 +153,7 @@ export function repairTaskDir(
         }
 
         // --- 3. Recompute size ---
-        const uiMessages = uiTx.read(false) as unknown[] | null
+        const uiMessages = uiTx.load(false).getData() as unknown[] | null
         const expectedSize = computeTaskSize(
             uiMessages ?? [],
             apiHistory,
@@ -236,11 +232,7 @@ export function repairTaskDir(
         }
 
         if (modified && !options.dryRun) {
-            if (options.backup !== false) {
-                const bak = backupFile(hiPath)
-                if (bak) result.backups.push(bak)
-            }
-            hiTx.save(historyItem)
+            hiTx.setData(historyItem).save(true, options.backup !== false)
         }
         if (modified && !result.touchedFiles.includes(HISTORY_ITEM_NAME)) {
             result.touchedFiles.push(HISTORY_ITEM_NAME)

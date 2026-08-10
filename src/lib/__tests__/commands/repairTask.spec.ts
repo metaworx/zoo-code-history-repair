@@ -15,8 +15,14 @@ const mockFormatRepairParts = vi.hoisted(() => vi.fn((r: any) => {
 }))
 
 const mockTransactionRead = vi.hoisted(() => vi.fn())
-const mockJsonFileTransaction = vi.hoisted(() => vi.fn(function (this: {read: typeof mockTransactionRead}, _path: string) {
+const mockTransactionGetData = vi.hoisted(() => vi.fn(() => mockTransactionRead()))
+const mockTransactionLoad = vi.hoisted(() => vi.fn(function (this: any) {
+    return this
+}))
+const mockJsonFileTransaction = vi.hoisted(() => vi.fn(function (this: any, _path: string) {
     this.read = mockTransactionRead
+    this.load = mockTransactionLoad
+    this.getData = mockTransactionGetData
     return this
 }))
 
@@ -31,6 +37,7 @@ vi.mock("../../cliContext.js", () => ({
 vi.mock("../../paths.js", () => ({
     resolveTasksDir: mockResolveTasksDir,
     resolveIndexPath: mockResolveIndexPath,
+    HISTORY_ITEM_NAME: "history_item.json",
 }))
 
 vi.mock("../../repairTask.js", () => ({
@@ -40,6 +47,15 @@ vi.mock("../../repairTask.js", () => ({
 
 vi.mock("../../file.js", () => ({
     JsonFileTransaction: mockJsonFileTransaction,
+}))
+
+const mockIdxGetEntries = vi.hoisted(() => vi.fn(() => []))
+vi.mock("../../IndexTransaction.js", () => ({
+    IndexTransaction: vi.fn(function (this: any, _readOnly?: boolean) {
+        this.getEntries = mockIdxGetEntries
+        this.replaceId = vi.fn()
+        return this
+    }),
 }))
 
 vi.mock("../../format.js", () => ({
@@ -53,7 +69,8 @@ describe("repairTask command", () => {
     let consoleLogSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
         mockResolveIndexPath.mockReturnValue("/fake/root/tasks/_index.json")
@@ -122,7 +139,7 @@ describe("repairTask command", () => {
     })
 
     it("passes options to repairTaskDir including indexItems", () => {
-        mockTransactionRead.mockReturnValue([
+        mockIdxGetEntries.mockReturnValue([
             {id: "t1", tokensIn: 500, tokensOut: 300},
         ])
         mockRepairTaskDir.mockReturnValue({
@@ -143,9 +160,7 @@ describe("repairTask command", () => {
     })
 
     it("passes indexItems from {entries} format", () => {
-        mockTransactionRead.mockReturnValue({
-            entries: [{id: "t1", tokensIn: 100}],
-        })
+        mockIdxGetEntries.mockReturnValue([{id: "t1", tokensIn: 100}])
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1", uiRepaired: false, taskRepaired: false,
             sizeRepaired: false, tokensRepaired: false,

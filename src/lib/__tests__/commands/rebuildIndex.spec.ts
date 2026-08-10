@@ -5,7 +5,13 @@ const mockSetVersion = vi.hoisted(() => vi.fn())
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"))
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
 const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => `${r}/tasks`))
-const mockRebuildIndexFromDisk = vi.hoisted(() => vi.fn())
+const mockRepair = vi.hoisted(() => vi.fn())
+const mockSave = vi.hoisted(() => vi.fn(() => null))
+const mockIndexTransaction = vi.hoisted(() => vi.fn(function (this: any) {
+    this.repair = mockRepair
+    this.save = mockSave
+    return this
+}))
 
 vi.mock("../../cliContext.js", () => ({
     setRoot: mockSetRoot,
@@ -18,8 +24,8 @@ vi.mock("../../paths.js", () => ({
     resolveTasksDir: mockResolveTasksDir,
 }))
 
-vi.mock("../../rebuildIndex.js", () => ({
-    rebuildIndexFromDisk: mockRebuildIndexFromDisk,
+vi.mock("../../IndexTransaction.js", () => ({
+    IndexTransaction: mockIndexTransaction,
 }))
 
 vi.mock("../../format.js", () => ({
@@ -33,7 +39,8 @@ describe("rebuildIndex command", () => {
     let consoleLogSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
     })
@@ -43,9 +50,9 @@ describe("rebuildIndex command", () => {
     })
 
     it("dry-run: prints item count and dry-run message", () => {
-        mockRebuildIndexFromDisk.mockReturnValue({
+        mockRepair.mockReturnValue({
             items: [{id: "a"}, {id: "b"}, {id: "c"}],
-            backupPath: null,
+            written: false,
         })
 
         action({force: false})
@@ -56,10 +63,10 @@ describe("rebuildIndex command", () => {
         expect(output).not.toContain("Written:")
     })
 
-    it("force with backup: prints written path and backup path", () => {
-        mockRebuildIndexFromDisk.mockReturnValue({
+    it("force: prints written path", () => {
+        mockRepair.mockReturnValue({
             items: [{id: "x"}],
-            backupPath: "/fake/root/tasks/_index.json.bak",
+            written: true,
         })
 
         action({force: true, backup: true})
@@ -67,13 +74,12 @@ describe("rebuildIndex command", () => {
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 1 items")
         expect(output).toContain("Written:")
-        expect(output).toContain("Backup:")
     })
 
-    it("force without backup: no backup path displayed", () => {
-        mockRebuildIndexFromDisk.mockReturnValue({
+    it("force: prints output even for empty index", () => {
+        mockRepair.mockReturnValue({
             items: [],
-            backupPath: null,
+            written: true,
         })
 
         action({force: true, backup: false})
@@ -81,15 +87,14 @@ describe("rebuildIndex command", () => {
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 0 items")
         expect(output).toContain("Written:")
-        expect(output).not.toContain("Backup:")
     })
 
-    it("passes dryRun and backup options to rebuildIndexFromDisk", () => {
-        mockRebuildIndexFromDisk.mockReturnValue({items: [], backupPath: null})
+    it("passes dryRun and backup options to repair", () => {
+        mockRepair.mockReturnValue({items: [], written: false})
 
         action({force: false, backup: false})
 
-        expect(mockRebuildIndexFromDisk).toHaveBeenCalledWith("/fake/root", {
+        expect(mockRepair).toHaveBeenCalledWith(false, undefined, {
             dryRun: true,
             backup: false,
         })

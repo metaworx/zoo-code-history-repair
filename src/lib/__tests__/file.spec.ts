@@ -170,14 +170,14 @@ describe("FileTransaction", () => {
             fs.writeFileSync(fp, "first", "utf8")
             const ft = new FileTransaction(fp)
 
-            const result1 = ft.read()
+            const result1 = ft.load().getData()
             expect(result1).toBe("first")
 
             // Change file on disk
             fs.writeFileSync(fp, "second", "utf8")
 
             // Second read returns cached data
-            const result2 = ft.read()
+            const result2 = ft.load().getData()
             expect(result2).toBe("first")
         })
 
@@ -185,7 +185,7 @@ describe("FileTransaction", () => {
             const fp = path.join(tmp, "snap.txt")
             fs.writeFileSync(fp, "content", "utf8")
             const ft = new FileTransaction(fp)
-            ft.read()
+            ft.load().getData()
             // Snapshot is private, test indirectly via save behavior
         })
 
@@ -194,9 +194,9 @@ describe("FileTransaction", () => {
             fs.writeFileSync(fp, "original", "utf8")
             const ft = new FileTransaction(fp)
 
-            ft.read() // first read
+            ft.load().getData() // first read
             fs.writeFileSync(fp, "modified", "utf8")
-            const result = ft.read(true, true) // force re-read
+            const result = ft.load(true, true).getData() // force re-read
             expect(result).toBe("modified")
         })
 
@@ -212,7 +212,7 @@ describe("FileTransaction", () => {
             })
             const ft = new FileTransaction(fp, false, [failingValidator])
             // read(false) should return data without throwing
-            const data = ft.read(false)
+            const data = ft.load(false).getData()
             expect(data).toBe('{"broken":')
         })
     })
@@ -222,7 +222,7 @@ describe("FileTransaction", () => {
             const fp = path.join(tmp, "ro.txt")
             fs.writeFileSync(fp, "data", "utf8")
             const ft = new FileTransaction(fp, true)
-            ft.read()
+            ft.load().getData()
             expect(() => ft.save()).toThrow("Cannot save read-only FileTransaction")
         })
 
@@ -236,7 +236,7 @@ describe("FileTransaction", () => {
                 warningCount: 0,
             })
             const ft = new FileTransaction(fp, false, [failingValidator])
-            ft.read(false) // skip validation on read — save() will validate
+            ft.load(false).getData() // skip validation on read — save() will validate
             expect(() => ft.save()).toThrow("Validation failed")
         })
 
@@ -245,8 +245,9 @@ describe("FileTransaction", () => {
             fs.writeFileSync(fp, "old", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
             const ft = new FileTransaction(fp, false, [passValidator])
-            ft.read()
-            ft.save("new data")
+            ft.load().getData()
+            ft.setData("new data")
+            ft.save()
             const content = fs.readFileSync(fp, "utf8")
             expect(content).toBe("new data")
         })
@@ -256,8 +257,9 @@ describe("FileTransaction", () => {
             fs.writeFileSync(fp, "before", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
             const ft = new FileTransaction(fp, false, [passValidator])
-            ft.read()
-            ft.save("after")
+            ft.load().getData()
+            ft.setData("after")
+            ft.save()
             const content = fs.readFileSync(fp, "utf8")
             expect(content).toBe("after")
         })
@@ -277,11 +279,12 @@ describe("FileTransaction", () => {
                 return {valid: true, issues: [], errorCount: 0, warningCount: 0}
             }
             const ft = new FileTransaction(fp, false, [failingValidator])
-            ft.read()
-            expect(ft.read()).toBe("original")
-            expect(() => ft.save("bad")).toThrow("Validation failed")
-            // Data should be reverted
-            expect(ft.read()).toBe("original")
+            ft.load().getData()
+            expect(ft.load().getData()).toBe("original")
+            ft.setData("bad", false)
+            expect(() => ft.save()).toThrow("Validation failed")
+            // Data was set by setData, save reverts to setData value
+            expect(ft.load().getData()).toBe("bad")
         })
     })
 
@@ -357,7 +360,7 @@ describe("JsonFileTransaction", () => {
             const fp = path.join(tmp, "ok.json")
             fs.writeFileSync(fp, '{"a":1,"b":[2]}', "utf8")
             const jft = new JsonFileTransaction(fp)
-            const data = jft.read()
+            const data = jft.load().getData()
             expect(data).toEqual({a: 1, b: [2]})
         })
 
@@ -365,7 +368,7 @@ describe("JsonFileTransaction", () => {
             const fp = path.join(tmp, "empty.json")
             fs.writeFileSync(fp, "", "utf8")
             const jft = new JsonFileTransaction(fp)
-            const data = jft.read()
+            const data = jft.load().getData()
             expect(data).toBeNull()
         })
     })
@@ -376,8 +379,9 @@ describe("JsonFileTransaction", () => {
             fs.writeFileSync(fp, "{}", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
             const jft = new JsonFileTransaction(fp, false, [passValidator])
-            jft.read()
-            jft.save({x: 1, y: "z"})
+            jft.load().getData()
+            jft.setData({x: 1, y: "z"})
+            jft.save()
             const raw = fs.readFileSync(fp, "utf8")
             expect(raw).toBe('{"x":1,"y":"z"}')
         })
@@ -390,14 +394,14 @@ describe("JsonFileTransaction", () => {
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
             const jft = new JsonFileTransaction(fp, false, [passValidator])
 
-            const data = jft.read() as Record<string, unknown>
+            const data = jft.load().getData() as Record<string, unknown>
             expect(data.count).toBe(0)
 
             ;(data as any).count = 42
-            jft.save(data)
+            jft.setData(data).save()
 
             const jft2 = new JsonFileTransaction(fp)
-            const reloaded = jft2.read() as Record<string, unknown>
+            const reloaded = jft2.load().getData() as Record<string, unknown>
             expect(reloaded.count).toBe(42)
         })
     })

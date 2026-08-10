@@ -25,6 +25,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `FileTransaction`: `read()` replaced by `load():this` + `getData():unknown` — fluid API; `load()` populates in-memory data and returns `this` for chaining with `setData()`/`save()`; `getData()` returns loaded data
+- `IndexTransaction.load()` overrides parent to rebuild `this.index` from loaded `_index.json` entries after load
+- `IndexTransaction.replaceId()` and `removeById()` now ensure index is loaded from disk via `this.getEntries()` guard before mutating — fixes single-entry overwrite when called on fresh instance and silent no-op from empty index
+- `FileTransaction.load()` early-return fixed to return `this` instead of `this.data`
+- All internal `.read()` call sites migrated to `.load().getData()` pattern
 - `detectCorruption.ts` renamed to `validation.ts` — now hosts both corruption detection and the new validation framework (core types, helper factories, `validatePath()` entrypoint)
 - `detectCorruptionV2.spec.ts` renamed to `validation.spec.ts` — renamed to match new module
 - `readJson.ts` simplified to only export `readPartialJsonArray()` — all file I/O primitives moved to `file.ts`
@@ -71,6 +76,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `repair-all --verify-ui-sync` was silently ignored — option declared but never read from `cmdOpts` or passed to `repairAllCorrupted`; now wired through
 - `repair-task` crashed when reading `_index.json` with dangling references — changed to tolerant `tx.read(false)`; index read is only for token recovery lookup, not validation
 - `validate` command: error output no longer includes full stack trace; UUID targets (e.g. `validate <taskId>`) now resolve to the task directory under the storage root; task directory validation also checks the `_index.json` entry with cross-references against the full index
+- `repair-task --force` now rebuilds `_index.json` from disk after successful repair, keeping the index in sync with repaired task files
 
 ## [0.4.0] — 2026-08-08
 

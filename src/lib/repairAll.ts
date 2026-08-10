@@ -1,6 +1,6 @@
 import path from "node:path"
 import type {RepairOptions} from "../types.js"
-import {rebuildIndexFromDisk} from "./rebuildIndex.js"
+import {IndexTransaction} from "./IndexTransaction.js"
 import {scanStorage} from "./scan.js"
 import {repairTaskDir} from "./repairTask.js"
 import type {RepairResult} from "./repairTask.js"
@@ -71,14 +71,15 @@ export function repairAllCorrupted(
     let indexAdded: string[] = []
     let indexRemoved: string[] = []
 
-    const rebuildResult = rebuildIndexFromDisk(storageRoot, {
+    const idx = new IndexTransaction(false)
+    const rebuildResult = idx.repair(true, undefined, {
         dryRun: options.dryRun,
         backup: options.backup !== false,
     })
 
     if (rebuildResult.items.length > 0) {
         indexEntries = rebuildResult.items.length
-        const newIndexIds = new Set(rebuildResult.items.map(i => i.id))
+        const newIndexIds = new Set(rebuildResult.items.map(i => i.id as string))
 
         // added: in new index but not in old index
         for (const id of newIndexIds) {

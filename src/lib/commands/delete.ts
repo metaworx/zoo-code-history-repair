@@ -1,7 +1,7 @@
 import {existsSync, rmSync} from "node:fs"
 import path from "node:path"
-import {resolveIndexPath, resolveTasksDir} from "../paths.js"
-import {backupFile, JsonFileTransaction, writeJsonCompact} from "../file.js";
+import {resolveTasksDir} from "../paths.js"
+import {IndexTransaction} from "../IndexTransaction.js"
 import {getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 
@@ -41,23 +41,13 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
         console.log(`Directory not found: ${taskDir}`)
     }
 
-    const indexPath = resolveIndexPath(tasksDir)
-    const indexTx = new JsonFileTransaction(indexPath, true, [])
-    const indexData = indexTx.read() as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
-    if (!indexData) {
-        console.log("Index not found — nothing to strip")
-        return
+    const idx = new IndexTransaction(false)
+    const entries = idx.getEntries()
+    const before = entries.length
+    const removed = idx.removeById(taskId, false)
+    if (removed) {
+        idx.setData(entries, false)
+        idx.save(false, cmdOpts.backup !== false)
     }
-
-    if (Array.isArray(indexData)) {
-        const filtered = indexData.filter(e => e.id !== taskId)
-        if (cmdOpts.backup !== false) backupFile(indexPath)
-        writeJsonCompact(indexPath, filtered)
-        console.log(`Stripped ${taskId} from _index.json (${indexData.length} → ${filtered.length} entries)`)
-    } else if (indexData.entries) {
-        const filtered = indexData.entries.filter((e: { id: string }) => e.id !== taskId)
-        if (cmdOpts.backup !== false) backupFile(indexPath)
-        writeJsonCompact(indexPath, {...indexData, entries: filtered})
-        console.log(`Stripped ${taskId} from _index.json (${indexData.entries.length} → ${filtered.length} entries)`)
-    }
+    console.log(`Stripped ${taskId} from _index.json (${before} → ${entries.length} entries)`)
 }

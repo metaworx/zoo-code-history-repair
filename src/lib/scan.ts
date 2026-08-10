@@ -1,7 +1,8 @@
 import path from "node:path"
-import type {HistoryItem, IndexFile, ScanResult, TaskCorruption} from "../types.js"
+import type {HistoryItem, ScanResult, TaskCorruption} from "../types.js"
 import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
-import {JsonFileTransaction} from "./file.js";
+import {IndexTransaction} from "./IndexTransaction.js"
+import {setRoot} from "./cliContext.js"
 import {inspectTaskDir} from "./validation.js"
 import type {InspectOptions} from "./validation.js"
 
@@ -10,14 +11,12 @@ export interface ScanOptions extends InspectOptions {
 }
 
 export function scanStorage(storageRoot: string, options: ScanOptions = {}): ScanResult {
+    setRoot(storageRoot)
     const tasksDir = resolveTasksDir(storageRoot)
     const indexPath = resolveIndexPath(tasksDir)
 
-    const indexTx = new JsonFileTransaction(indexPath, true, [])
-    const indexRaw = indexTx.read() as HistoryItem[] | IndexFile | null
-    const indexItems: HistoryItem[] = Array.isArray(indexRaw)
-        ? indexRaw
-        : indexRaw?.entries ?? []
+    const idx = new IndexTransaction()
+    const indexItems = idx.getEntries() as HistoryItem[]
 
     const dirs = listTaskDirs(tasksDir)
     const byId = new Map(indexItems.map((i) => [i.id, i]))

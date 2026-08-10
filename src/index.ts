@@ -1,7 +1,7 @@
 export * from "./types.js"
 export {scanStorage} from "./lib/scan.js"
 export type {ScanOptions} from "./lib/scan.js"
-export {rebuildIndexFromDisk} from "./lib/rebuildIndex.js"
+export {IndexTransaction} from "./lib/IndexTransaction.js"
 export {isPlaceholderTaskName, inspectTaskDir} from "./lib/validation.js"
 export type {InspectOptions} from "./lib/validation.js"
 export {guessStorageRoots, resolveTasksDir} from "./lib/paths.js"

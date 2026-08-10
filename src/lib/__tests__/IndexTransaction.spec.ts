@@ -1,72 +1,155 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {rebuildIndexFromDisk} from "../rebuildIndex.js"
-import {readJsonFile} from "../file.js";
-import type {HistoryItem, IndexFile} from "../../types.js"
+import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
 
-describe("rebuildIndexFromDisk", () => {
-    let root: string
-    let tasksDir: string
+const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
+const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => path.join(r, "tasks")))
+const mockResolveIndexPath = vi.hoisted(() => vi.fn((td: string) => path.join(td, "_index.json")))
+const mockListTaskDirs = vi.hoisted(() => vi.fn((td: string) => []))
 
+vi.mock("../cliContext.js", () => ({
+    resolveRoot: mockResolveRoot,
+}))
+
+vi.mock("../paths.js", () => ({
+    resolveTasksDir: mockResolveTasksDir,
+    resolveIndexPath: mockResolveIndexPath,
+    listTaskDirs: mockListTaskDirs,
+    HISTORY_ITEM_NAME: "history_item.json",
+}))
+
+import {IndexTransaction} from "../IndexTransaction.js"
+
+describe("IndexTransaction", () => {
     beforeEach(() => {
-        root = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-rebuild-"))
-        tasksDir = path.join(root, "tasks")
-        fs.mkdirSync(tasksDir)
+        mockResolveRoot.mockReturnValue("/fake/root")
     })
 
     afterEach(() => {
-        fs.rmSync(root, {recursive: true, force: true})
+        vi.clearAllMocks()
     })
 
-    function addTask(id: string, item: Partial<HistoryItem>) {
-        const dir = path.join(tasksDir, id)
-        fs.mkdirSync(dir)
-        fs.writeFileSync(
-            path.join(dir, "history_item.json"),
-            JSON.stringify({id, ts: item.ts ?? 0, task: item.task ?? "x", ...item}),
-        )
-    }
-
-    it("rebuilds index from history_item.json files (dry-run)", () => {
-        addTask("t1", {task: "First", ts: 100, size: 10})
-        addTask("t2", {task: "Second", ts: 200, size: 20})
-
-        const {items, written} = rebuildIndexFromDisk(root, {dryRun: true})
-        expect(written).toBe(false)
-        expect(items).toHaveLength(2)
-        // newest first
-        expect(items[0].id).toBe("t2")
-        expect(items[1].id).toBe("t1")
-        expect(fs.existsSync(path.join(tasksDir, "_index.json"))).toBe(false)
+    describe("getEntries", () => {
+        it("returns empty array when no data", () => {
+            const idx = new IndexTransaction()
+            // read(false) returns null by default in tests (no real file)
+            const entries = idx.getEntries()
+            expect(entries).toEqual([])
+        })
     })
 
-    it("writes compact _index.json and optional backup", () => {
-        addTask("t1", {task: "Only", ts: 50, size: 5})
+    describe("getById", () => {
+        it("returns null when not found", () => {
+            const idx = new IndexTransaction()
+            const entry = idx.getById("nonexistent")
+            expect(entry).toBeNull()
+        })
+    })
 
-        // seed an existing index so backup has something to copy
-        fs.writeFileSync(path.join(tasksDir, "_index.json"), "[]")
+    describe("getFullIndex", () => {
+        it("returns empty Map when no entries", () => {
+            const idx = new IndexTransaction()
+            const map = idx.getFullIndex()
+            expect(map.size).toBe(0)
+        })
+    })
 
-        const {items, written, backupPath} = rebuildIndexFromDisk(root, {
-            dryRun: false,
-            backup: true,
+    describe("repair fromDisk with temp dirs", () => {
+        let tmpRoot: string
+        let tasksDir: string
+
+        beforeEach(() => {
+            tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-idx-tx-"))
+            tasksDir = path.join(tmpRoot, "tasks")
+            fs.mkdirSync(tasksDir)
+
+            mockResolveRoot.mockReturnValue(tmpRoot)
+            mockResolveTasksDir.mockReturnValue(tasksDir)
+            mockResolveIndexPath.mockReturnValue(path.join(tasksDir, "_index.json"))
+
+            // Create _index.json
+            fs.writeFileSync(path.join(tasksDir, "_index.json"), "[]")
         })
 
-        expect(written).toBe(true)
-        expect(items).toHaveLength(1)
-        expect(backupPath).toBeTruthy()
+        afterEach(() => {
+            fs.rmSync(tmpRoot, {recursive: true, force: true})
+        })
 
-        const index = readJsonFile<IndexFile>(path.join(tasksDir, "_index.json"))
-        expect(index?.entries).toEqual([
-            expect.objectContaining({id: "t1", task: "Only", size: 5}),
-        ])
-    })
+        it("repair(true) dry-run returns items without writing", () => {
+            const dir = path.join(tasksDir, "task-1")
+            fs.mkdirSync(dir)
+            fs.writeFileSync(
+                path.join(dir, "history_item.json"),
+                JSON.stringify({id: "task-1", task: "Real task", ts: 1}),
+            )
+            mockListTaskDirs.mockReturnValue([dir])
 
-    it("skips dirs without history_item.json", () => {
-        fs.mkdirSync(path.join(tasksDir, "empty-dir"))
-        addTask("ok", {task: "Ok", ts: 1})
+            const idx = new IndexTransaction(false)
+            const {items, written} = idx.repair(true, undefined, {dryRun: true})
+            expect(written).toBe(false)
+            expect(items.length).toBe(1)
+            expect(items[0].id).toBe("task-1")
+        })
 
-        const {items} = rebuildIndexFromDisk(root, {dryRun: true})
-        expect(items.map((i) => i.id)).toEqual(["ok"])
+        it("repair(true) writes index to disk", () => {
+            const dir = path.join(tasksDir, "task-1")
+            fs.mkdirSync(dir)
+            fs.writeFileSync(
+                path.join(dir, "history_item.json"),
+                JSON.stringify({id: "task-1", task: "Real task", ts: 100}),
+            )
+            mockListTaskDirs.mockReturnValue([dir])
+
+            const idx = new IndexTransaction(false)
+            const {items, written} = idx.repair(true, undefined, {
+                dryRun: false,
+                backup: false,
+            })
+            expect(written).toBe(true)
+            expect(items.length).toBe(1)
+            expect(items[0].id).toBe("task-1")
+        })
+
+        it("repair(true) scoped to single ID only touches that entry", () => {
+            const dir1 = path.join(tasksDir, "task-1")
+            fs.mkdirSync(dir1)
+            fs.writeFileSync(
+                path.join(dir1, "history_item.json"),
+                JSON.stringify({id: "task-1", task: "Keep me", ts: 1}),
+            )
+
+            const dir2 = path.join(tasksDir, "task-2")
+            fs.mkdirSync(dir2)
+            fs.writeFileSync(
+                path.join(dir2, "history_item.json"),
+                JSON.stringify({id: "task-2", task: "Replace me", ts: 2}),
+            )
+
+            // Pre-populate index with both entries
+            fs.writeFileSync(
+                path.join(tasksDir, "_index.json"),
+                JSON.stringify([
+                    {id: "task-1", task: "Old task-1", ts: 1},
+                    {id: "task-2", task: "Old task-2", ts: 2},
+                ]),
+            )
+
+            mockListTaskDirs.mockReturnValue([dir1, dir2])
+
+            // Repair only task-2 from disk
+            const idx = new IndexTransaction(false)
+            const {items} = idx.repair(true, "task-2", {dryRun: true})
+
+            // task-1 should keep its original index value (not replaced from disk)
+            const task1 = items.find(i => i.id === "task-1")
+            expect(task1).toBeDefined()
+            expect(task1!.task).toBe("Old task-1")
+
+            // task-2 should get disk value
+            const task2 = items.find(i => i.id === "task-2")
+            expect(task2).toBeDefined()
+            expect(task2!.task).toBe("Replace me")
+        })
     })
 })

@@ -114,8 +114,8 @@ export class FileTransaction {
         this.validators.push(fn)
     }
 
-    read(validate: boolean = true, force: boolean = false): unknown {
-        if (!force && this.hasRead) return this.data
+    load(validate: boolean = true, force: boolean = false): this {
+        if (!force && this.hasRead) return this
 
         this.data = this._read()
 
@@ -123,35 +123,51 @@ export class FileTransaction {
             this.validate(true)
         }
 
+        return this
+    }
+
+    getData(): unknown {
         return this.data
     }
 
-    save(data: unknown = undefined): void {
-        if (this.readOnly) throw new Error(`Cannot save read-only FileTransaction for ${this.filePath}`)
+    /** Set the in-memory data directly, bypassing file read. Returns this for chaining. */
+    setData(data: unknown, validate: boolean = true): this {
+        this.data = data
+        this.hasRead = true
 
-        let oldData = undefined
-
-        if (data !== undefined) {
-            oldData = this.data
-            this.data = data
+        if (validate) {
+            this.validate(true)
         }
 
-        try {
-            this.validate(true)
-        } catch (e) {
+        return this
+    }
 
-            if (oldData !== undefined) {
+    /** Save the current in-memory data to disk. */
+    save(validate: boolean = true, backup: boolean = true): string | null {
+        if (this.readOnly) throw new Error(`Cannot save read-only FileTransaction for ${this.filePath}`)
+
+        if (validate) {
+            const oldData = this.data
+            try {
+                this.validate(true)
+            } catch (e) {
                 this.data = oldData
+                throw e
             }
+        }
 
-            throw e
+        let backupPath: string | null = null
+        if (backup) {
+            backupPath = backupFile(this.filePath)
         }
 
         this._write(this.data)
+
+        return backupPath
     }
 
     validate($throw: boolean = false): ValidationResult {
-        if (!this.hasRead) this.read(false)
+        if (!this.hasRead) this.load(false).getData()
 
         if (this.data === null) {
             const result: ValidationResult = {

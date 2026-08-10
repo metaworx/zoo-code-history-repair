@@ -6,12 +6,22 @@ const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repa
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
 const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => `${r}/tasks`))
 const mockResolveIndexPath = vi.hoisted(() => vi.fn((td: string) => `${td}/_index.json`))
-const mockBackupFile = vi.hoisted(() => vi.fn((p: string) => `${p}.bak`))
-const mockWriteJsonCompact = vi.hoisted(() => vi.fn())
-
-const mockTransactionRead = vi.hoisted(() => vi.fn())
-const mockJsonFileTransaction = vi.hoisted(() => vi.fn(function (this: {read: typeof mockTransactionRead}, path: string, create: boolean, defaultVal: unknown) {
-    this.read = mockTransactionRead
+const mockIdxSave = vi.hoisted(() => vi.fn())
+const mockIdxSetData = vi.hoisted(() => vi.fn())
+const mockIdxGetEntries = vi.hoisted(() => vi.fn(() => [] as Array<{ id: string }>))
+const mockIdxRemoveById = vi.hoisted(() => vi.fn((id: string) => {
+    const arr = mockIdxGetEntries()
+    const idx = arr.findIndex((e: any) => e.id === id)
+    if (idx === -1) return false
+    arr.splice(idx, 1)
+    return true
+}))
+const mockIdxConstructor = vi.hoisted(() => vi.fn(function (this: any) {
+    this.getEntries = mockIdxGetEntries
+    this.removeById = mockIdxRemoveById
+    this.setData = mockIdxSetData
+    this.save = mockIdxSave
+    this.filePath = "/fake/root/tasks/_index.json"
     return this
 }))
 
@@ -27,10 +37,8 @@ vi.mock("../../paths.js", () => ({
     resolveIndexPath: mockResolveIndexPath,
 }))
 
-vi.mock("../../file.js", () => ({
-    backupFile: mockBackupFile,
-    writeJsonCompact: mockWriteJsonCompact,
-    JsonFileTransaction: mockJsonFileTransaction,
+vi.mock("../../IndexTransaction.js", () => ({
+    IndexTransaction: mockIdxConstructor,
 }))
 
 vi.mock("../../format.js", () => ({
@@ -45,11 +53,14 @@ describe("delete command", () => {
     let exitSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any)
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
+        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        }) as () => never)
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
         mockResolveIndexPath.mockReturnValue("/fake/root/tasks/_index.json")
+        mockIdxGetEntries.mockReturnValue([])
     })
 
     afterEach(() => {
@@ -63,50 +74,39 @@ describe("delete command", () => {
         expect(output).toContain("Would delete:")
         expect(output).toContain("task-123")
         expect(output).toContain("Would remove _index entry")
-        expect(mockBackupFile).not.toHaveBeenCalled()
-        expect(mockWriteJsonCompact).not.toHaveBeenCalled()
+        expect(mockIdxSave).not.toHaveBeenCalled()
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("force: dir not found prints message and checks index", () => {
-        mockTransactionRead.mockReturnValue(null)
-
+    it("force: dir not found prints message and still strips index", () => {
         action("ghost", {force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Directory not found:")
         expect(output).toContain("ghost")
-        expect(output).toContain("Index not found")
+        expect(output).toContain("Stripped ghost from _index.json")
     })
 
     it("force: strips array-format index entry with backup", () => {
-        mockTransactionRead.mockReturnValue([
+        mockIdxGetEntries.mockReturnValue([
             {id: "task-1"}, {id: "task-2"}, {id: "task-3"},
         ])
 
         action("task-2", {force: true, backup: true})
 
-        expect(mockBackupFile).toHaveBeenCalled()
-        expect(mockWriteJsonCompact).toHaveBeenCalledWith(
-            "/fake/root/tasks/_index.json",
-            [{id: "task-1"}, {id: "task-3"}],
-        )
+        expect(mockIdxSave).toHaveBeenCalledWith(false, true)
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("3 → 2 entries")
     })
 
-    it("force: strips entries-format index entry with backup disabled", () => {
-        mockTransactionRead.mockReturnValue({
-            entries: [{id: "a"}, {id: "b"}],
-        })
+    it("force: strips index entry with backup disabled", () => {
+        mockIdxGetEntries.mockReturnValue([
+            {id: "a"}, {id: "b"},
+        ])
 
         action("a", {force: true, backup: false})
 
-        expect(mockBackupFile).not.toHaveBeenCalled()
-        expect(mockWriteJsonCompact).toHaveBeenCalledWith(
-            "/fake/root/tasks/_index.json",
-            {entries: [{id: "b"}]},
-        )
+        expect(mockIdxSave).toHaveBeenCalledWith(false, false)
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("2 → 1 entries")
     })

@@ -7,7 +7,7 @@ import {JsonFileTransaction} from "./file.js";
 export function countEntries(dir: string | undefined, filename: string): number {
     if (!dir) return 0
     const tx = new JsonFileTransaction(path.join(dir, filename))
-    const data = tx.read(false) as unknown[] | null
+    const data = tx.load(false).getData() as unknown[] | null
     return Array.isArray(data) ? data.length : 0
 }
 

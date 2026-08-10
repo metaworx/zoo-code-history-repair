@@ -98,7 +98,7 @@ export function inspectTaskDir(
     function validateAndMap(filePath: string, fileName: string): unknown {
         const tx = new JsonFileTransaction(filePath)
         const result = tx.validate()
-        const data = tx.read(false)
+        const data = tx.load(false).getData()
         for (const issue of result.issues) {
             if (issue.code === "NOT_FOUND") {
                 if (fileName === HISTORY_ITEM_NAME) add("missing_history_item", "hi")
@@ -236,7 +236,7 @@ export function validatePath(target: string | undefined): ValidateResult[] {
             const indexPath = path.join(parentDir, "_index.json")
             if (fs.existsSync(indexPath)) {
                 const indexTx = new JsonFileTransaction(indexPath)
-                const indexData = indexTx.read(false) as Array<{ id: string }> | {
+                const indexData = indexTx.load(false).getData() as Array<{ id: string }> | {
                     entries: Array<{ id: string }>
                 } | null
                 const entries: Array<Record<string, unknown>> = Array.isArray(indexData)

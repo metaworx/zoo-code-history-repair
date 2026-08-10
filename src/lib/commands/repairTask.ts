@@ -1,6 +1,7 @@
 import path from "node:path"
-import {resolveIndexPath, resolveTasksDir} from "../paths.js"
+import {HISTORY_ITEM_NAME, resolveTasksDir} from "../paths.js"
 import {JsonFileTransaction} from "../file.js";
+import {IndexTransaction} from "../IndexTransaction.js"
 import {formatRepairParts, repairTaskDir} from "../repairTask.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
@@ -42,11 +43,13 @@ export function action(taskId: string, cmdOpts: {
     const tasksDir = resolveTasksDir(root)
     const taskDir = `${tasksDir}/${taskId}`
 
-    const indexPath = resolveIndexPath(tasksDir)
-    const indexTx = new JsonFileTransaction(indexPath)
-    const indexData = indexTx.read(false) as Array<{ id: string }> | { entries: Array<{ id: string }> } | null
-    const indexItems: Array<{ id: string; tokensIn?: number; tokensOut?: number; totalCost?: number }> =
-        Array.isArray(indexData) ? indexData : (indexData as { entries: Array<{ id: string }> })?.entries ?? []
+    const idx = new IndexTransaction()
+    const indexItems = idx.getEntries() as Array<{
+        id: string;
+        tokensIn?: number;
+        tokensOut?: number;
+        totalCost?: number
+    }>
 
     const r = repairTaskDir(taskDir, {
         dryRun: !cmdOpts.force,
@@ -80,5 +83,16 @@ export function action(taskId: string, cmdOpts: {
         console.log(`  Backups:`)
         for (const b of r.backups) console.log(`    ${path.basename(b)}`)
     }
+
+    // Targeted index update: replace only this task's entry, never touch others
+    if (cmdOpts.force && parts.length > 0) {
+        const hiTx = new JsonFileTransaction(path.join(taskDir, HISTORY_ITEM_NAME), true)
+        const diskEntry = hiTx.load(false).getData() as Record<string, unknown> | null
+        if (diskEntry) {
+            const writeIdx = new IndexTransaction(false)
+            writeIdx.replaceId(taskId, diskEntry, true, false)
+        }
+    }
+
     if (!cmdOpts.force) console.log(dryRunMsg)
 }
