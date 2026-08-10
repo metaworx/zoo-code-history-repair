@@ -153,22 +153,7 @@ export function repairTaskDir(
             }
         }
 
-        // --- 3. Recompute size ---
-        const uiMessages = uiTx.load(false).getData() as unknown[] | null
-        const expectedSize = computeTaskSize(
-            uiMessages ?? [],
-            apiHistory,
-            historyItem,
-            taskMetadata ?? {},
-        )
-
-        if (historyItem.size !== expectedSize) {
-            historyItem.size = expectedSize
-            result.sizeRepaired = true
-            modified = true
-        }
-
-        // --- 4. Repair token fields ---
+        // --- 3. Repair token fields ---
         if (
             historyItem.tokensIn === 0 &&
             historyItem.tokensOut === 0 &&
@@ -230,6 +215,21 @@ export function repairTaskDir(
                     historyItem.cacheWrites = 0
                 }
             }
+        }
+
+        // --- 4. Recompute size (after all modifications) ---
+        const uiMessages = uiTx.load(false).getData() as unknown[] | null
+        const expectedSize = computeTaskSize(
+            uiMessages ?? [],
+            apiHistory,
+            historyItem,
+            taskMetadata ?? {},
+        )
+
+        if (historyItem.size !== expectedSize) {
+            historyItem.size = expectedSize
+            result.sizeRepaired = true
+            modified = true
         }
 
         if (modified && !options.dryRun) {
