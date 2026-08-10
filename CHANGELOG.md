@@ -72,6 +72,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Case-sensitive provider name lookup in `estimateTotalCost` / `estimateCacheReads` — PRICING keys were "DeepSeek" but `apiConfigName` is "deepseek" (lowercase), causing `totalCost` to always be 0 for DeepSeek providers; now normalizes provider to lowercase before lookup
 - `restore` no longer creates safety backups before restoring — the `.bak.json` being restored from already serves as pre-restore backup; stops backup file proliferation on repeated restores
 - `restore` is now idempotent — restoring the same backup twice is a no-op (content already matches backup)
 - Integration test fixtures now strip stale `.bak.json` files before each test to prevent contamination from prior runs

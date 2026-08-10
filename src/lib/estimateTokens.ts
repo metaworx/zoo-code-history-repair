@@ -21,9 +21,9 @@ interface AchTurn {
     content: AchBlock[]
 }
 
-/** Pricing per 1M tokens. Unknown providers return input=0, output=0. */
+/** Pricing per 1M tokens. Keys are lowercase. Unknown providers return input=0, output=0. */
 const PRICING: Record<string, { input: number; output: number }> = {
-    DeepSeek: {input: 0.14, output: 0.28},
+    deepseek: {input: 0.14, output: 0.28},
     default: {input: 0.14, output: 0.28},
 }
 
@@ -93,7 +93,8 @@ export function estimateTotalCost(
     tokensOut: number,
     provider?: string,
 ): number {
-    const pricing = PRICING[provider ?? ""]
+    const key = (provider ?? "").toLowerCase()
+    const pricing = PRICING[key]
     if (!pricing) return 0
 
     const inputCost = (tokensIn / 1_000_000) * pricing.input
@@ -110,8 +111,9 @@ export function estimateCacheReads(
     tokensIn: number,
     provider?: string,
 ): number {
+    const key = (provider ?? "").toLowerCase()
     // Grok and unknown providers don't support prompt caching
-    if (provider === "Grok" || (!provider && !PRICING[provider ?? ""])) {
+    if (key === "grok" || (!key && !PRICING[key])) {
         return 0
     }
     return Math.round(tokensIn * CACHE_READS_RATIO)
