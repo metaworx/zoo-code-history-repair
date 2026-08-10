@@ -70,7 +70,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added 5 integration tests for scan output helpers (`countEntries`, `recoverabilityScore`) against scrambled fixture data
 - `repair-all --verify-ui-sync` was silently ignored — option declared but never read from `cmdOpts` or passed to `repairAllCorrupted`; now wired through
 - `repair-task` crashed when reading `_index.json` with dangling references — changed to tolerant `tx.read(false)`; index read is only for token recovery lookup, not validation
-- `validate` command: error output no longer includes full stack trace; UUID targets (e.g. `validate <taskId>`) now resolve to the task directory under the storage root
+- `validate` command: error output no longer includes full stack trace; UUID targets (e.g. `validate <taskId>`) now resolve to the task directory under the storage root; task directory validation also checks the `_index.json` entry with cross-references against the full index
 
 ## [0.4.0] — 2026-08-08
 

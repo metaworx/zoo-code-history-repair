@@ -220,12 +220,38 @@ export function validatePath(target: string | undefined): ValidateResult[] {
         const isTaskDir = fs.existsSync(path.join(resolved, HISTORY_ITEM_NAME))
 
         if (isTaskDir) {
+            const taskId = path.basename(resolved)
+
             // Validate a single task directory's files
             for (const f of [HISTORY_ITEM_NAME, API_HISTORY_NAME, UI_MESSAGES_NAME, TASK_METADATA_NAME]) {
                 const fp = path.join(resolved, f)
                 if (fs.existsSync(fp)) {
                     const file = new JsonFileTransaction(fp)
                     results.push({file: fp, result: file.validate()})
+                }
+            }
+
+            // Also validate the _index.json entry for this task with cross-references
+            const parentDir = path.dirname(resolved)
+            const indexPath = path.join(parentDir, "_index.json")
+            if (fs.existsSync(indexPath)) {
+                const indexTx = new JsonFileTransaction(indexPath)
+                const indexData = indexTx.read(false) as Array<{ id: string }> | {
+                    entries: Array<{ id: string }>
+                } | null
+                const entries: Array<Record<string, unknown>> = Array.isArray(indexData)
+                    ? indexData as Array<Record<string, unknown>>
+                    : (indexData as { entries: Array<Record<string, unknown>> })?.entries ?? []
+
+                const fullIndex = new Map<string, Record<string, unknown>>()
+                for (const e of entries) {
+                    if (e.id && typeof e.id === "string") fullIndex.set(e.id, e)
+                }
+
+                const entry = fullIndex.get(taskId)
+                if (entry) {
+                    const entryResult = validateHistoryItem(entry, fullIndex)
+                    results.push({file: `${indexPath}:entries[${taskId}]`, result: entryResult})
                 }
             }
         } else {
