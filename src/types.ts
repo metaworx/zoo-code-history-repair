@@ -36,9 +36,11 @@ export type CorruptionReason =
 export interface TaskCorruption {
     taskId: string
     dir?: string
-    reasons: Array<{reason: CorruptionReason; source: string}>
+    reasons: Array<{ reason: CorruptionReason; source: string }>
     indexItem?: HistoryItem | null
     diskItem?: HistoryItem | null
+    errorCount: number
+    warningCount: number
 }
 
 export interface IndexFile {
@@ -54,6 +56,9 @@ export interface ScanResult {
     indexItems: HistoryItem[]
     taskDirs: string[]
     corruptions: TaskCorruption[]
+    totalErrorCount: number
+    totalWarningCount: number
+    filesChecked: number
 }
 
 export interface RepairOptions {

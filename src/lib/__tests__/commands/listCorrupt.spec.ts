@@ -104,6 +104,6 @@ describe("listCorrupt command", () => {
 
         action({verifyUiSync: true})
 
-        expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true})
+        expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true, showWarnings: true})
     })
 })

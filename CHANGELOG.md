@@ -9,6 +9,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `scan` and `list-corrupt`: summary line with file/error/warning counts (`12 files checked, 7 corrupted, 829 errors, 19 warnings`); `--no-summary` flag to suppress
+- `scan` and `list-corrupt`: `--no-warnings` flag — suppresses warning-level corruption reasons (`zero_tokens`, `interrupted_task`, `ui_sync_mismatch`)
+- `ScanResult` now includes `totalErrorCount`, `totalWarningCount`, `filesChecked`; `TaskCorruption` includes `errorCount`, `warningCount`
 - `validate` command — JSON schema validation for all task storage files (`_index.json`, `history_item.json`, `api_conversation_history.json`, `ui_messages.json`, `task_metadata.json`), with optional `--warnings` flag
 - Validation framework (`src/lib/validate/`) — per-file-type validators with machine-readable error codes, severity levels (error/warning), field paths, and cross-reference checks
 - `history_item.json` validator — UUID format checks, required/optional field type checks, status-specific consistency rules (`delegated`→`delegatedToId` required, `active`→`awaitingChildId` forbidden), dangling reference detection against full index

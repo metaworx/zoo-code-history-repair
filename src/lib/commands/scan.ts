@@ -35,11 +35,22 @@ export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
     ["--json", "Output machine-parseable JSON", false],
     ["--quiet", "Suppress per-task detail lines (summary only)", false],
+    ["--no-summary", "Suppress header summary block", true],
+    ["--no-warnings", "Suppress warning-level corruption reasons", true],
 ]
 
-export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?: boolean }): void {
+export function action(cmdOpts: {
+    verifyUiSync?: boolean;
+    json?: boolean;
+    quiet?: boolean;
+    summary?: boolean;
+    warnings?: boolean;
+}): void {
     const root = resolveRoot()
-    const result = scanStorage(root, {verifyUiSync: !!cmdOpts.verifyUiSync})
+    const result = scanStorage(root, {
+        verifyUiSync: !!cmdOpts.verifyUiSync,
+        showWarnings: cmdOpts.warnings !== false,
+    })
 
     if (cmdOpts.json) {
         const out: Record<string, unknown> = {
@@ -70,13 +81,18 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean; quiet?
     }
 
     console.log(getVersionBanner())
-    console.log(alignSummary("Storage:", result.storageRoot))
-    console.log(alignSummary("Tasks:", result.tasksDir))
-    console.log(alignSummary("Index:", result.indexPath))
-    console.log(alignSummary("Index entries:", String(result.indexItems.length)))
-    console.log(alignSummary("Task dirs:", String(result.taskDirs.length)))
-    console.log(alignSummary("Corruptions:", String(result.corruptions.length)))
-    console.log("")
+    if (cmdOpts.summary !== false) {
+        console.log(alignSummary("Storage:", result.storageRoot))
+        console.log(alignSummary("Tasks:", result.tasksDir))
+        console.log(alignSummary("Index:", result.indexPath))
+        console.log(alignSummary("Files checked:", String(result.filesChecked)))
+        console.log(alignSummary("Index entries:", String(result.indexItems.length)))
+        console.log(alignSummary("Task dirs:", String(result.taskDirs.length)))
+        console.log(alignSummary("Corruptions:", String(result.corruptions.length)))
+        console.log(alignSummary("Errors:", String(result.totalErrorCount)))
+        console.log(alignSummary("Warnings:", String(result.totalWarningCount)))
+        console.log("")
+    }
 
     if (!cmdOpts.quiet) {
         for (const c of result.corruptions) {

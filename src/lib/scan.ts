@@ -7,7 +7,7 @@ import {inspectTaskDir} from "./validation.js"
 import type {InspectOptions} from "./validation.js"
 
 export interface ScanOptions extends InspectOptions {
-    // future scan-level options
+    showWarnings?: boolean
 }
 
 export function scanStorage(storageRoot: string, options: ScanOptions = {}): ScanResult {
@@ -28,6 +28,7 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
         const taskId = path.basename(dir)
         const c = inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
             verifyUiSync: options.verifyUiSync,
+            showWarnings: options.showWarnings,
         })
         if (!byId.has(taskId)) c.reasons.push({reason: "folder_orphan", source: "hi"})
         if (c.reasons.length) corruptions.push(c)
@@ -37,17 +38,30 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
     const dirIds = new Set(dirs.map((d) => path.basename(d)))
     for (const item of indexItems) {
         if (!dirIds.has(item.id)) {
-            const reasons: Array<{reason: import("../types.js").CorruptionReason; source: string}> = [
+            const reasons: Array<{ reason: import("../types.js").CorruptionReason; source: string }> = [
                 {reason: "index_orphan", source: "idx"},
             ]
-            if (item.size === 0) reasons.push({reason: "zero_size", source: "idx"})
+            let idxErrCount = 1 // index_orphan
+            if (item.size === 0) {
+                reasons.push({reason: "zero_size", source: "idx"});
+                idxErrCount++
+            }
             corruptions.push({
                 taskId: item.id,
                 reasons,
                 indexItem: item,
                 diskItem: null,
+                errorCount: idxErrCount,
+                warningCount: 0,
             })
         }
+    }
+
+    let totalErrorCount = 0
+    let totalWarningCount = 0
+    for (const c of corruptions) {
+        totalErrorCount += c.errorCount
+        totalWarningCount += c.warningCount
     }
 
     return {
@@ -57,5 +71,8 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
         indexItems,
         taskDirs: dirs,
         corruptions,
+        totalErrorCount,
+        totalWarningCount,
+        filesChecked: dirs.length + 1, // task dirs + _index.json
     }
 }

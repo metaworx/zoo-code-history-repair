@@ -22,6 +22,8 @@ export type ValidatorFn = (data: unknown) => ValidationResult
 
 export interface InspectOptions {
     verifyUiSync?: boolean
+    /** When false, warning-level validation issues are not mapped to corruption reasons. Default true. */
+    showWarnings?: boolean
 }
 
 export interface ValidationIssue {
@@ -84,6 +86,9 @@ export function inspectTaskDir(
     options: InspectOptions = {},
 ): TaskCorruption {
     const reasonMap = new Map<CorruptionReason, Set<string>>()
+    let errorCount = 0
+    let warningCount = 0
+    const showWarnings = options.showWarnings !== false
 
     const add = (reason: CorruptionReason, source: string) => {
         const sources = reasonMap.get(reason)
@@ -100,6 +105,11 @@ export function inspectTaskDir(
         const result = tx.validate()
         const data = tx.load(false).getData()
         const codes = new Set(result.issues.map(i => i.code))
+        // Accumulate error/warning counts from all validation issues
+        for (const issue of result.issues) {
+            if (issue.severity === "error") errorCount++
+            else warningCount++
+        }
         // zero_tokens requires all three zero-field codes present
         const hasAllZeroTokens = codes.has("ZERO_TOKENS_IN") && codes.has("ZERO_TOKENS_OUT") && codes.has("ZERO_TOTAL_COST")
         for (const issue of result.issues) {
@@ -107,6 +117,8 @@ export function inspectTaskDir(
                 if (fileName === HISTORY_ITEM_NAME) add("missing_history_item", "hi")
                 continue
             }
+            // Skip warning-level issues when --no-warnings
+            if (!showWarnings && issue.severity === "warning") continue
             // Skip individual zero-token codes; only report if all three present
             if (issue.code === "ZERO_TOKENS_IN" || issue.code === "ZERO_TOKENS_OUT" || issue.code === "ZERO_TOTAL_COST") {
                 if (!hasAllZeroTokens) continue
@@ -130,21 +142,25 @@ export function inspectTaskDir(
     const ui = validateAndMap(uiPath, UI_MESSAGES_NAME) as unknown[] | null
 
     // Cross-file validators (not auto-registered — take multiple inputs)
-    if (options.verifyUiSync && Array.isArray(api) && api.length > 0 && Array.isArray(ui) && ui.length > 0) {
+    if (showWarnings && options.verifyUiSync && Array.isArray(api) && api.length > 0 && Array.isArray(ui) && ui.length > 0) {
         const reconstructed = rebuildUiMessages(api as Parameters<typeof rebuildUiMessages>[0])
         if (reconstructed.length > 0) {
             const syncResult = validateUiSync(ui, reconstructed)
             for (const issue of syncResult.issues) {
+                if (issue.severity === "error") errorCount++
+                else warningCount++
                 const reason = issueToReason(issue)
                 if (reason) add(reason, "uim,ach")
             }
         }
     }
 
-    // Interrupted task detection
-    if (Array.isArray(api) && api.length > 0) {
+    // Interrupted task detection (warning-level only)
+    if (showWarnings && Array.isArray(api) && api.length > 0) {
         const intResult = validateInterruptedTask(api)
         for (const issue of intResult.issues) {
+            if (issue.severity === "error") errorCount++
+            else warningCount++
             const reason = issueToReason(issue)
             if (reason) add(reason, "ach")
         }
@@ -152,8 +168,14 @@ export function inspectTaskDir(
 
     // Index item checks (no file to validate — manual checks)
     if (indexItem) {
-        if (isPlaceholderTaskName(indexItem.task)) add("placeholder_task_name", "idx")
-        if (indexItem.size === 0 || indexItem.size == null) add("zero_size", "idx")
+        if (isPlaceholderTaskName(indexItem.task)) {
+            add("placeholder_task_name", "idx");
+            errorCount++
+        }
+        if (indexItem.size === 0 || indexItem.size == null) {
+            add("zero_size", "idx");
+            errorCount++
+        }
     }
 
     // Convert map to sorted array
@@ -174,6 +196,8 @@ export function inspectTaskDir(
         reasons,
         indexItem: indexItem ?? null,
         diskItem,
+        errorCount,
+        warningCount,
     }
 }
 

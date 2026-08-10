@@ -16,11 +16,21 @@ export const additionalHelp = ABBREV_HELP
 export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
     ["--json", "Output machine-parseable JSON", false],
+    ["--no-summary", "Suppress summary line", true],
+    ["--no-warnings", "Suppress warning-level corruption reasons", true],
 ]
 
-export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean }): void {
+export function action(cmdOpts: {
+    verifyUiSync?: boolean;
+    json?: boolean;
+    summary?: boolean;
+    warnings?: boolean;
+}): void {
     const root = resolveRoot()
-    const result = scanStorage(root, {verifyUiSync: !!cmdOpts.verifyUiSync})
+    const result = scanStorage(root, {
+        verifyUiSync: !!cmdOpts.verifyUiSync,
+        showWarnings: cmdOpts.warnings !== false,
+    })
 
     if (cmdOpts.json) {
         const out = {
@@ -41,6 +51,11 @@ export function action(cmdOpts: { verifyUiSync?: boolean; json?: boolean }): voi
     for (const c of result.corruptions) {
         const score = recoverabilityScore(c)
         console.log(`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons.map(r => `${r.reason}(${r.source})`).join(",")}`)
+    }
+
+    if (cmdOpts.summary !== false) {
+        const corruptCount = result.corruptions.length
+        console.log(`\n${result.filesChecked} files checked, ${corruptCount} corrupted, ${result.totalErrorCount} errors, ${result.totalWarningCount} warnings`)
     }
 
     const exitCode = Math.min(result.corruptions.length, 255)

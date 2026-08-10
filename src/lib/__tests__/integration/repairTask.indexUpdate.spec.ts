@@ -155,18 +155,13 @@ describe("repair-task → index update (integration)", () => {
         expect(indexAfter.entries.length).toBe(entryCountBefore);
 
         // --- Phase 6: validate after repair ---
+        // After repair with fixed estimateTotalCost, all files are fully clean
+        // (0 errors, 0 warnings), so validate prints only the summary line.
         consoleLogSpy.mockClear();
         validateAction(TASK_ID, {warnings: false});
         const v2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-        expect(v2).toContain(hiOut + ":");
-        expect(v2).not.toContain(uiOut + ":");
-        expect(v2).toContain(idxOut + ":");
-        expect(v2).not.toContain("task is a placeholder");
-        expect(v2).not.toContain("tokensIn: tokensIn is 0");
-        expect(v2).not.toContain("tokensOut: tokensOut is 0");
-        expect(v2).not.toContain("totalCost: totalCost is 0");
-        expect(v2).not.toContain("ui_messages array is empty");
         expect(v2).toContain("0 errors");
+        expect(v2).toContain("0 warnings");
 
         // --- Phase 7: contentHash verification ---
         const hiHashAfter = contentHash(hiPath);
