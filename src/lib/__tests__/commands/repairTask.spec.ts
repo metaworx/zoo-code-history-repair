@@ -1,0 +1,161 @@
+import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+
+const mockSetRoot = vi.hoisted(() => vi.fn())
+const mockSetVersion = vi.hoisted(() => vi.fn())
+const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"))
+const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
+const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => `${r}/tasks`))
+const mockResolveIndexPath = vi.hoisted(() => vi.fn((td: string) => `${td}/_index.json`))
+const mockRepairTaskDir = vi.hoisted(() => vi.fn())
+const mockFormatRepairParts = vi.hoisted(() => vi.fn((r: any) => {
+    const parts: string[] = []
+    if (r.uiRepaired) parts.push("ui(ach→uim)")
+    if (r.taskRepaired) parts.push("task(ach→hi)")
+    return parts
+}))
+
+const mockTransactionRead = vi.hoisted(() => vi.fn())
+const mockJsonFileTransaction = vi.hoisted(() => vi.fn(function (this: {read: typeof mockTransactionRead}, _path: string) {
+    this.read = mockTransactionRead
+    return this
+}))
+
+vi.mock("../../cliContext.js", () => ({
+    setRoot: mockSetRoot,
+    setVersion: mockSetVersion,
+    getVersionBanner: mockGetVersionBanner,
+    resolveRoot: mockResolveRoot,
+    ABBREV_HELP: "",
+}))
+
+vi.mock("../../paths.js", () => ({
+    resolveTasksDir: mockResolveTasksDir,
+    resolveIndexPath: mockResolveIndexPath,
+}))
+
+vi.mock("../../repairTask.js", () => ({
+    repairTaskDir: mockRepairTaskDir,
+    formatRepairParts: mockFormatRepairParts,
+}))
+
+vi.mock("../../file.js", () => ({
+    JsonFileTransaction: mockJsonFileTransaction,
+}))
+
+vi.mock("../../format.js", () => ({
+    c: {red: "red"},
+    colorize: vi.fn((s: string) => s),
+}))
+
+import {action} from "../../commands/repairTask.js"
+
+describe("repairTask command", () => {
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+        mockResolveRoot.mockReturnValue("/fake/root")
+        mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
+        mockResolveIndexPath.mockReturnValue("/fake/root/tasks/_index.json")
+        mockTransactionRead.mockReturnValue([])
+    })
+
+    afterEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it("dry-run, successful repair: shows [DRY-RUN] would repair", () => {
+        mockRepairTaskDir.mockReturnValue({
+            taskId: "t1",
+            uiRepaired: true,
+            taskRepaired: false,
+            sizeRepaired: false,
+            tokensRepaired: false,
+            errors: [],
+            backups: [],
+        })
+
+        action("t1", {force: false})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("[DRY-RUN]")
+        expect(output).toContain("would repair")
+        expect(output).toContain("ui(ach→uim)")
+    })
+
+    it("force, successful repair: shows repaired without [DRY-RUN]", () => {
+        mockRepairTaskDir.mockReturnValue({
+            taskId: "t1",
+            uiRepaired: true,
+            taskRepaired: true,
+            sizeRepaired: false,
+            tokensRepaired: false,
+            errors: [],
+            backups: [],
+        })
+
+        action("t1", {force: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).not.toContain("[DRY-RUN]")
+        expect(output).toContain("repaired")
+    })
+
+    it("errors path: shows errors and backups", () => {
+        mockRepairTaskDir.mockReturnValue({
+            taskId: "t1",
+            uiRepaired: false,
+            taskRepaired: false,
+            sizeRepaired: false,
+            tokensRepaired: false,
+            errors: ["missing ACH", "corrupt JSON"],
+            backups: ["/fake/root/tasks/t1/history_item.json.bak"],
+        })
+
+        action("t1", {force: false})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("errors:")
+        expect(output).toContain("missing ACH")
+        expect(output).toContain("corrupt JSON")
+        expect(output).toContain("Backups:")
+    })
+
+    it("passes options to repairTaskDir including indexItems", () => {
+        mockTransactionRead.mockReturnValue([
+            {id: "t1", tokensIn: 500, tokensOut: 300},
+        ])
+        mockRepairTaskDir.mockReturnValue({
+            taskId: "t1", uiRepaired: false, taskRepaired: false,
+            sizeRepaired: false, tokensRepaired: false,
+            errors: [], backups: [],
+        })
+
+        action("t1", {force: true, backup: false, forceUim: true, fixedInputToken: 2000})
+
+        expect(mockRepairTaskDir).toHaveBeenCalledWith("/fake/root/tasks/t1", {
+            dryRun: false,
+            backup: false,
+            forceUim: true,
+            fixedInputToken: 2000,
+            indexItems: [{id: "t1", tokensIn: 500, tokensOut: 300}],
+        })
+    })
+
+    it("passes indexItems from {entries} format", () => {
+        mockTransactionRead.mockReturnValue({
+            entries: [{id: "t1", tokensIn: 100}],
+        })
+        mockRepairTaskDir.mockReturnValue({
+            taskId: "t1", uiRepaired: false, taskRepaired: false,
+            sizeRepaired: false, tokensRepaired: false,
+            errors: [], backups: [],
+        })
+
+        action("t1", {force: false})
+
+        expect(mockRepairTaskDir).toHaveBeenCalledWith("/fake/root/tasks/t1", expect.objectContaining({
+            indexItems: [{id: "t1", tokensIn: 100}],
+        }))
+    })
+})
