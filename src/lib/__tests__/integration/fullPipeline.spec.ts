@@ -58,7 +58,8 @@ describe("full pipeline (integration)", () => {
         exitSpy = vi.spyOn(process, "exit" as any).mockImplementation(() => undefined) as any;
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await new Promise(r => setTimeout(r, 150));
         vi.clearAllMocks();
         cleanup();
     });

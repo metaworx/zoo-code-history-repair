@@ -13,7 +13,8 @@ describe("repairTaskDir", () => {
         fs.mkdirSync(taskDir)
     })
 
-    afterEach(() => {
+    afterEach(async () => {
+        await new Promise(r => setTimeout(r, 150))
         fs.rmSync(root, { recursive: true, force: true })
     })
 

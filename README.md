@@ -70,8 +70,8 @@ Dry-run messages are colorized red. Disable colors with `--no-color` or `NO_COLO
 
 ```bash
 # Print version information
-zoo-code-history-repair --version       # "Zoo Code History Repair, v0.6.0"
-zoo-code-history-repair --version-only  # "0.6.0"
+zoo-code-history-repair --version       # "Zoo Code History Repair, v0.7.0"
+zoo-code-history-repair --version-only  # "0.7.0"
 ```
 
 All commands have detailed help available via `help <command>` (e.g. `zoo-code-history-repair help scan`).
@@ -495,7 +495,8 @@ import {
 
 ## File Format Notes
 
-- All JSON files use **compact format** (single line, no whitespace between tokens)
+- All JSON files use **compact format** (single line, no whitespace between tokens) — produced via `json-stream-stringify` with `\t` option disabled
+- File writes use **atomic rename** with inter-process locking (`proper-lockfile`) and backup-before-overwrite (vendored from Zoo Code's `safeWriteJson`)
 - `_index.json` structure: `{"version": 1, "updatedAt": <millis>, "entries": [...]}`
 - `history_item.json` fields are mirrored in `_index.json` entries
 - Tool names in `ui_messages.json` use camelCase (e.g., `readFile`, `executeCommand`)

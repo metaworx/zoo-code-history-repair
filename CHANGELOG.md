@@ -7,6 +7,38 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-11
+
+### Added
+
+- **`safeWriteJson` integration** — vendored Zoo Code's atomic JSON write utility (`src/lib/io/safeWriteJson.ts`) with
+  inter-process locking (`proper-lockfile`), streaming serialization (`json-stream-stringify`), temp-file + atomic
+  rename, and backup-before-overwrite with rollback. Two extensions: `stringify` option (bypass streaming for
+  pre-serialized strings) and `keepBackup` option (return backup path instead of deleting).
+- **`saveFile`** — sync wrapper around `safeWriteJson` using `deasync`, replacing `saveFileWithSnapshot`. Maintains
+  snapshot-based concurrent modification detection with post-write `FileSnapshot` return.
+- **`SaveFileOptions`** interface — `snapshot`, `stringify`, `backup` options for controlling write behavior.
+- **`io/` directory** — `src/lib/io/` for I/O primitives: `safeWriteJson.ts`, `readJson.ts` (moved from `src/lib/`).
+
+### Changed
+
+- `FileTransaction._write()` / `JsonFileTransaction._write()` — now delegate through `saveFile()` with `stringify`
+  option propagation via `super._write()`.
+- `FileTransaction.save()` — generates backup path and passes to `saveFile()` via `options.backup`; removed
+  `backupFile()` call.
+- `readJson.ts` moved to `src/lib/io/readJson.ts`; all imports updated.
+
+### Removed
+
+- `writeJsonCompact()` — replaced by `saveFile()` with `stringify: true`.
+- `backupFile()` — replaced by `safeWriteJson`'s rename-before-overwrite + `saveFile`'s rename to `.bak.json`.
+- `saveFileWithSnapshot()` — renamed and reimplemented as `saveFile()`.
+
+### Dependency Additions
+
+- `json-stream-stringify` ^3.1.6, `proper-lockfile` ^4.1.2, `deasync` ^0.1.31, `@types/proper-lockfile`,
+  `@types/deasync`
+
 ## [0.6.0] — 2026-08-11
 
 ### Added

@@ -2,7 +2,7 @@ import type {HistoryItem} from "../types.js"
 
 /**
  * Byte size of a value when serialized as compact JSON (UTF-8).
- * Matches the format produced by writeJsonCompact: JSON.stringify(data)
+ * Matches the format produced by saveFile: JSON.stringify(data)
  * with no separators.
  */
 export function compactSizeBytes(data: unknown): number {

@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {readPartialJsonArray} from "../readJson.js"
+import {readPartialJsonArray} from "../../io/readJson.js"
 
 describe("readPartialJsonArray", () => {
     let tmp: string

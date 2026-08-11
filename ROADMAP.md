@@ -25,24 +25,24 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 
 ## Future Directions
 
-### v0.6.0 — Plugin Integration
+### Plugin Integration
 
 - [x] Use real Zoo Code TypeScript types (`ClineMessage`, `ApiMessage`, etc.) via optional dependency
-- [ ] Reuse Zoo Code's `safeWriteJson` / path helpers where available
+- [x] Reuse Zoo Code's `safeWriteJson` / path helpers where available
 - [ ] Contribute a "Repair Task History" command to the JetBrains plugin
 - [ ] Register as a VS Code extension command (via Extension Host)
 - [ ] In-IDE notification when corruption is detected on task open
 
-### v0.7.0 — Preventive Measures
+### Preventive Measures
 
 - [ ] File watcher — detect corruption as it happens (file size drops to 0, invalid JSON on write)
 - [ ] Automatic backup rotation — keep last N versions of task JSON files
 - [ ] Integrity checks on task save — verify `ui_messages.json` consistency before writing
 - [ ] Health dashboard — visual report of storage health in IDE
 
-### v1.0.0 — Ship
+### Ship
 
-- [ ] Comprehensive test suite against real corrupted task directories
+- [x] Comprehensive test suite against real corrupted task directories
 - [ ] CI pipeline with cross-platform testing (Windows, Linux, macOS)
 - [ ] npm package publication
 - [ ] Documentation site / wiki

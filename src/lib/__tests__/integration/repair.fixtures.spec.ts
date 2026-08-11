@@ -27,7 +27,8 @@ describe("repair against fixtures (integration)", () => {
             copyFixtureTasks(tasksDir);
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await new Promise(r => setTimeout(r, 150));
             cleanup();
         });
 
@@ -60,7 +61,8 @@ describe("repair against fixtures (integration)", () => {
             copyFixtureTasks(tasksDir);
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await new Promise(r => setTimeout(r, 150));
             cleanup();
         });
 

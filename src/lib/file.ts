@@ -1,6 +1,9 @@
 import crypto from "node:crypto"
+import deasync from "deasync"
 import fs from "node:fs"
+import fsPromises from "node:fs/promises"
 import path from "node:path"
+import {safeWriteJson} from "./io/safeWriteJson.js"
 import {getValidatorByFile, ValidationResult, ValidatorFn} from "./validation.js"
 import {resolveTasksDir} from "./paths.js";
 
@@ -48,17 +51,15 @@ export function readJsonFile<T = unknown>(filePath: string): T | null {
     }
 }
 
-export function writeJsonCompact(filePath: string, data: unknown, snapshot: FileSnapshot | null = null): void {
-    const text = JSON.stringify(data) // compact, matches plugin style
-
-    saveFileWithSnapshot(filePath, text, snapshot)
-}
-
-export function backupFile(filePath: string): string | null {
-    if (!fs.existsSync(filePath)) return null
-    const bak = `${filePath}.${backupTimestamp}.bak.json`
-    fs.copyFileSync(filePath, bak)
-    return bak
+export interface SaveFileOptions {
+    /** Optional snapshot for concurrent modification detection. */
+    snapshot?: FileSnapshot
+    /** When true (default), data is an object to be JSON-serialized via json-stream-stringify.
+     *  When false, data is already a string — write directly. */
+    stringify?: boolean
+    /** If provided and a backup was created, the internal .bak_*.tmp is renamed to this path.
+     *  If omitted, the backup is deleted. */
+    backup?: string
 }
 
 /** Compute a SHA1 checksum of a JSON file with volatile fields (updatedAt, ts) stripped. */
@@ -87,28 +88,31 @@ function stripVolatile(obj: unknown): void {
     for (const v of Object.values(rec)) stripVolatile(v)
 }
 
-export function saveFileWithSnapshot(filePath: string, data: string, snapshot: FileSnapshot | null = null): FileSnapshot | null {
-
-    let tmpPath: string = ''
-
-    do {
-        tmpPath = `${filePath}.${formatTimestamp(true)}.tmp`
-    } while (fs.existsSync(tmpPath))
-
-    fs.writeFileSync(tmpPath, data, "utf8")
-
-    if (snapshot) {
+/**
+ * Write data to a file with atomic rename, inter-process locking, and optional backup.
+ *
+ * Delegates to safeWriteJson for lock + stream + atomic rename.
+ * Snapshot-based concurrent modification check happens synchronously before the async write fires.
+ * Node.js keeps the process alive until the pending I/O completes.
+ */
+export function saveFile(filePath: string, data: unknown, options: SaveFileOptions = {}): FileSnapshot | null {
+    if (options.snapshot) {
         const current = statSnapshot(filePath)
-        if (current && !snapshotMatch(snapshot, current)) {
-            try {
-                fs.unlinkSync(tmpPath)
-            } catch { /* best effort */
-            }
+        if (current && !snapshotMatch(options.snapshot, current)) {
             throw new Error(`Concurrent modification detected for ${filePath}: file changed since last read`)
         }
     }
 
-    fs.renameSync(tmpPath, filePath)
+    deasync(
+        safeWriteJson(filePath, data, {
+            stringify: options.stringify ?? false,
+            keepBackup: !!options.backup,
+        }).then(async (result) => {
+            if (result.backupPath && options.backup) {
+                await fsPromises.rename(result.backupPath, options.backup)
+            }
+        })
+    )
 
     return statSnapshot(filePath)
 }
@@ -183,14 +187,9 @@ export class FileTransaction {
             }
         }
 
-        let backupPath: string | null = null
-        if (backup) {
-            backupPath = backupFile(this.filePath)
-        }
-
-        this._write(this.data)
-
-        return backupPath
+        const backupName = backup ? `${this.filePath}.${backupTimestamp}.bak.json` : undefined
+        this._write(this.data, {backup: backupName})
+        return backupName ?? null
     }
 
     validate($throw: boolean = false): ValidationResult {
@@ -274,20 +273,20 @@ export class FileTransaction {
      *
      * Called by `save()` to perform the actual serialization and file I/O.
      * The base implementation converts data to a string and writes via
-     * `saveFileWithSnapshot`, which handles temp-file + atomic rename +
-     * concurrent modification detection.
+     * `saveFile`, which delegates to safeWriteJson for lock + stream + atomic rename.
      *
      * Subclasses override this to provide format-specific serialization
      * (e.g. `JSON.stringify` for `JsonFileTransaction`).
      *
      * @param data The in-memory data to serialize and write.
+     * @param options Options forwarded to saveFile (stringify, backup, snapshot).
      */
-    protected _write(data: unknown): void {
-        const snapshot = saveFileWithSnapshot(this.filePath, String(data), this.snapshot)
-
-        if (this.snapshot) {
-            this.snapshot = snapshot
-        }
+    protected _write(data: unknown, options: SaveFileOptions = {}): void {
+        saveFile(this.filePath, data, {
+            stringify: false,
+            snapshot: this.snapshot ?? undefined,
+            ...options,
+        })
     }
 }
 
@@ -310,7 +309,7 @@ export class JsonFileTransaction extends FileTransaction {
         }
     }
 
-    protected _write(data: unknown): void {
-        super._write(JSON.stringify(data))
+    protected _write(data: unknown, options: SaveFileOptions = {}): void {
+        super._write(data, {stringify: true, ...options})
     }
 }

@@ -2,11 +2,10 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import {
-    backupFile,
     FileTransaction,
     JsonFileTransaction,
     readJsonFile,
-    writeJsonCompact,
+    saveFile,
 } from "../file.js"
 import {getValidatorByFile} from "../validation.js"
 
@@ -56,63 +55,59 @@ describe("readJsonFile", () => {
     })
 })
 
-describe("writeJsonCompact", () => {
+describe("saveFile", () => {
     let tmp: string
 
     beforeEach(() => {
-        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-writejson-"))
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-savefile-"))
     })
 
     afterEach(() => {
         fs.rmSync(tmp, {recursive: true, force: true})
     })
 
-    it("writes compact JSON (no whitespace)", () => {
+    it("writes JSON object (stringify=true)", async () => {
         const f = path.join(tmp, "out.json")
-        writeJsonCompact(f, {a: 1, b: "x"})
+        saveFile(f, {a: 1, b: "x"}, {stringify: true})
+        // Allow async write to complete
+        await new Promise(r => setTimeout(r, 100))
         const raw = fs.readFileSync(f, "utf8")
         expect(raw).toBe('{"a":1,"b":"x"}')
     })
 
-    it("round-trips through readJsonFile", () => {
-        const f = path.join(tmp, "rt.json")
-        const data = {id: "abc", items: [1, 2, 3], nested: {x: true}}
-        writeJsonCompact(f, data)
-        expect(readJsonFile(f)).toEqual(data)
-    })
-})
-
-describe("backupFile", () => {
-    let tmp: string
-
-    beforeEach(() => {
-        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-backup-"))
+    it("writes raw string", async () => {
+        const f = path.join(tmp, "raw.txt")
+        saveFile(f, "hello world")
+        await new Promise(r => setTimeout(r, 100))
+        const raw = fs.readFileSync(f, "utf8")
+        expect(raw).toBe("hello world")
     })
 
-    afterEach(() => {
-        fs.rmSync(tmp, {recursive: true, force: true})
+    it("throws on snapshot mismatch", () => {
+        const f = path.join(tmp, "snap.txt")
+        fs.writeFileSync(f, "original", "utf8")
+        const snap = {mtimeMs: 0, ctimeMs: 0, size: 0}
+        expect(() => saveFile(f, "new", {snapshot: snap})).toThrow("Concurrent modification detected")
     })
 
-    it("returns null for a missing source", () => {
-        expect(backupFile(path.join(tmp, "nope.txt"))).toBeNull()
+    it("creates .bak.json when backup option is set", async () => {
+        const f = path.join(tmp, "data.json")
+        fs.writeFileSync(f, '{"old":true}', "utf8")
+        const bakPath = path.join(tmp, "my-backup.bak.json")
+        saveFile(f, {new: true}, {stringify: true, backup: bakPath})
+        await new Promise(r => setTimeout(r, 100))
+        expect(fs.existsSync(bakPath)).toBe(true)
+        expect(JSON.parse(fs.readFileSync(bakPath, "utf8"))).toEqual({old: true})
     })
 
-    it("creates a timestamped .bak copy", () => {
-        const src = path.join(tmp, "data.json")
-        fs.writeFileSync(src, "hello world", "utf8")
-
-        const bak = backupFile(src)
-        expect(bak).toBeTruthy()
-        expect(bak!).toMatch(/\.\d{8}-\d{6}\.bak\.json$/)
-        expect(fs.existsSync(bak!)).toBe(true)
-        expect(fs.readFileSync(bak!, "utf8")).toBe("hello world")
-    })
-
-    it("preserves original file", () => {
-        const src = path.join(tmp, "keep.json")
-        fs.writeFileSync(src, "original", "utf8")
-        backupFile(src)
-        expect(fs.readFileSync(src, "utf8")).toBe("original")
+    it("does not create .bak.json for new file", async () => {
+        const f = path.join(tmp, "fresh.json")
+        const bakPath = path.join(tmp, "unused.bak.json")
+        saveFile(f, {hello: "world"}, {stringify: true, backup: bakPath})
+        await new Promise(r => setTimeout(r, 100))
+        // No backup because target didn't exist before
+        expect(fs.existsSync(bakPath)).toBe(false)
+        expect(JSON.parse(fs.readFileSync(f, "utf8"))).toEqual({hello: "world"})
     })
 })
 
@@ -240,7 +235,7 @@ describe("FileTransaction", () => {
             expect(() => ft.save()).toThrow("Validation failed")
         })
 
-        it("save(data) replaces internal data and saves", () => {
+        it("save(data) replaces internal data and saves", async () => {
             const fp = path.join(tmp, "save.txt")
             fs.writeFileSync(fp, "old", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
@@ -248,11 +243,12 @@ describe("FileTransaction", () => {
             ft.load().getData()
             ft.setData("new data")
             ft.save()
+            await new Promise(r => setTimeout(r, 100))
             const content = fs.readFileSync(fp, "utf8")
             expect(content).toBe("new data")
         })
 
-        it("writes via saveFileWithSnapshot (atomic rename)", () => {
+        it("writes via saveFile (atomic rename)", async () => {
             const fp = path.join(tmp, "atomic.txt")
             fs.writeFileSync(fp, "before", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
@@ -260,6 +256,7 @@ describe("FileTransaction", () => {
             ft.load().getData()
             ft.setData("after")
             ft.save()
+            await new Promise(r => setTimeout(r, 100))
             const content = fs.readFileSync(fp, "utf8")
             expect(content).toBe("after")
         })
@@ -374,7 +371,7 @@ describe("JsonFileTransaction", () => {
     })
 
     describe("_write()", () => {
-        it("stringifies JSON with writeJsonCompact-style output", () => {
+        it("stringifies JSON with saveFile-style output", async () => {
             const fp = path.join(tmp, "out.json")
             fs.writeFileSync(fp, "{}", "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
@@ -382,13 +379,14 @@ describe("JsonFileTransaction", () => {
             jft.load().getData()
             jft.setData({x: 1, y: "z"})
             jft.save()
+            await new Promise(r => setTimeout(r, 100))
             const raw = fs.readFileSync(fp, "utf8")
             expect(raw).toBe('{"x":1,"y":"z"}')
         })
     })
 
     describe("integration", () => {
-        it("read JSON → modify → save → read back", () => {
+        it("read JSON → modify → save → read back", async () => {
             const fp = path.join(tmp, "integ.json")
             fs.writeFileSync(fp, '{"count":0}', "utf8")
             const passValidator = () => ({valid: true, issues: [], errorCount: 0, warningCount: 0})
@@ -399,6 +397,7 @@ describe("JsonFileTransaction", () => {
 
             ;(data as any).count = 42
             jft.setData(data).save()
+            await new Promise(r => setTimeout(r, 100))
 
             const jft2 = new JsonFileTransaction(fp)
             const reloaded = jft2.load().getData() as Record<string, unknown>

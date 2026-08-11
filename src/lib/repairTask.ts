@@ -3,7 +3,7 @@ import type {HistoryItem} from "../types.js"
 import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
 import {JsonFileTransaction} from "./file.js";
 import {inspectTaskDir, isPlaceholderTaskName} from "./validation.js";
-import {readPartialJsonArray} from "./readJson.js"
+import {readPartialJsonArray} from "./io/readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {computeTaskSize} from "./size.js"
