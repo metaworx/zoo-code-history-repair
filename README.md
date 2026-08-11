@@ -71,7 +71,7 @@ Dry-run messages are colorized red. Disable colors with `--no-color` or `NO_COLO
 ```bash
 # Print version information
 zoo-code-history-repair --version       # "Zoo Code History Repair, v0.7.0"
-zoo-code-history-repair --version-only  # "0.7.0"
+zoo-code-history-repair --version-only  # "0.7.1"
 ```
 
 All commands have detailed help available via `help <command>` (e.g. `zoo-code-history-repair help scan`).
@@ -195,9 +195,9 @@ flowchart TB
 
     subgraph FileIO["File I/O (src/lib/file.ts)"]
         direction TB
-        F1["FileTransaction: snapshot→read, validate→write, atomic rename"]
-        F2["JsonFileTransaction: JSON parse/write + auto-validator"]
-        F3["backupFile / writeJsonCompact / readJsonFile"]
+        F1["FileTransaction: async snapshot→read, validate→write, atomic rename"]
+        F2["JsonFileTransaction: async JSON parse/write + auto-validator"]
+        F3["saveFile (async, atomic rename + locking + backup) / readJsonFile (async)"]
     end
 
     subgraph Detection["Corruption Detection (src/lib/validation.ts)"]

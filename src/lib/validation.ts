@@ -1,5 +1,5 @@
 import path from "node:path"
-import fs from "node:fs";
+import fs from "node:fs/promises"
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
 import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
 import {JsonFileTransaction, resolveTarget} from "./file.js";
@@ -87,12 +87,55 @@ function fileSource(filePath: string): string {
     return base
 }
 
-export function inspectTaskDir(
+async function validateAndMap(filePath: string, fileName: string): Promise<{
+    data: unknown
+    reasons: Array<{reason: CorruptionReason, source: string}>
+    errors: number
+    warnings: number
+}> {
+    const tx = new JsonFileTransaction(filePath)
+    await tx.load(false)
+    const result = await tx.validate()
+    const data = tx.getData()
+    const codes = new Set(result.issues.map(i => i.code))
+    let errors = 0
+    let warnings = 0
+    const reasons: Array<{reason: CorruptionReason, source: string}> = []
+
+    for (const issue of result.issues) {
+        if (issue.severity === "error") errors++
+        else warnings++
+    }
+
+    // zero_tokens requires all three zero-field codes present
+    const hasAllZeroTokens = codes.has("ZERO_TOKENS_IN") && codes.has("ZERO_TOKENS_OUT") && codes.has("ZERO_TOTAL_COST")
+
+    const showWarnings = true // caller filters
+
+    for (const issue of result.issues) {
+        if (issue.code === "NOT_FOUND") {
+            if (fileName === HISTORY_ITEM_NAME) reasons.push({reason: "missing_history_item", source: "hi"})
+            continue
+        }
+        // Skip individual zero-token codes; only report if all three present
+        if (issue.code === "ZERO_TOKENS_IN" || issue.code === "ZERO_TOKENS_OUT" || issue.code === "ZERO_TOTAL_COST") {
+            if (!hasAllZeroTokens) continue
+        }
+        const reason = issue.code === "EMPTY_ARRAY" && fileName === API_HISTORY_NAME
+            ? "empty_api_history"
+            : issueToReason(issue)
+        if (reason) reasons.push({reason, source: fileSource(filePath)})
+    }
+
+    return {data, reasons, errors, warnings}
+}
+
+export async function inspectTaskDir(
     taskId: string,
     dir: string,
     indexItem?: HistoryItem | null,
     options: InspectOptions = {},
-): TaskCorruption {
+): Promise<TaskCorruption> {
     const reasonMap = new Map<CorruptionReason, Set<string>>()
     let errorCount = 0
     let warningCount = 0
@@ -107,47 +150,36 @@ export function inspectTaskDir(
         }
     }
 
-    /** Validate a file and map issues to corruption reasons. Returns parsed data (or null). */
-    function validateAndMap(filePath: string, fileName: string): unknown {
-        const tx = new JsonFileTransaction(filePath)
-        const result = tx.validate()
-        const data = tx.load(false).getData()
-        const codes = new Set(result.issues.map(i => i.code))
-        // Accumulate error/warning counts from all validation issues
-        for (const issue of result.issues) {
-            if (issue.severity === "error") errorCount++
-            else warningCount++
-        }
-        // zero_tokens requires all three zero-field codes present
-        const hasAllZeroTokens = codes.has("ZERO_TOKENS_IN") && codes.has("ZERO_TOKENS_OUT") && codes.has("ZERO_TOTAL_COST")
-        for (const issue of result.issues) {
-            if (issue.code === "NOT_FOUND") {
-                if (fileName === HISTORY_ITEM_NAME) add("missing_history_item", "hi")
-                continue
-            }
-            // Skip warning-level issues when --no-warnings
-            if (!showWarnings && issue.severity === "warning") continue
-            // Skip individual zero-token codes; only report if all three present
-            if (issue.code === "ZERO_TOKENS_IN" || issue.code === "ZERO_TOKENS_OUT" || issue.code === "ZERO_TOTAL_COST") {
-                if (!hasAllZeroTokens) continue
-            }
-            const reason = issue.code === "EMPTY_ARRAY" && fileName === API_HISTORY_NAME
-                ? "empty_api_history"
-                : issueToReason(issue)
-            if (reason) add(reason, fileSource(filePath))
-        }
-        return data
-    }
-
     // File-level validation via JsonFileTransaction with auto-registered validators
     const historyPath = path.join(dir, HISTORY_ITEM_NAME)
-    const diskItem = validateAndMap(historyPath, HISTORY_ITEM_NAME) as HistoryItem | null
-
     const apiPath = path.join(dir, API_HISTORY_NAME)
-    const api = validateAndMap(apiPath, API_HISTORY_NAME) as unknown[] | null
-
     const uiPath = path.join(dir, UI_MESSAGES_NAME)
-    const ui = validateAndMap(uiPath, UI_MESSAGES_NAME) as unknown[] | null
+
+    // Parallel validation of three independent files
+    const [hiResult, apiResult, uiResult] = await Promise.all([
+        validateAndMap(historyPath, HISTORY_ITEM_NAME),
+        validateAndMap(apiPath, API_HISTORY_NAME),
+        validateAndMap(uiPath, UI_MESSAGES_NAME),
+    ])
+
+    const diskItem = hiResult.data as HistoryItem | null
+    const api = apiResult.data as unknown[] | null
+    const ui = uiResult.data as unknown[] | null
+
+    // Merge results
+    errorCount += hiResult.errors + apiResult.errors + uiResult.errors
+    warningCount += hiResult.warnings + apiResult.warnings + uiResult.warnings
+
+    for (const r of [hiResult, apiResult, uiResult]) {
+        for (const {reason, source} of r.reasons) {
+            const sources = reasonMap.get(reason)
+            if (sources) {
+                sources.add(source)
+            } else {
+                reasonMap.set(reason, new Set([source]))
+            }
+        }
+    }
 
     // Cross-file validators (not auto-registered — take multiple inputs)
     if (showWarnings && options.verifyUiSync && Array.isArray(api) && api.length > 0 && Array.isArray(ui) && ui.length > 0) {
@@ -242,40 +274,51 @@ export function getValidatorByFile(filePath: string): ValidatorFn | undefined {
     return undefined;
 }
 
-export function validatePath(target: string | undefined): ValidateResult[] {
+export async function validatePath(target: string | undefined): Promise<ValidateResult[]> {
     const root = resolveRoot()
     const resolved = resolveTarget(target, root)
 
     const results: ValidateResult[] = []
 
-    const stat = fs.statSync(resolved, {throwIfNoEntry: false})
-
-    if (!stat) {
+    let stat: Awaited<ReturnType<typeof fs.stat>> | undefined
+    try {
+        stat = await fs.stat(resolved)
+    } catch {
         throw new Error(`File not found: ${resolved}`)
     }
 
     if (stat.isDirectory()) {
         // Detect if this is a task directory (contains task JSON files)
-        const isTaskDir = fs.existsSync(path.join(resolved, HISTORY_ITEM_NAME))
+        let isTaskDir = false
+        try {
+            await fs.access(path.join(resolved, HISTORY_ITEM_NAME))
+            isTaskDir = true
+        } catch {
+            // not a task dir
+        }
 
         if (isTaskDir) {
-            const taskId = path.basename(resolved)
-
             // Validate a single task directory's files
             for (const f of [HISTORY_ITEM_NAME, API_HISTORY_NAME, UI_MESSAGES_NAME, TASK_METADATA_NAME]) {
                 const fp = path.join(resolved, f)
-                if (fs.existsSync(fp)) {
+                try {
+                    await fs.access(fp)
                     const file = new JsonFileTransaction(fp)
-                    results.push({file: fp, result: file.validate()})
+                    await file.load(false)
+                    results.push({file: fp, result: await file.validate()})
+                } catch {
+                    // file doesn't exist, skip
                 }
             }
 
             // Also validate the _index.json entry for this task with cross-references
             const parentDir = path.dirname(resolved)
             const indexPath = path.join(parentDir, "_index.json")
-            if (fs.existsSync(indexPath)) {
+            try {
+                await fs.access(indexPath)
                 const indexTx = new JsonFileTransaction(indexPath)
-                const indexData = indexTx.load(false).getData() as Array<{ id: string }> | {
+                await indexTx.load(false)
+                const indexData = indexTx.getData() as Array<{ id: string }> | {
                     entries: Array<{ id: string }>
                 } | null
                 const entries: Array<Record<string, unknown>> = Array.isArray(indexData)
@@ -287,36 +330,48 @@ export function validatePath(target: string | undefined): ValidateResult[] {
                     if (e.id && typeof e.id === "string") fullIndex.set(e.id, e)
                 }
 
+                const taskId = path.basename(resolved)
                 const entry = fullIndex.get(taskId)
                 if (entry) {
                     const entryResult = validateHistoryItem(entry, fullIndex)
                     results.push({file: `${indexPath}:entries[${taskId}]`, result: entryResult})
                 }
+            } catch {
+                // index doesn't exist, skip
             }
         } else {
             // Validate all task dirs + index (storage root)
             const indexPath = path.join(resolved, "_index.json")
-            if (fs.existsSync(indexPath)) {
+            try {
+                await fs.access(indexPath)
                 const file = new JsonFileTransaction(indexPath)
-                results.push({file: indexPath, result: file.validate()})
+                await file.load(false)
+                results.push({file: indexPath, result: await file.validate()})
+            } catch {
+                // no index file
             }
 
-            const entries = fs.readdirSync(resolved, {withFileTypes: true})
+            const entries = await fs.readdir(resolved, {withFileTypes: true})
             for (const entry of entries) {
                 if (!entry.isDirectory() || entry.name.startsWith(".")) continue
                 const taskDir = path.join(resolved, entry.name)
                 for (const f of [HISTORY_ITEM_NAME, API_HISTORY_NAME, UI_MESSAGES_NAME, TASK_METADATA_NAME]) {
                     const fp = path.join(taskDir, f)
-                    if (fs.existsSync(fp)) {
+                    try {
+                        await fs.access(fp)
                         const file = new JsonFileTransaction(fp)
-                        results.push({file: fp, result: file.validate()})
+                        await file.load(false)
+                        results.push({file: fp, result: await file.validate()})
+                    } catch {
+                        // file doesn't exist, skip
                     }
                 }
             }
         }
     } else {
         const file = new JsonFileTransaction(resolved)
-        results.push({file: resolved, result: file.validate()})
+        await file.load(false)
+        results.push({file: resolved, result: await file.validate()})
     }
 
     return results;

@@ -58,7 +58,7 @@ describe("repairAll command", () => {
         vi.clearAllMocks()
     })
 
-    it("dry-run: shows [DRY-RUN] prefix and dry-run message", () => {
+    it("dry-run: shows [DRY-RUN] prefix and dry-run message", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 1,
             repaired: 1,
@@ -70,7 +70,7 @@ describe("repairAll command", () => {
             indexRemoved: [],
         })
 
-        action({force: false})
+        await action({force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("[DRY-RUN]")
@@ -78,7 +78,7 @@ describe("repairAll command", () => {
         expect(output).toContain("Dry-run")
     })
 
-    it("force: shows repaired with no [DRY-RUN] prefix", () => {
+    it("force: shows repaired with no [DRY-RUN] prefix", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 1,
             repaired: 1,
@@ -90,7 +90,7 @@ describe("repairAll command", () => {
             indexRemoved: [],
         })
 
-        action({force: true})
+        await action({force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("repaired")
@@ -98,7 +98,7 @@ describe("repairAll command", () => {
         expect(output).not.toContain("Dry-run")
     })
 
-    it("shows unrepairable tasks", () => {
+    it("shows unrepairable tasks", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 1,
             repaired: 0,
@@ -110,14 +110,14 @@ describe("repairAll command", () => {
             indexRemoved: [],
         })
 
-        action({force: false})
+        await action({force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("UNREPAIRABLE")
         expect(output).toContain("missing ACH")
     })
 
-    it("shows failed tasks", () => {
+    it("shows failed tasks", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 1,
             repaired: 0,
@@ -129,14 +129,14 @@ describe("repairAll command", () => {
             indexRemoved: [],
         })
 
-        action({force: false})
+        await action({force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("FAILED")
         expect(output).toContain("something went wrong")
     })
 
-    it("verbose: shows 'nothing to repair' for no-op tasks", () => {
+    it("verbose: shows 'nothing to repair' for no-op tasks", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 1,
             repaired: 0,
@@ -148,13 +148,13 @@ describe("repairAll command", () => {
             indexRemoved: [],
         })
 
-        action({force: false, verbose: true})
+        await action({force: false, verbose: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("nothing to repair")
     })
 
-    it("shows index rebuild summary with added and removed", () => {
+    it("shows index rebuild summary with added and removed", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 0,
             repaired: 0,
@@ -166,7 +166,7 @@ describe("repairAll command", () => {
             indexRemoved: ["old1"],
         })
 
-        action({force: true})
+        await action({force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("_index.json rebuilt: 5 entries")
@@ -174,13 +174,13 @@ describe("repairAll command", () => {
         expect(output).toContain("−1 removed: old1")
     })
 
-    it("passes options to repairAllCorrupted", () => {
+    it("passes options to repairAllCorrupted", async () => {
         mockRepairAllCorrupted.mockReturnValue({
             total: 0, repaired: 0, failed: 0, unrepairable: 0,
             results: [], indexEntries: 0, indexAdded: [], indexRemoved: [],
         })
 
-        action({force: true, backup: false, fixedInputToken: 1000})
+        await action({force: true, backup: false, fixedInputToken: 1000})
 
         expect(mockRepairAllCorrupted).toHaveBeenCalledWith("/fake/root", {
             dryRun: false,

@@ -7,25 +7,25 @@ import {action as listCorruptAction} from "../../commands/listCorrupt.js";
 import {action as repairAllAction} from "../../commands/repairAll.js";
 import {getJsonOutput} from "../testHelpers.js";
 
-export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => () => {
+export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => async () => {
     const orphanId = "019ede5a-9327-70cc-9c54-2d227182e4d1";
 
     // Phase 0: Repair all first so only unrepairable tasks remain
     consoleLogSpy.mockClear();
-    repairAllAction({force: true, backup: false});
+    await repairAllAction({force: true, backup: false});
     const rOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(rOut).toContain(`${orphanId}: UNREPAIRABLE`);
 
     // Phase 1: list-corrupt --json shows the unrepairable orphan
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lc1 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions1 = lc1.corruptions as Array<{taskId: string}>;
     expect(corruptions1.some(c => c.taskId === orphanId), "orphan must be in list-corrupt before delete").toBe(true);
 
     // Phase 2: Delete the unrepairable task
     consoleLogSpy.mockClear();
-    deleteAction(orphanId, {force: true, backup: false});
+    await deleteAction(orphanId, {force: true, backup: false});
     const delOut1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(delOut1).toContain(`Deleted:`);
     expect(delOut1).toContain(orphanId);
@@ -33,21 +33,21 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
 
     // Phase 3: list-corrupt --json is empty after delete
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lc2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions2 = lc2.corruptions as Array<{taskId: string}>;
     expect(corruptions2.length, "list-corrupt must be empty after delete").toBe(0);
 
     // Phase 4: Delete again — idempotent
     consoleLogSpy.mockClear();
-    deleteAction(orphanId, {force: true, backup: false});
+    await deleteAction(orphanId, {force: true, backup: false});
     const delOut2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(delOut2).toContain(`Directory not found:`);
     expect(delOut2).toContain(orphanId);
 
     // Phase 5: list-corrupt --json still empty
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lc3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions3 = lc3.corruptions as Array<{taskId: string}>;
     expect(corruptions3.length, "list-corrupt must remain empty after idempotent delete").toBe(0);

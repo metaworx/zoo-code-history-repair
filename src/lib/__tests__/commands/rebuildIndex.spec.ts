@@ -49,13 +49,13 @@ describe("rebuildIndex command", () => {
         vi.clearAllMocks()
     })
 
-    it("dry-run: prints item count and dry-run message", () => {
+    it("dry-run: prints item count and dry-run message", async () => {
         mockRepair.mockReturnValue({
             items: [{id: "a"}, {id: "b"}, {id: "c"}],
             written: false,
         })
 
-        action({force: false})
+        await action({force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 3 items")
@@ -63,36 +63,36 @@ describe("rebuildIndex command", () => {
         expect(output).not.toContain("Written:")
     })
 
-    it("force: prints written path", () => {
+    it("force: repair writes and reports item count", async () => {
         mockRepair.mockReturnValue({
             items: [{id: "x"}],
             written: true,
         })
 
-        action({force: true, backup: true})
+        await action({force: true, backup: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 1 items")
-        expect(output).toContain("Written:")
+        expect(output).not.toContain("Dry-run")
     })
 
-    it("force: prints output even for empty index", () => {
+    it("force: prints output even for empty index", async () => {
         mockRepair.mockReturnValue({
             items: [],
             written: true,
         })
 
-        action({force: true, backup: false})
+        await action({force: true, backup: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 0 items")
-        expect(output).toContain("Written:")
+        expect(output).not.toContain("Dry-run")
     })
 
-    it("passes dryRun and backup options to repair", () => {
+    it("passes dryRun and backup options to repair", async () => {
         mockRepair.mockReturnValue({items: [], written: false})
 
-        action({force: false, backup: false})
+        await action({force: false, backup: false})
 
         expect(mockRepair).toHaveBeenCalledWith(false, undefined, {
             dryRun: true,

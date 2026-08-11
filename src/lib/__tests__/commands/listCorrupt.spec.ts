@@ -39,12 +39,12 @@ describe("listCorrupt command", () => {
         vi.clearAllMocks()
     })
 
-    it("no corruptions: no output lines, no exit", () => {
+    it("no corruptions: no output lines, no exit", async () => {
         mockScanStorage.mockReturnValue({
             corruptions: [],
         })
 
-        action({})
+        await action({})
 
         // Only version banner printed
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
@@ -52,14 +52,14 @@ describe("listCorrupt command", () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("with corruptions, text mode: formatted output with recoverability", () => {
+    it("with corruptions, text mode: formatted output with recoverability", async () => {
         mockScanStorage.mockReturnValue({
             corruptions: [
                 {taskId: "corrupt-1", reasons: [{reason: "zero_size", source: "hi"}]},
             ],
         })
 
-        action({})
+        await action({})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("corrupt-1")
@@ -68,7 +68,7 @@ describe("listCorrupt command", () => {
         expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
-    it("JSON mode: outputs JSON and exits with corruption count", () => {
+    it("JSON mode: outputs JSON and exits with corruption count", async () => {
         mockScanStorage.mockReturnValue({
             corruptions: [
                 {taskId: "c1", reasons: [{reason: "zero_size", source: "hi"}]},
@@ -76,7 +76,7 @@ describe("listCorrupt command", () => {
             ],
         })
 
-        action({json: true})
+        await action({json: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
         const parsed = JSON.parse(output)
@@ -86,12 +86,12 @@ describe("listCorrupt command", () => {
         expect(exitSpy).toHaveBeenCalledWith(2)
     })
 
-    it("JSON mode with no corruptions: exit 0", () => {
+    it("JSON mode with no corruptions: exit 0", async () => {
         mockScanStorage.mockReturnValue({
             corruptions: [],
         })
 
-        action({json: true})
+        await action({json: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
         const parsed = JSON.parse(output)
@@ -99,10 +99,10 @@ describe("listCorrupt command", () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("passes verifyUiSync option to scanStorage", () => {
+    it("passes verifyUiSync option to scanStorage", async () => {
         mockScanStorage.mockReturnValue({corruptions: []})
 
-        action({verifyUiSync: true})
+        await action({verifyUiSync: true})
 
         expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true, showWarnings: true})
     })

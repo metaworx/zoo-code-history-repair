@@ -81,7 +81,7 @@ describe("repairTask command", () => {
         vi.clearAllMocks()
     })
 
-    it("dry-run, successful repair: shows [DRY-RUN] would repair", () => {
+    it("dry-run, successful repair: shows [DRY-RUN] would repair", async () => {
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1",
             uiRepaired: true,
@@ -92,7 +92,7 @@ describe("repairTask command", () => {
             backups: [],
         })
 
-        action("t1", {force: false})
+        await action("t1", {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("[DRY-RUN]")
@@ -100,7 +100,7 @@ describe("repairTask command", () => {
         expect(output).toContain("ui(ach→uim)")
     })
 
-    it("force, successful repair: shows repaired without [DRY-RUN]", () => {
+    it("force, successful repair: shows repaired without [DRY-RUN]", async () => {
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1",
             uiRepaired: true,
@@ -111,14 +111,14 @@ describe("repairTask command", () => {
             backups: [],
         })
 
-        action("t1", {force: true})
+        await action("t1", {force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).not.toContain("[DRY-RUN]")
         expect(output).toContain("repaired")
     })
 
-    it("errors path: shows errors and backups", () => {
+    it("errors path: shows errors and backups", async () => {
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1",
             uiRepaired: false,
@@ -129,7 +129,7 @@ describe("repairTask command", () => {
             backups: ["/fake/root/tasks/t1/history_item.json.bak"],
         })
 
-        action("t1", {force: false})
+        await action("t1", {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("errors:")
@@ -138,7 +138,7 @@ describe("repairTask command", () => {
         expect(output).toContain("Backups:")
     })
 
-    it("passes options to repairTaskDir including indexItems", () => {
+    it("passes options to repairTaskDir including indexItems", async () => {
         mockIdxGetEntries.mockReturnValue([
             {id: "t1", tokensIn: 500, tokensOut: 300},
         ])
@@ -148,7 +148,7 @@ describe("repairTask command", () => {
             errors: [], backups: [],
         })
 
-        action("t1", {force: true, backup: false, forceUim: true, fixedInputToken: 2000})
+        await action("t1", {force: true, backup: false, forceUim: true, fixedInputToken: 2000})
 
         expect(mockRepairTaskDir).toHaveBeenCalledWith("/fake/root/tasks/t1", {
             dryRun: false,
@@ -159,7 +159,7 @@ describe("repairTask command", () => {
         })
     })
 
-    it("passes indexItems from {entries} format", () => {
+    it("passes indexItems from {entries} format", async () => {
         mockIdxGetEntries.mockReturnValue([{id: "t1", tokensIn: 100}])
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1", uiRepaired: false, taskRepaired: false,
@@ -167,7 +167,7 @@ describe("repairTask command", () => {
             errors: [], backups: [],
         })
 
-        action("t1", {force: false})
+        await action("t1", {force: false})
 
         expect(mockRepairTaskDir).toHaveBeenCalledWith("/fake/root/tasks/t1", expect.objectContaining({
             indexItems: [{id: "t1", tokensIn: 100}],

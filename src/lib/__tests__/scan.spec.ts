@@ -17,7 +17,7 @@ describe("scanStorage", () => {
         fs.rmSync(root, {recursive: true, force: true})
     })
 
-    it("reports folder_orphan when task dir is not in index", () => {
+    it("reports folder_orphan when task dir is not in index", async () => {
         const dir = path.join(tasksDir, "orphan-id")
         fs.mkdirSync(dir)
         fs.writeFileSync(
@@ -26,25 +26,25 @@ describe("scanStorage", () => {
         )
         fs.writeFileSync(path.join(tasksDir, "_index.json"), "[]")
 
-        const result = scanStorage(root)
+        const result = await scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === "orphan-id")
         expect(hit?.reasons).toContainEqual({reason: "folder_orphan", source: "hi"})
     })
 
-    it("reports index_orphan when index entry has no folder", () => {
+    it("reports index_orphan when index entry has no folder", async () => {
         fs.writeFileSync(
             path.join(tasksDir, "_index.json"),
             JSON.stringify([{id: "ghost", task: "Ghost", size: 0}]),
         )
 
-        const result = scanStorage(root)
+        const result = await scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === "ghost")
         expect(hit?.reasons).toEqual(
             expect.arrayContaining([{reason: "index_orphan", source: "idx"}, {reason: "zero_size", source: "idx"}]),
         )
     })
 
-    it("detects placeholder task names in index", () => {
+    it("detects placeholder task names in index", async () => {
         const id = "bad"
         const dir = path.join(tasksDir, id)
         fs.mkdirSync(dir)
@@ -62,7 +62,7 @@ describe("scanStorage", () => {
             JSON.stringify([entry]),
         )
 
-        const result = scanStorage(root)
+        const result = await scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === id)
         expect(hit?.reasons).toEqual(
             expect.arrayContaining([{reason: "placeholder_task_name", source: "hi,idx"}, {

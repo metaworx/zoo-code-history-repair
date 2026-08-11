@@ -7,6 +7,33 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-08-11
+
+### Changed
+
+- **Full async I/O migration** — all file operations now use `fs.promises` with native async/await.
+  Removed the `deasync` dependency that previously wrapped `safeWriteJson` into a synchronous `saveFile`.
+  All I/O functions now return `Promise` and propagate up through `FileTransaction`, `JsonFileTransaction`,
+  `IndexTransaction`, library modules (`restore`, `validation`, `scan`, `repairTask`, `repairAll`), and
+  all 8 CLI command handlers.
+- **`FileTransaction` API** — `load()`, `save()`, `_read()`, `_write()` now return `Promise`.
+  `validate()` stays synchronous but requires `await load()` first. `setData()` remains synchronous.
+- **`inspectTaskDir` parallelization** — validates `history_item.json`, `api_conversation_history.json`,
+  and `ui_messages.json` in parallel via `Promise.all`.
+- **`cli.ts`** — extracted `runAction()` helper for async error handling following Zoo-Code CLI pattern.
+
+### Fixed
+
+- **`rebuild-index` concurrent modification** — `repair()` writes `_index.json` to disk, which changes
+  mtime/size. The command previously called `save()` with a stale snapshot, causing a spurious
+  "Concurrent modification detected" error. Now prints confirmation messages without a redundant write.
+- **`validateAndMap` warning filtering** — warnings (including `EMPTY_ARRAY` for empty arrays) were
+  prematurely filtered out, causing `inspectTaskDir` to miss `empty_ui_messages` / `empty_api_history` corruption reasons.
+
+### Removed
+
+- **`deasync` dependency** — no longer needed; all I/O is native async.
+
 ## [0.7.0] — 2026-08-11
 
 ### Added

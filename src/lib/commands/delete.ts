@@ -20,7 +20,7 @@ export const options = [
 
 const dryRunMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
 
-export function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean }): void {
+export async function action(taskId: string, cmdOpts: { force?: boolean; backup?: boolean }): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
     const taskDir = path.join(tasksDir, taskId)
@@ -42,12 +42,12 @@ export function action(taskId: string, cmdOpts: { force?: boolean; backup?: bool
     }
 
     const idx = new IndexTransaction(false)
-    const entries = idx.getEntries()
+    const entries = await idx.getEntries()
     const before = entries.length
-    const removed = idx.removeById(taskId, false)
+    const removed = await idx.removeById(taskId, false)
     if (removed) {
         idx.setData(entries, false)
-        idx.save(false, cmdOpts.backup !== false)
+        await idx.save(false, cmdOpts.backup !== false)
     }
     console.log(`Stripped ${taskId} from _index.json (${before} → ${entries.length} entries)`)
 }

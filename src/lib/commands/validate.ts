@@ -17,7 +17,7 @@ export const options = [
     ["--warnings", "Also show warning-level issues", false],
 ] as const
 
-export function action(target: string | undefined, cmdOpts: { json?: boolean; warnings?: boolean }): void {
+export async function action(target: string | undefined, cmdOpts: { json?: boolean; warnings?: boolean }): Promise<void> {
     let results: ValidateResult[] = []
 
     // Resolve UUID targets to task directories
@@ -28,7 +28,7 @@ export function action(target: string | undefined, cmdOpts: { json?: boolean; wa
     }
 
     try {
-        results = validatePath(resolvedTarget);
+        results = await validatePath(resolvedTarget);
     } catch (e) {
         console.error((e as Error).message)
         process.exit(1)

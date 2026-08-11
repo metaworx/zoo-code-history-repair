@@ -20,6 +20,18 @@ const pkg = JSON.parse(
 const program = new Command()
 const version = `Zoo Code History Repair, v${pkg.version}\n`;
 
+function runAction(action: (...args: unknown[]) => Promise<void>): (...args: unknown[]) => Promise<void> {
+    return async (...args: unknown[]) => {
+        try {
+            await action(...args)
+            process.exit(0)
+        } catch (e) {
+            console.error((e as Error).message)
+            process.exit(1)
+        }
+    }
+}
+
 program
     .name("zoo-code-history-repair")
     .description("Scan / repair Zoo Code task history index and corrupted task metadata")
@@ -49,7 +61,7 @@ program
     .addHelpText("before", version)
     .addHelpText("after", scanCmd.additionalHelp)
     .registerOptions(scanCmd.options)
-    .action(scanCmd.action)
+    .action(runAction(scanCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(listCorruptCmd.name)
@@ -58,7 +70,7 @@ program
     .addHelpText("before", version)
     .addHelpText("after", listCorruptCmd.additionalHelp)
     .registerOptions(listCorruptCmd.options)
-    .action(listCorruptCmd.action)
+    .action(runAction(listCorruptCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(rebuildIndexCmd.name)
@@ -66,7 +78,7 @@ program
     .description(rebuildIndexCmd.description)
     .addHelpText("before", version)
     .registerOptions(rebuildIndexCmd.options)
-    .action(rebuildIndexCmd.action)
+    .action(runAction(rebuildIndexCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(`${repairTaskCmd.name} <taskId>`)
@@ -75,7 +87,7 @@ program
     .addHelpText("before", version)
     .addHelpText("after", repairTaskCmd.additionalHelp)
     .registerOptions(repairTaskCmd.options)
-    .action(repairTaskCmd.action)
+    .action(runAction(repairTaskCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(repairAllCmd.name)
@@ -84,7 +96,7 @@ program
     .addHelpText("before", version)
     .addHelpText("after", repairAllCmd.additionalHelp)
     .registerOptions(repairAllCmd.options)
-    .action(repairAllCmd.action)
+    .action(runAction(repairAllCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(`${deleteCmd.name} <taskId>`)
@@ -92,7 +104,7 @@ program
     .description(deleteCmd.description)
     .addHelpText("before", version)
     .registerOptions(deleteCmd.options)
-    .action(deleteCmd.action)
+    .action(runAction(deleteCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(`${restoreCmd.name} [taskId] [timestamp]`)
@@ -100,7 +112,7 @@ program
     .description(restoreCmd.description)
     .addHelpText("before", version)
     .registerOptions(restoreCmd.options)
-    .action(restoreCmd.action)
+    .action(runAction(restoreCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(`${validateCmd.name} [target]`)
@@ -108,7 +120,7 @@ program
     .description(validateCmd.description)
     .addHelpText("before", version)
     .registerOptions(validateCmd.options)
-    .action(validateCmd.action)
+    .action(runAction(validateCmd.action as (...a: unknown[]) => Promise<void>))
 
 if (process.argv.includes("--version-only")) {
     console.log(pkg.version)

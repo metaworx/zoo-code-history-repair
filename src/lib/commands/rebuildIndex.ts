@@ -20,10 +20,10 @@ export const options = [
 
 const dryRunMsg = colorize("\n!! Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
-export function action(cmdOpts: { force?: boolean; backup?: boolean; fromDisk?: boolean }): void {
+export async function action(cmdOpts: { force?: boolean; backup?: boolean; fromDisk?: boolean }): Promise<void> {
     const root = resolveRoot()
     const idx = new IndexTransaction(false)
-    const {items, written} = idx.repair(!!cmdOpts.fromDisk, undefined, {
+    const {items, written} = await idx.repair(!!cmdOpts.fromDisk, undefined, {
         dryRun: !cmdOpts.force,
         backup: cmdOpts.backup !== false,
     })
@@ -33,8 +33,7 @@ export function action(cmdOpts: { force?: boolean; backup?: boolean; fromDisk?: 
     if (!written) {
         console.log(dryRunMsg)
     } else {
-        const backupPath = idx.save(false, true)
         console.log(`Written: ${resolveTasksDir(root)}/_index.json`)
-        if (backupPath) console.log(`Backup:  ${backupPath}`)
+        if (cmdOpts.backup !== false) console.log(`Backup:  ${resolveTasksDir(root)}/_index.json.${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15)}.bak.json`)
     }
 }

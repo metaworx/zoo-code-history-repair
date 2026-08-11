@@ -33,25 +33,25 @@ export const options = [
 
 const dryRunMsg = colorize("\n!! Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
-export function action(taskId: string, cmdOpts: {
+export async function action(taskId: string, cmdOpts: {
     force?: boolean;
     backup?: boolean;
     forceUim?: boolean;
     fixedInputToken?: number
-}): void {
+}): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
     const taskDir = `${tasksDir}/${taskId}`
 
     const idx = new IndexTransaction()
-    const indexItems = idx.getEntries() as Array<{
+    const indexItems = await idx.getEntries() as Array<{
         id: string;
         tokensIn?: number;
         tokensOut?: number;
         totalCost?: number
     }>
 
-    const r = repairTaskDir(taskDir, {
+    const r = await repairTaskDir(taskDir, {
         dryRun: !cmdOpts.force,
         backup: cmdOpts.backup !== false,
         forceUim: cmdOpts.forceUim,
@@ -84,10 +84,11 @@ export function action(taskId: string, cmdOpts: {
     let idxBak: string | null = null
     if (cmdOpts.force && parts.length > 0) {
         const hiTx = new JsonFileTransaction(path.join(taskDir, HISTORY_ITEM_NAME), true)
-        const diskEntry = hiTx.load(false).getData() as Record<string, unknown> | null
+        await hiTx.load(false)
+        const diskEntry = hiTx.getData() as Record<string, unknown> | null
         if (diskEntry) {
             const writeIdx = new IndexTransaction(false)
-            idxBak = writeIdx.replaceId(taskId, diskEntry, true, false)
+            idxBak = await writeIdx.replaceId(taskId, diskEntry, true, false)
         }
     }
 

@@ -39,12 +39,12 @@ describe("inspectTaskDir", () => {
         fs.writeFileSync(path.join(tmp, file), JSON.stringify(data), "utf8")
     }
 
-    it("flags missing history_item", () => {
-        const result = inspectTaskDir("abc", tmp, null)
+    it("flags missing history_item", async () => {
+        const result = await inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toContainEqual({reason: "missing_history_item", source: "hi"})
     })
 
-    it("flags placeholder task + zero size from disk item", () => {
+    it("flags placeholder task + zero size from disk item", async () => {
         writeJson("history_item.json", {
             id: "abc",
             task: "Task #1",
@@ -59,7 +59,7 @@ describe("inspectTaskDir", () => {
             apiConfigName: "default",
         } satisfies HistoryItem)
 
-        const result = inspectTaskDir("abc", tmp, null)
+        const result = await inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
             expect.arrayContaining([{reason: "placeholder_task_name", source: "hi"}, {
                 reason: "zero_size",
@@ -69,7 +69,7 @@ describe("inspectTaskDir", () => {
         expect(result.diskItem?.task).toBe("Task #1")
     })
 
-    it("flags empty ui/api arrays", () => {
+    it("flags empty ui/api arrays", async () => {
         writeJson("history_item.json", {
             id: "abc",
             task: "Real task",
@@ -86,7 +86,7 @@ describe("inspectTaskDir", () => {
         writeJson("ui_messages.json", [])
         writeJson("api_conversation_history.json", [])
 
-        const result = inspectTaskDir("abc", tmp, null)
+        const result = await inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
             expect.arrayContaining([{reason: "empty_ui_messages", source: "uim"}, {
                 reason: "empty_api_history",
@@ -95,7 +95,7 @@ describe("inspectTaskDir", () => {
         )
     })
 
-    it("returns no reasons for a healthy task", () => {
+    it("returns no reasons for a healthy task", async () => {
         writeJson("history_item.json", {
             id: "abc",
             task: "Implement feature X",
@@ -112,11 +112,9 @@ describe("inspectTaskDir", () => {
         writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
         writeJson("api_conversation_history.json", [{role: "user", content: "hi"}])
 
-        const result = inspectTaskDir("abc", tmp, null)
+        const result = await inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual([])
     })
-
-    // --- v0.2.0 features (merged from detectCorruptionV2.spec.ts) ---
 
     describe("missing_task_text", () => {
         const base = {
@@ -132,292 +130,182 @@ describe("inspectTaskDir", () => {
             apiConfigName: "default"
         }
 
-        it("flags empty task string", () => {
+        it("flags empty task string", async () => {
             writeJson("history_item.json", {...base, task: ""} satisfies HistoryItem)
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
-        it("flags undefined task", () => {
+        it("flags undefined task", async () => {
             writeJson("history_item.json", {...base} satisfies Partial<HistoryItem> as HistoryItem)
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
-        it("does not flag non-empty task", () => {
+        it("does not flag non-empty task", async () => {
             writeJson("history_item.json", {...base, task: "Real task"})
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContainEqual({reason: "missing_task_text", source: "hi"})
         })
     })
 
     describe("interrupted_task", () => {
-        it("does NOT flag unanswered attempt_completion (Trigger A removed — normal child-task behavior)", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does NOT flag unanswered attempt_completion (Trigger A removed — normal child-task behavior)", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
-            writeJson("api_conversation_history.json", [
-                {
-                    role: "assistant",
-                    content: [
-                        {
-                            type: "tool_use",
-                            name: "attempt_completion",
-                            id: "toolu_01",
-                            input: {},
-                        },
-                    ],
-                },
-            ])
+            writeJson("api_conversation_history.json", [{
+                role: "assistant",
+                content: [{type: "tool_use", name: "attempt_completion", id: "toolu_01", input: {}}],
+            }])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
-        it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
-            writeJson("api_conversation_history.json", [
-                {
-                    role: "assistant",
-                    content: [
-                        {
-                            type: "tool_use",
-                            name: "attemptCompletion",
-                            id: "toolu_02",
-                            input: {},
-                        },
-                    ],
-                },
-            ])
+            writeJson("api_conversation_history.json", [{
+                role: "assistant",
+                content: [{type: "tool_use", name: "attemptCompletion", id: "toolu_02", input: {}}],
+            }])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
-        it("gates interrupted_task when solo (co-occurrence required)", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("gates interrupted_task when solo (co-occurrence required)", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Do X"}],
-                },
+                {role: "user", content: [{type: "text", text: "Do X"}]},
                 {
                     role: "assistant",
-                    content: [
-                        {type: "text", text: "Okay"},
-                        {type: "tool_use", name: "write_file", id: "tu1", input: {}},
-                    ],
+                    content: [{type: "text", text: "Okay"}, {
+                        type: "tool_use",
+                        name: "write_file",
+                        id: "tu1",
+                        input: {}
+                    }]
                 },
             ])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContainEqual({reason: "interrupted_task", source: "ach"})
         })
 
-        it("keeps interrupted_task when co-occurring with other corruption", () => {
+        it("keeps interrupted_task when co-occurring with other corruption", async () => {
             writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 0,
-                ts: 1,
-                number: 1,
-                tokensIn: 10,
-                tokensOut: 10,
-                totalCost: 0.01,
-                workspace: "/ws",
-                mode: "code",
-                apiConfigName: "default",
+                id: "abc", task: "Real task", size: 0, ts: 1, number: 1,
+                tokensIn: 10, tokensOut: 10, totalCost: 0.01,
+                workspace: "/ws", mode: "code", apiConfigName: "default",
             })
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Do X"}],
-                },
+                {role: "user", content: [{type: "text", text: "Do X"}]},
                 {
                     role: "assistant",
-                    content: [
-                        {type: "text", text: "Okay"},
-                        {type: "tool_use", name: "write_file", id: "tu1", input: {}},
-                    ],
+                    content: [{type: "text", text: "Okay"}, {
+                        type: "tool_use",
+                        name: "write_file",
+                        id: "tu1",
+                        input: {}
+                    }]
                 },
             ])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContainEqual({reason: "interrupted_task", source: "ach"})
             expect(result.reasons).toContainEqual({reason: "zero_size", source: "hi"})
         })
 
-        it("does not flag completed task with matching tool_results", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does not flag completed task with matching tool_results", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "assistant",
-                    content: [
-                        {
-                            type: "tool_use",
-                            name: "read_file",
-                            id: "toolu_01",
-                            input: {path: "/foo"},
-                        },
-                    ],
+                    content: [{type: "tool_use", name: "read_file", id: "toolu_01", input: {path: "/foo"}}]
                 },
                 {
                     role: "user",
-                    content: [
-                        {
-                            type: "tool_result",
-                            tool_use_id: "toolu_01",
-                            content: [{type: "text", text: "content"}],
-                        },
-                    ],
+                    content: [{
+                        type: "tool_result",
+                        tool_use_id: "toolu_01",
+                        content: [{type: "text", text: "content"}]
+                    }]
                 },
-                {
-                    role: "assistant",
-                    content: [{type: "text", text: "Done!"}],
-                },
+                {role: "assistant", content: [{type: "text", text: "Done!"}]},
             ])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContain("interrupted_task")
         })
 
-        it("does not flag task with no tool_use blocks", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does not flag task with no tool_use blocks", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                },
-                {
-                    role: "assistant",
-                    content: [{type: "text", text: "Hi there"}],
-                },
+                {role: "user", content: [{type: "text", text: "Hello"}]},
+                {role: "assistant", content: [{type: "text", text: "Hi there"}]},
             ])
 
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContain("interrupted_task")
         })
     })
 
     describe("verifyUiSync", () => {
-        it("detects ui_sync_mismatch when lengths differ", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
-            // ui has 2 events, but ACH only produces 1
+        it("detects ui_sync_mismatch when lengths differ", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [
                 {ts: 100, type: "say", say: "text", text: "A", partial: false},
                 {ts: 101, type: "say", say: "text", text: "B", partial: false},
             ])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                    ts: 100,
-                },
+                {role: "user", content: [{type: "text", text: "Hello"}], ts: 100},
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
+            const result = await inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
-        it("detects ui_sync_mismatch when say/text content differs", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
-            // ui says "Old text" but ACH would produce "Hello"
+        it("detects ui_sync_mismatch when say/text content differs", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [
                 {ts: 100, type: "say", say: "text", text: "Old text", partial: false},
             ])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                    ts: 100,
-                },
+                {role: "user", content: [{type: "text", text: "Hello"}], ts: 100},
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
+            const result = await inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
-        it("does not flag matching ui/ACH (no false positive)", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does not flag matching ui/ACH (no false positive)", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [
                 {ts: 0, type: "say", say: "text", text: "Hello", partial: false},
             ])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                    ts: 0,
-                },
+                {role: "user", content: [{type: "text", text: "Hello"}], ts: 0},
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
+            const result = await inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).not.toContain("ui_sync_mismatch")
         })
 
-        it("does not flag when verifyUiSync is disabled (default)", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
+        it("does not flag when verifyUiSync is disabled (default)", async () => {
+            writeJson("history_item.json", {id: "abc", task: "Real task", size: 100, ts: 1})
             writeJson("ui_messages.json", [
                 {ts: 100, type: "say", say: "text", text: "Mismatched", partial: false},
             ])
             writeJson("api_conversation_history.json", [
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                    ts: 100,
-                },
+                {role: "user", content: [{type: "text", text: "Hello"}], ts: 100},
             ])
 
-            // verifyUiSync defaults to false — mismatch should NOT be detected
-            const result = inspectTaskDir("abc", tmp, null)
+            const result = await inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContain("ui_sync_mismatch")
         })
     })

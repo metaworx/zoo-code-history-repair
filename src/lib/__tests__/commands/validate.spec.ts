@@ -1,5 +1,6 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import path from "node:path"
+import {action} from "../../commands/validate.js"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
@@ -24,9 +25,7 @@ vi.mock("../../validation.js", () => ({
     validatePath: mockValidatePath,
 }))
 
-import {action} from "../../commands/validate.js"
-
-describe("validate command", () => {
+describe("validate command", async () => {
     let consoleLogSpy: ReturnType<typeof vi.spyOn>
     let consoleErrorSpy: ReturnType<typeof vi.spyOn>
     let exitSpy: ReturnType<typeof vi.spyOn>
@@ -45,13 +44,13 @@ describe("validate command", () => {
         vi.clearAllMocks()
     })
 
-    it("all files valid: prints summary with 0 errors", () => {
+    it("all files valid: prints summary with 0 errors", async () => {
         mockValidatePath.mockReturnValue([
             {file: "f1.json", result: {valid: true, errorCount: 0, warningCount: 0, issues: []}},
             {file: "f2.json", result: {valid: true, errorCount: 0, warningCount: 0, issues: []}},
         ])
 
-        action(undefined, {})
+        await action(undefined, {})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("2 files checked")
@@ -61,7 +60,7 @@ describe("validate command", () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("with errors: prints errors and exits 1", () => {
+    it("with errors: prints errors and exits 1", async () => {
         mockValidatePath.mockReturnValue([
             {
                 file: "bad.json", result: {
@@ -77,7 +76,7 @@ describe("validate command", () => {
             },
         ])
 
-        action(undefined, {})
+        await action(undefined, {})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("bad.json:")
@@ -90,7 +89,7 @@ describe("validate command", () => {
         expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
-    it("--warnings flag: shows warnings alongside errors", () => {
+    it("--warnings flag: shows warnings alongside errors", async () => {
         mockValidatePath.mockReturnValue([
             {
                 file: "f.json", result: {
@@ -105,7 +104,7 @@ describe("validate command", () => {
             },
         ])
 
-        action(undefined, {warnings: true})
+        await action(undefined, {warnings: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("WARNING:")
@@ -114,9 +113,10 @@ describe("validate command", () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("JSON mode: outputs structured JSON", () => {
+    it("JSON mode: outputs structured JSON", async () => {
         mockValidatePath.mockReturnValue([
-            {file: "f.json",
+            {
+                file: "f.json",
                 result: {
                     valid: false,
                     errorCount: 1,
@@ -126,7 +126,7 @@ describe("validate command", () => {
             },
         ])
 
-        action(undefined, {json: true})
+        await action(undefined, {json: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
         const parsed = JSON.parse(output)
@@ -135,47 +135,47 @@ describe("validate command", () => {
         expect(parsed["f.json"].issues).toHaveLength(1)
     })
 
-    it("error from validatePath: prints error and exits 1", () => {
+    it("error from validatePath: prints error and exits 1", async () => {
         mockValidatePath.mockImplementation(() => {
             throw new Error("path not found")
         })
 
-        action(undefined, {})
+        await action(undefined, {})
 
         expect(consoleErrorSpy).toHaveBeenCalled()
         expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
-    it("passes target to validatePath", () => {
+    it("passes target to validatePath", async () => {
         mockValidatePath.mockReturnValue([])
 
-        action("/custom/path", {})
+        await action("/custom/path", {})
 
         expect(mockValidatePath).toHaveBeenCalledWith("/custom/path")
     })
 
-    it("undefined target: calls validatePath with undefined", () => {
+    it("undefined target: calls validatePath with undefined", async () => {
         mockValidatePath.mockReturnValue([])
 
-        action(undefined, {})
+        await action(undefined, {})
 
         expect(mockValidatePath).toHaveBeenCalledWith(undefined)
     })
 
-    it("UUID target: resolves to task directory path", () => {
+    it("UUID target: resolves to task directory path", async () => {
         mockValidatePath.mockReturnValue([])
         const taskId = "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913"
 
-        action(taskId, {})
+        await action(taskId, {})
 
         const expectedPath = path.join(path.resolve("/fake/root"), "tasks", taskId)
         expect(mockValidatePath).toHaveBeenCalledWith(expectedPath)
     })
 
-    it("non-UUID target: passed through as-is", () => {
+    it("non-UUID target: passed through as-is", async () => {
         mockValidatePath.mockReturnValue([])
 
-        action("some/file.json", {})
+        await action("some/file.json", {})
 
         expect(mockValidatePath).toHaveBeenCalledWith("some/file.json")
     })

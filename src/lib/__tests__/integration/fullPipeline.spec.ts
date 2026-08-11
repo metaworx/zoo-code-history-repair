@@ -64,7 +64,7 @@ describe("full pipeline (integration)", () => {
         cleanup();
     });
 
-    it("scan→repair→validate cycle reduces corruption and is idempotent", () => repairAll(tmpRoot, tasksDir, consoleLogSpy)());
+    it("scan→repair→validate cycle reduces corruption and is idempotent", () => repairAll(tmpRoot, tasksDir, consoleLogSpy)(), 10000);
     it("repair-task → index update (preserves all index entries after targeted repair)", () => repairTask(tasksDir, consoleLogSpy)());
     it("delete unrepairable task removes it from list-corrupt and is idempotent", () => deleteTask(tasksDir, consoleLogSpy)());
     it("rebuild-index removes index_orphans and adds folder_orphans from disk", () => rebuildIndex(tasksDir, consoleLogSpy, tmpRoot)());

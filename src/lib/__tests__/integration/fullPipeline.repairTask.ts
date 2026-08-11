@@ -19,7 +19,7 @@ import {listBackupFiles} from "../testHelpers.js";
 
 const TASK_ID = "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913";
 
-export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => () => {
+export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => async () => {
     const indexPath = path.join(tasksDir, "_index.json");
     const taskDir = path.join(tasksDir, TASK_ID);
     const hiPath = path.join(taskDir, HISTORY_ITEM_NAME);
@@ -32,12 +32,12 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     // --- Phase 0: Snapshot initial state ---
     const indexBefore = JSON.parse(fs.readFileSync(indexPath, "utf8"));
     const entryCountBefore = indexBefore.entries.length;
-    const hiHashBefore = contentHash(hiPath);
-    const uiHashBefore = contentHash(uiPath);
-    const indexHashBefore = contentHash(indexPath);
+    const hiHashBefore = await contentHash(hiPath);
+    const uiHashBefore = await contentHash(uiPath);
+    const indexHashBefore = await contentHash(indexPath);
 
     // --- Phase 1: list-corrupt before repair ---
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     const lc1task = lc1.split("\n").find(l => l.startsWith(TASK_ID));
     expect(lc1task, "task must appear in pre-repair list-corrupt").toBeDefined();
@@ -50,7 +50,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
 
     // --- Phase 2: validate before repair ---
     consoleLogSpy.mockClear();
-    validateAction(TASK_ID, {warnings: true});
+    await validateAction(TASK_ID, {warnings: true});
     const v1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(v1).toContain(hiOut + ":");
     expect(v1).toContain(uiOut + ":");
@@ -64,7 +64,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
 
     // --- Phase 3: Repair the task (with backups) ---
     consoleLogSpy.mockClear();
-    repairTaskAction(TASK_ID, {force: true, backup: true});
+    await repairTaskAction(TASK_ID, {force: true, backup: true});
     const rOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(rOut).toContain(`${TASK_ID}: repaired ui(ach→uim), task(ach→hi), size(calc→hi), tokens(estimate→hi)`);
     expect(rOut).toContain("Backups:");
@@ -78,19 +78,19 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     expect(uiBak, "ui_messages.json backup").toBeDefined();
     expect(rOut).toContain(hiBak!);
     expect(rOut).toContain(uiBak!);
-    expect(contentHash(path.join(taskDir, hiBak!)), "hi backup checksum").toBe(hiHashBefore);
-    expect(contentHash(path.join(taskDir, uiBak!)), "ui backup checksum").toBe(uiHashBefore);
+    expect(await contentHash(path.join(taskDir, hiBak!)), "hi backup checksum").toBe(hiHashBefore);
+    expect(await contentHash(path.join(taskDir, uiBak!)), "ui backup checksum").toBe(uiHashBefore);
 
     const indexBaks = listBackupFiles(tasksDir);
     expect(indexBaks.length).toBeGreaterThanOrEqual(1);
     const idxBak = indexBaks.find(f => f.startsWith("_index.json."));
     expect(idxBak, "_index.json backup").toBeDefined();
     expect(rOut).toContain(idxBak!);
-    expect(contentHash(path.join(tasksDir, idxBak!)), "index backup checksum").toBe(indexHashBefore);
+    expect(await contentHash(path.join(tasksDir, idxBak!)), "index backup checksum").toBe(indexHashBefore);
 
     // --- Phase 4: list-corrupt after repair (reasons reduced) ---
     consoleLogSpy.mockClear();
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     const lc2task = lc2.split("\n").find(l => l.startsWith(TASK_ID));
     // Task may be fully repaired (no longer in list-corrupt)
@@ -113,15 +113,15 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     // After repair with fixed estimateTotalCost, all files are fully clean
     // (0 errors, 0 warnings), so validate prints only the summary line.
     consoleLogSpy.mockClear();
-    validateAction(TASK_ID, {warnings: false});
+    await validateAction(TASK_ID, {warnings: false});
     const v2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(v2).toContain("0 errors");
     expect(v2).toContain("0 warnings");
 
     // --- Phase 7: contentHash verification ---
-    const hiHashAfter = contentHash(hiPath);
-    const uiHashAfter = contentHash(uiPath);
-    const indexHashAfter = contentHash(indexPath);
+    const hiHashAfter = await contentHash(hiPath);
+    const uiHashAfter = await contentHash(uiPath);
+    const indexHashAfter = await contentHash(indexPath);
     expect(hiHashAfter).not.toBeNull();
     expect(uiHashAfter).not.toBeNull();
     expect(indexHashAfter).not.toBeNull();
@@ -138,7 +138,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     const v2Before = v2;
 
     consoleLogSpy.mockClear();
-    repairTaskAction(TASK_ID, {force: true, backup: true});
+    await repairTaskAction(TASK_ID, {force: true, backup: true});
     const rOut2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     // Second repair must not report any changes
     expect(rOut2).not.toContain("repaired");
@@ -149,19 +149,19 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     expect(bakCountAfter).toBe(bakCountBefore);
 
     // Checksums unchanged
-    expect(contentHash(hiPath)).toBe(hiHashAfter);
-    expect(contentHash(uiPath)).toBe(uiHashAfter);
-    expect(contentHash(indexPath)).toBe(indexHashAfter);
+    expect(await contentHash(hiPath)).toBe(hiHashAfter);
+    expect(await contentHash(uiPath)).toBe(uiHashAfter);
+    expect(await contentHash(indexPath)).toBe(indexHashAfter);
 
     // list-corrupt output unchanged
     consoleLogSpy.mockClear();
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc3 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(lc3).toBe(lc2Before);
 
     // validate output unchanged
     consoleLogSpy.mockClear();
-    validateAction(TASK_ID, {warnings: false});
+    await validateAction(TASK_ID, {warnings: false});
     const v3 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(v3).toBe(v2Before);
 }

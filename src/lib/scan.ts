@@ -10,13 +10,13 @@ export interface ScanOptions extends InspectOptions {
     showWarnings?: boolean
 }
 
-export function scanStorage(storageRoot: string, options: ScanOptions = {}): ScanResult {
+export async function scanStorage(storageRoot: string, options: ScanOptions = {}): Promise<ScanResult> {
     setRoot(storageRoot)
     const tasksDir = resolveTasksDir(storageRoot)
     const indexPath = resolveIndexPath(tasksDir)
 
     const idx = new IndexTransaction()
-    const indexItems = idx.getEntries() as HistoryItem[]
+    const indexItems = await idx.getEntries() as HistoryItem[]
 
     const dirs = listTaskDirs(tasksDir)
     const byId = new Map(indexItems.map((i) => [i.id, i]))
@@ -26,7 +26,7 @@ export function scanStorage(storageRoot: string, options: ScanOptions = {}): Sca
     // folders on disk
     for (const dir of dirs) {
         const taskId = path.basename(dir)
-        const c = inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
+        const c = await inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
             verifyUiSync: options.verifyUiSync,
             showWarnings: options.showWarnings,
         })

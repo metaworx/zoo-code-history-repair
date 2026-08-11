@@ -17,69 +17,26 @@ describe("repairAllCorrupted", () => {
         fs.rmSync(root, {recursive: true, force: true})
     })
 
-    function addTaskDir(id: string, task: string, size: number) {
-        const dir = path.join(tasksDir, id)
-        fs.mkdirSync(dir)
-        fs.writeFileSync(
-            path.join(dir, "history_item.json"),
-            JSON.stringify({id, task, size, ts: 1}),
-        )
-        fs.writeFileSync(
-            path.join(dir, "ui_messages.json"),
-            JSON.stringify([{type: "say", say: "text", text: "hi"}]),
-        )
-        fs.writeFileSync(
-            path.join(dir, "api_conversation_history.json"),
-            JSON.stringify([
-                {
-                    role: "user",
-                    content: [{type: "text", text: "Hello"}],
-                    ts: 100,
-                },
-            ]),
-        )
-        fs.writeFileSync(path.join(dir, "task_metadata.json"), "{}")
-    }
-
-    it("returns zero totals for clean storage", () => {
-        const result = repairAllCorrupted(root)
+    it("returns zero totals for clean storage", async () => {
+        const result = await repairAllCorrupted(root)
         expect(result.total).toBe(0)
         expect(result.repaired).toBe(0)
         expect(result.failed).toBe(0)
         expect(result.results).toEqual([])
     })
 
-    it("repairs a single corrupted task", () => {
+    it("repairs a single corrupted task", async () => {
         const dir = path.join(tasksDir, "corrupt-1")
         fs.mkdirSync(dir)
-        fs.writeFileSync(
-            path.join(dir, "history_item.json"),
-            JSON.stringify({id: "corrupt-1", task: "Task #1", size: 1, ts: 1}),
-        )
+        fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify({id: "corrupt-1", task: "Task #1", size: 1, ts: 1}))
         fs.writeFileSync(path.join(dir, "ui_messages.json"), "[]")
-        fs.writeFileSync(
-            path.join(dir, "api_conversation_history.json"),
-            JSON.stringify([
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: "<user_message>Fix it</user_message>",
-                        },
-                    ],
-                    ts: 100,
-                },
-            ]),
-        )
+        fs.writeFileSync(path.join(dir, "api_conversation_history.json"), JSON.stringify([
+            {role: "user", content: [{type: "text", text: "<user_message>Fix it</user_message>"}], ts: 100},
+        ]))
         fs.writeFileSync(path.join(dir, "task_metadata.json"), "{}")
-        // Write index with the corrupted task
-        fs.writeFileSync(
-            path.join(tasksDir, "_index.json"),
-            JSON.stringify([{id: "corrupt-1", task: "Task #1", size: 1}]),
-        )
+        fs.writeFileSync(path.join(tasksDir, "_index.json"), JSON.stringify([{id: "corrupt-1", task: "Task #1", size: 1}]))
 
-        const result = repairAllCorrupted(root)
+        const result = await repairAllCorrupted(root)
         expect(result.total).toBe(1)
         expect(result.repaired).toBe(1)
         expect(result.failed).toBe(0)
@@ -87,110 +44,63 @@ describe("repairAllCorrupted", () => {
         expect(result.results[0].uiRepaired || result.results[0].taskRepaired || result.results[0].sizeRepaired).toBe(true)
     })
 
-    it("repairs multiple corrupted tasks", () => {
+    it("repairs multiple corrupted tasks", async () => {
         for (const id of ["bad-1", "bad-2", "bad-3"]) {
             const dir = path.join(tasksDir, id)
             fs.mkdirSync(dir)
-            fs.writeFileSync(
-                path.join(dir, "history_item.json"),
-                JSON.stringify({id, task: "Task #1", size: 1, ts: 1}),
-            )
+            fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify({id, task: "Task #1", size: 1, ts: 1}))
             fs.writeFileSync(path.join(dir, "ui_messages.json"), "[]")
-            fs.writeFileSync(
-                path.join(dir, "api_conversation_history.json"),
-                JSON.stringify([
-                    {
-                        role: "user",
-                        content: [
-                            {type: "text", text: `<user_message>Task ${id}</user_message>`},
-                        ],
-                        ts: 100,
-                    },
-                ]),
-            )
+            fs.writeFileSync(path.join(dir, "api_conversation_history.json"), JSON.stringify([
+                {role: "user", content: [{type: "text", text: `<user_message>Task ${id}</user_message>`}], ts: 100},
+            ]))
             fs.writeFileSync(path.join(dir, "task_metadata.json"), "{}")
         }
-        fs.writeFileSync(
-            path.join(tasksDir, "_index.json"),
-            JSON.stringify([
-                {id: "bad-1", task: "Task #1", size: 1},
-                {id: "bad-2", task: "Task #1", size: 1},
-                {id: "bad-3", task: "Task #1", size: 1},
-            ]),
-        )
+        fs.writeFileSync(path.join(tasksDir, "_index.json"), JSON.stringify([
+            {id: "bad-1", task: "Task #1", size: 1},
+            {id: "bad-2", task: "Task #1", size: 1},
+            {id: "bad-3", task: "Task #1", size: 1},
+        ]))
 
-        const result = repairAllCorrupted(root)
+        const result = await repairAllCorrupted(root)
         expect(result.total).toBe(3)
         expect(result.repaired).toBe(3)
         expect(result.failed).toBe(0)
     })
 
-    it("dry-run reports results but does not write", () => {
+    it("dry-run reports results but does not write", async () => {
         const dir = path.join(tasksDir, "dry")
         fs.mkdirSync(dir)
-        fs.writeFileSync(
-            path.join(dir, "history_item.json"),
-            JSON.stringify({id: "dry", task: "Task #1", size: 1, ts: 1}),
-        )
+        fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify({id: "dry", task: "Task #1", size: 1, ts: 1}))
         fs.writeFileSync(path.join(dir, "ui_messages.json"), "[]")
-        fs.writeFileSync(
-            path.join(dir, "api_conversation_history.json"),
-            JSON.stringify([
-                {
-                    role: "user",
-                    content: [
-                        {type: "text", text: "<user_message>Dry run task</user_message>"},
-                    ],
-                    ts: 100,
-                },
-            ]),
-        )
+        fs.writeFileSync(path.join(dir, "api_conversation_history.json"), JSON.stringify([
+            {role: "user", content: [{type: "text", text: "<user_message>Dry run task</user_message>"}], ts: 100},
+        ]))
         fs.writeFileSync(path.join(dir, "task_metadata.json"), "{}")
-        fs.writeFileSync(
-            path.join(tasksDir, "_index.json"),
-            JSON.stringify([{id: "dry", task: "Task #1", size: 1}]),
-        )
+        fs.writeFileSync(path.join(tasksDir, "_index.json"), JSON.stringify([{id: "dry", task: "Task #1", size: 1}]))
 
-        const result = repairAllCorrupted(root, {dryRun: true})
+        const result = await repairAllCorrupted(root, {dryRun: true})
         expect(result.total).toBe(1)
         expect(result.repaired).toBe(1)
 
-        // ui_messages should still be empty
         const uiRaw = fs.readFileSync(path.join(dir, "ui_messages.json"), "utf8")
         expect(uiRaw).toBe("[]")
     })
 
-    it("verifyUiSync option is wired through to scanStorage", () => {
-        // Task with placeholder name (so it's detected as corrupt) and
-        // ui_messages that don't match ACH reconstruction
+    it("verifyUiSync option is wired through to scanStorage", async () => {
         const dir = path.join(tasksDir, "sync-test")
         fs.mkdirSync(dir)
-        fs.writeFileSync(
-            path.join(dir, "history_item.json"),
-            JSON.stringify({id: "sync-test", task: "Task #1", size: 100, ts: 1}),
-        )
-        // ACH has two user turns (reconstructs to 2 events), but ui_messages has only one
-        fs.writeFileSync(
-            path.join(dir, "ui_messages.json"),
-            JSON.stringify([{type: "say", say: "text", text: "only one"}]),
-        )
-        fs.writeFileSync(
-            path.join(dir, "api_conversation_history.json"),
-            JSON.stringify([
-                {role: "user", content: [{type: "text", text: "<user_message>First</user_message>"}], ts: 100},
-                {role: "assistant", content: [{type: "text", text: "Response"}], ts: 200},
-                {role: "user", content: [{type: "text", text: "<user_message>Second</user_message>"}], ts: 300},
-                {role: "assistant", content: [{type: "text", text: "Response 2"}], ts: 400},
-            ]),
-        )
+        fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify({id: "sync-test", task: "Task #1", size: 100, ts: 1}))
+        fs.writeFileSync(path.join(dir, "ui_messages.json"), JSON.stringify([{type: "say", say: "text", text: "only one"}]))
+        fs.writeFileSync(path.join(dir, "api_conversation_history.json"), JSON.stringify([
+            {role: "user", content: [{type: "text", text: "<user_message>First</user_message>"}], ts: 100},
+            {role: "assistant", content: [{type: "text", text: "Response"}], ts: 200},
+            {role: "user", content: [{type: "text", text: "<user_message>Second</user_message>"}], ts: 300},
+            {role: "assistant", content: [{type: "text", text: "Response 2"}], ts: 400},
+        ]))
         fs.writeFileSync(path.join(dir, "task_metadata.json"), "{}")
-        fs.writeFileSync(
-            path.join(tasksDir, "_index.json"),
-            JSON.stringify([{id: "sync-test", task: "Task #1", size: 100}]),
-        )
+        fs.writeFileSync(path.join(tasksDir, "_index.json"), JSON.stringify([{id: "sync-test", task: "Task #1", size: 100}]))
 
-        // With verifyUiSync: the option is passed through (doesn't crash)
-        const result = repairAllCorrupted(root, {verifyUiSync: true})
+        const result = await repairAllCorrupted(root, {verifyUiSync: true})
         const syncTask = result.results.find(r => r.taskId === "sync-test")
         expect(syncTask).toBeDefined()
         expect(syncTask!.taskRepaired).toBe(true)

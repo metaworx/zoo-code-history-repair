@@ -19,8 +19,9 @@ export class IndexTransaction extends JsonFileTransaction {
         this.tasksDir = tasksDir
     }
 
-    load(validate: boolean = true, force: boolean = false): this {
-        const content = super.load(validate, force).getData()
+    async load(validate: boolean = true, force: boolean = false): Promise<this> {
+        await super.load(validate, force)
+        const content = super.getData()
 
         if (!content) return this
 
@@ -35,7 +36,7 @@ export class IndexTransaction extends JsonFileTransaction {
         return this
     }
 
-    save(validate: boolean = true, backup: boolean = true): string | null {
+    async save(validate: boolean = true, backup: boolean = true): Promise<string | null> {
         // Sort entries before saving
         if (this.data && typeof this.data === "object") {
             const d = this.data as Record<string, unknown>
@@ -48,29 +49,30 @@ export class IndexTransaction extends JsonFileTransaction {
     }
 
     /** Return all entries as a flat array from the index. */
-    getEntries(): Array<Record<string, unknown>> {
+    async getEntries(): Promise<Array<Record<string, unknown>>> {
         if (Object.keys(this.index).length === 0) {
-            this.load(false).getData()
+            await this.load(false)
         }
         return Object.values(this.index)
     }
 
     /** Get a single entry by ID. If fromDisk, reads the task's history_item.json. */
-    getById(id: string, fromDisk: boolean = false): Record<string, unknown> | null {
+    async getById(id: string, fromDisk: boolean = false): Promise<Record<string, unknown> | null> {
         if (fromDisk) {
             const hiTx = new JsonFileTransaction(path.join(this.tasksDir, id, HISTORY_ITEM_NAME), true)
-            return hiTx.load(false).getData() as Record<string, unknown> | null
+            await hiTx.load(false)
+            return hiTx.getData() as Record<string, unknown> | null
         }
         if (Object.keys(this.index).length === 0) {
-            this.load(false).getData()
+            await this.load(false)
         }
         return this.index[id] ?? null
     }
 
     /** Build a Map of id → entry for cross-reference validation. */
-    getFullIndex(): Map<string, Record<string, unknown>> {
+    async getFullIndex(): Promise<Map<string, Record<string, unknown>>> {
         if (Object.keys(this.index).length === 0) {
-            this.load(false).getData()
+            await this.load(false)
         }
         const map = new Map<string, Record<string, unknown>>()
         for (const [id, entry] of Object.entries(this.index)) {
@@ -84,12 +86,13 @@ export class IndexTransaction extends JsonFileTransaction {
      * @param id        The entry ID to remove.
      * @param saveToDisk If true (default), writes immediately.
      */
-    removeById(id: string, saveToDisk: boolean = true): boolean {
-        this.getEntries()
+    async removeById(id: string, saveToDisk: boolean = true): Promise<boolean> {
+        await this.getEntries()
         if (!(id in this.index)) return false
         delete this.index[id]
         if (saveToDisk) {
-            this.setData({entries: Object.values(this.index)}, false).save(false)
+            this.setData({entries: Object.values(this.index)}, false)
+            await this.save(false)
         }
         return true
     }
@@ -101,10 +104,10 @@ export class IndexTransaction extends JsonFileTransaction {
      * @param saveToDisk If true (default), writes immediately. Set false for batch edits.
      * @param validate   If true (default), runs validateHistoryItem before replacing.
      */
-    replaceId(id: string, entry: Record<string, unknown>, saveToDisk: boolean = true, validate: boolean = true): string | null {
-        this.getEntries()
+    async replaceId(id: string, entry: Record<string, unknown>, saveToDisk: boolean = true, validate: boolean = true): Promise<string | null> {
+        await this.getEntries()
         if (validate) {
-            const fullIndex = this.getFullIndex()
+            const fullIndex = await this.getFullIndex()
             // Temporarily add the entry to the map for cross-reference validation
             fullIndex.set(id, entry)
             const result = validateHistoryItem(entry, fullIndex)
@@ -116,7 +119,8 @@ export class IndexTransaction extends JsonFileTransaction {
         this.index[id] = entry
 
         if (saveToDisk) {
-            return this.setData({entries: Object.values(this.index)}, false).save(false)
+            this.setData({entries: Object.values(this.index)}, false)
+            return this.save(false)
         }
         return null
     }
@@ -128,13 +132,13 @@ export class IndexTransaction extends JsonFileTransaction {
      *   back up double-corrupt entries (was repairIndex)
      * - id specified: scope to a single entry (for repair-task)
      */
-    repair(fromDisk: boolean, id?: string, options: RepairOptions = {}): {
+    async repair(fromDisk: boolean, id?: string, options: RepairOptions = {}): Promise<{
         items: Array<Record<string, unknown>>
         warnings: string[]
         replacedFromDisk: number
         backedUpToDisk: number
         written: boolean
-    } {
+    }> {
         if (fromDisk) {
             return this._repairFromDisk(id, options)
         }
@@ -142,19 +146,19 @@ export class IndexTransaction extends JsonFileTransaction {
     }
 
     /** Rebuild entire index from disk. */
-    private _repairFromDisk(id?: string, options: RepairOptions = {}): {
+    private async _repairFromDisk(id?: string, options: RepairOptions = {}): Promise<{
         items: Array<Record<string, unknown>>
         warnings: string[]
         replacedFromDisk: number
         backedUpToDisk: number
         written: boolean
-    } {
+    }> {
         const dirs = listTaskDirs(this.tasksDir)
         const warnings: string[] = []
 
         if (id) {
             // Scoped: only touch the specified task, keep others from current index
-            const entries = this.getEntries()
+            const entries = await this.getEntries()
             const newIndex: Record<string, Record<string, unknown>> = {}
 
             // Keep all existing entries except the one being repaired
@@ -167,7 +171,8 @@ export class IndexTransaction extends JsonFileTransaction {
 
             // Read the specified task from disk
             const hiTx = new JsonFileTransaction(path.join(this.tasksDir, id, HISTORY_ITEM_NAME), true)
-            const disk = hiTx.load(false).getData() as Record<string, unknown> | null
+            await hiTx.load(false)
+            const disk = hiTx.getData() as Record<string, unknown> | null
 
             if (disk && disk.id) {
                 const vResult = validateHistoryItem(disk)
@@ -189,7 +194,8 @@ export class IndexTransaction extends JsonFileTransaction {
             for (const dir of dirs) {
                 const dirId = path.basename(dir)
                 const hiTx = new JsonFileTransaction(path.join(dir, HISTORY_ITEM_NAME), true)
-                const disk = hiTx.load(false).getData() as Record<string, unknown> | null
+                await hiTx.load(false)
+                const disk = hiTx.getData() as Record<string, unknown> | null
 
                 if (disk && disk.id) {
                     const vResult = validateHistoryItem(disk)
@@ -216,20 +222,20 @@ export class IndexTransaction extends JsonFileTransaction {
         }
 
         this.setData({entries: items}, false)
-        this.save(false, options.backup !== false)
+        await this.save(false, options.backup !== false)
 
         return {items, warnings, replacedFromDisk: 0, backedUpToDisk: 0, written: true}
     }
 
     /** Validate index entries against disk counterparts. */
-    private _repairExisting(id?: string, options: RepairOptions = {}): {
+    private async _repairExisting(id?: string, options: RepairOptions = {}): Promise<{
         items: Array<Record<string, unknown>>
         warnings: string[]
         replacedFromDisk: number
         backedUpToDisk: number
         written: boolean
-    } {
-        const entries = this.getEntries()
+    }> {
+        const entries = await this.getEntries()
         const warnings: string[] = []
         let replacedFromDisk = 0
         let backedUpToDisk = 0
@@ -244,7 +250,8 @@ export class IndexTransaction extends JsonFileTransaction {
 
             const taskDir = path.join(this.tasksDir, eid)
             const hiTx = new JsonFileTransaction(path.join(taskDir, HISTORY_ITEM_NAME), true)
-            const diskItem = hiTx.load(false).getData() as Record<string, unknown> | null
+            await hiTx.load(false)
+            const diskItem = hiTx.getData() as Record<string, unknown> | null
 
             const idxResult = validateHistoryItem(entry)
             const diskResult = diskItem ? validateHistoryItem(diskItem) : null
@@ -267,7 +274,7 @@ export class IndexTransaction extends JsonFileTransaction {
             const items = Object.values(this.index)
             items.sort((a, b) => ((b.ts as number) ?? 0) - ((a.ts as number) ?? 0))
             this.setData({entries: items}, false)
-            this.save(false, options.backup !== false)
+            await this.save(false, options.backup !== false)
         }
 
         const items = Object.values(this.index)

@@ -66,7 +66,7 @@ describe("scan command", () => {
         vi.clearAllMocks()
     })
 
-    it("JSON mode: outputs JSON with corruption details", () => {
+    it("JSON mode: outputs JSON with corruption details", async () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
@@ -74,7 +74,7 @@ describe("scan command", () => {
             ],
         })
 
-        action({json: true})
+        await action({json: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
         const parsed = JSON.parse(output)
@@ -83,18 +83,18 @@ describe("scan command", () => {
         expect(parsed.corruptions[0].reasons).toEqual([{reason: "zero_size", source: "hi,idx"}])
     })
 
-    it("JSON mode, no corruptions: no exit", () => {
+    it("JSON mode, no corruptions: no exit", async () => {
         mockScanStorage.mockReturnValue({...baseResult, corruptions: []})
 
-        action({json: true})
+        await action({json: true})
 
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("text mode: prints summary block", () => {
+    it("text mode: prints summary block", async () => {
         mockScanStorage.mockReturnValue({...baseResult})
 
-        action({})
+        await action({})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Storage:")
@@ -105,7 +105,7 @@ describe("scan command", () => {
         expect(output).toContain("Corruptions:")
     })
 
-    it("text mode with corruptions, no quiet: prints per-task details", () => {
+    it("text mode with corruptions, no quiet: prints per-task details", async () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
@@ -113,7 +113,7 @@ describe("scan command", () => {
             ],
         })
 
-        action({})
+        await action({})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("c1")
@@ -121,7 +121,7 @@ describe("scan command", () => {
         expect(output).toContain("recoverability:")
     })
 
-    it("quiet mode: suppresses per-task details but shows summary", () => {
+    it("quiet mode: suppresses per-task details but shows summary", async () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
@@ -129,14 +129,14 @@ describe("scan command", () => {
             ],
         })
 
-        action({quiet: true})
+        await action({quiet: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Corruptions:")
         expect(output).not.toContain("reasons:")
     })
 
-    it("text mode with corruptions: exits with corruption count", () => {
+    it("text mode with corruptions: exits with corruption count", async () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
@@ -145,14 +145,14 @@ describe("scan command", () => {
             ],
         })
 
-        action({quiet: true})
+        await action({quiet: true})
         expect(exitSpy).toHaveBeenCalledWith(2)
     })
 
-    it("passes verifyUiSync to scanStorage", () => {
+    it("passes verifyUiSync to scanStorage", async () => {
         mockScanStorage.mockReturnValue({...baseResult})
 
-        action({verifyUiSync: true})
+        await action({verifyUiSync: true})
 
         expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true, showWarnings: true})
     })

@@ -37,7 +37,7 @@ describe("restore against fixtures (integration)", () => {
     });
 
     describe("listBackups", () => {
-        it("finds .bak.json files across fixture tasks", () => {
+        it("finds .bak.json files across fixture tasks", async () => {
             // Create a backup in one task
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(
@@ -45,35 +45,35 @@ describe("restore against fixtures (integration)", () => {
                 "backup content",
             );
 
-            const entries = listBackups(tasksDir);
+            const entries = await listBackups(tasksDir);
             expect(entries.length).toBe(1);
             expect(entries[0].taskId).toBe("019f726a-0f50-711c-929e-9546e5100546");
             expect(entries[0].timestamp).toBe("20260808-054500");
             expect(entries[0].baseName).toBe("history_item.json");
         });
 
-        it("returns empty when no backups exist", () => {
-            expect(listBackups(tasksDir)).toEqual([]);
+        it("returns empty when no backups exist", async () => {
+            expect(await listBackups(tasksDir)).toEqual([]);
         });
 
-        it("finds multiple backups across tasks", () => {
+        it("finds multiple backups across tasks", async () => {
             const d1 = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             const d2 = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d1, "history_item.json.20260808-054500.bak.json"), "a");
             touch(path.join(d1, "ui_messages.json.20260807-120000.bak.json"), "b");
             touch(path.join(d2, "_index.json.20260808-054500.bak.json"), "c");
 
-            expect(listBackups(tasksDir).length).toBe(3);
+            expect((await listBackups(tasksDir)).length).toBe(3);
         });
     });
 
     describe("restoreFromBackups", () => {
-        it("restores by taskId using newest timestamp", () => {
+        it("restores by taskId using newest timestamp", async () => {
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(path.join(d, "history_item.json.20260807-120000.bak.json"), "older");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "newer");
 
-            const result = restoreFromBackups(tasksDir, {
+            const result = await restoreFromBackups(tasksDir, {
                 taskId: "019f726a-0f50-711c-929e-9546e5100546",
             });
             expect(result.restored).toHaveLength(1);
@@ -81,12 +81,12 @@ describe("restore against fixtures (integration)", () => {
             expect(read(path.join(d, "history_item.json"))).toBe("newer");
         });
 
-        it("restores by taskId and specific timestamp", () => {
+        it("restores by taskId and specific timestamp", async () => {
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(path.join(d, "history_item.json.20260807-120000.bak.json"), "older");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "newer");
 
-            const result = restoreFromBackups(tasksDir, {
+            const result = await restoreFromBackups(tasksDir, {
                 taskId: "019f726a-0f50-711c-929e-9546e5100546",
                 timestamp: "20260807-120000",
             });
@@ -94,23 +94,23 @@ describe("restore against fixtures (integration)", () => {
             expect(read(path.join(d, "history_item.json"))).toBe("older");
         });
 
-        it("dry-run does not modify files", () => {
+        it("dry-run does not modify files", async () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             const orig = read(path.join(d, "history_item.json"));
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
-            restoreFromBackups(tasksDir, {
+            await restoreFromBackups(tasksDir, {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
                 dryRun: true,
             });
             expect(read(path.join(d, "history_item.json"))).toBe(orig);
         });
 
-        it("does NOT create safety backup before overwriting", () => {
+        it("does NOT create safety backup before overwriting", async () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
-            restoreFromBackups(tasksDir, {
+            await restoreFromBackups(tasksDir, {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
             });
 
@@ -122,19 +122,19 @@ describe("restore against fixtures (integration)", () => {
             expect(bakFiles).toEqual(["history_item.json.20260808-054500.bak.json"]);
         });
 
-        it("restore is idempotent — second run is no-op", () => {
+        it("restore is idempotent — second run is no-op", async () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
             // First restore
-            const r1 = restoreFromBackups(tasksDir, {
+            const r1 = await restoreFromBackups(tasksDir, {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
             });
             expect(r1.restored).toHaveLength(1);
             expect(r1.skipped).toHaveLength(0);
 
             // Second restore — should be no-op
-            const r2 = restoreFromBackups(tasksDir, {
+            const r2 = await restoreFromBackups(tasksDir, {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
             });
             expect(r2.restored).toHaveLength(0);
@@ -146,14 +146,14 @@ describe("restore against fixtures (integration)", () => {
             expect(bakFiles).toHaveLength(1);
         });
 
-        it("backup count does not grow on repeated restores", () => {
+        it("backup count does not grow on repeated restores", async () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
             // Run restore 3 times
-            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
-            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
-            restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
 
             // Should only have the original backup, no proliferation
             const bakFiles = fs.readdirSync(d).filter((f) => /\.bak\.json$/.test(f));
@@ -162,12 +162,12 @@ describe("restore against fixtures (integration)", () => {
     });
 
     describe("deleteBackups", () => {
-        it("deletes backups for a specific taskId", () => {
+        it("deletes backups for a specific taskId", async () => {
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "x");
             touch(path.join(d, "ui_messages.json.20260807-120000.bak.json"), "y");
 
-            const result = deleteBackups(tasksDir, {
+            const result = await deleteBackups(tasksDir, {
                 taskId: "019f726a-0f50-711c-929e-9546e5100546",
             });
             expect(result.deleted).toHaveLength(2);
@@ -176,11 +176,11 @@ describe("restore against fixtures (integration)", () => {
             ).toBe(false);
         });
 
-        it("dry-run does not remove files", () => {
+        it("dry-run does not remove files", async () => {
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "x");
 
-            deleteBackups(tasksDir, {
+            await deleteBackups(tasksDir, {
                 taskId: "019f726a-0f50-711c-929e-9546e5100546",
                 dryRun: true,
             });

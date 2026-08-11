@@ -26,11 +26,11 @@ export const options = [
 const dryRunDeleteMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
 const dryRunRestoreMsg = colorize("\n!!Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
-export function action(
+export async function action(
     taskId: string | undefined,
     timestamp: string | undefined,
     cmdOpts: {delete?: boolean; force?: boolean},
-): void {
+): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
 
@@ -42,7 +42,7 @@ export function action(
             process.exit(1)
         }
 
-        const result = deleteBackups(tasksDir, {
+        const result = await deleteBackups(tasksDir, {
             taskId,
             timestamp,
             dryRun: !cmdOpts.force,
@@ -64,7 +64,7 @@ export function action(
     // Restore mode — or list mode when no args
     if (!taskId && !timestamp) {
         // List mode
-        const entries = listBackups(tasksDir)
+        const entries = await listBackups(tasksDir)
         if (entries.length === 0) {
             console.log("No backup files found.")
             return
@@ -97,7 +97,7 @@ export function action(
     }
 
     // Restore mode
-    const result = restoreFromBackups(tasksDir, {
+    const result = await restoreFromBackups(tasksDir, {
         taskId,
         timestamp,
         dryRun: !cmdOpts.force,

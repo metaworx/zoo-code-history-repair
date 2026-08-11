@@ -28,8 +28,8 @@ describe("repairTaskDir", () => {
         return JSON.parse(fs.readFileSync(p, "utf8"))
     }
 
-    it("returns error when api_conversation_history.json is missing", () => {
-        const result = repairTaskDir(taskDir)
+    it("returns error when api_conversation_history.json is missing", async () => {
+        const result = await repairTaskDir(taskDir)
         expect(result.errors).toContain(
             "missing or invalid api_conversation_history.json — cannot repair",
         )
@@ -38,34 +38,21 @@ describe("repairTaskDir", () => {
         expect(result.sizeRepaired).toBe(false)
     })
 
-    it("returns error when api_conversation_history.json is empty array", () => {
+    it("returns error when api_conversation_history.json is empty array", async () => {
         writeJson("api_conversation_history.json", [])
-        // empty array means readJsonFile returns [] which is truthy but length 0
-        // repairTaskDir checks !apiHistory so it passes the truthiness check
-        // but then it has apiHistory of [] and proceeds
-        const result = repairTaskDir(taskDir)
-        // Should error because missing history_item
+        const result = await repairTaskDir(taskDir)
         expect(result.errors).toContain("missing history_item.json — cannot repair task or size")
     })
 
-    it("rebuilds empty ui_messages.json from ACH", () => {
+    it("rebuilds empty ui_messages.json from ACH", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [{ type: "text", text: "Hello" }],
-                ts: 100,
-            },
+            {role: "user", content: [{ type: "text", text: "Hello" }], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Real task",
-            size: 0,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 0, ts: 1})
         writeJson("ui_messages.json", [])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.uiRepaired).toBe(true)
         expect(result.errors).toEqual([])
 
@@ -74,82 +61,45 @@ describe("repairTaskDir", () => {
         expect(ui[0]).toMatchObject({ say: "text", text: "Hello" })
     })
 
-    it("repairs placeholder task text from ACH", () => {
+    it("repairs placeholder task text from ACH", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [
-                    {
-                        type: "text",
-                        text: "<user_message>Fix the login bug</user_message>",
-                    },
-                ],
-                ts: 100,
-            },
+            {role: "user", content: [{type: "text", text: "<user_message>Fix the login bug</user_message>"}], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Task #1",
-            size: 100,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Task #1", size: 100, ts: 1})
         writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.taskRepaired).toBe(true)
 
         const hi = readJson("history_item.json") as Record<string, unknown>
         expect(hi.task).toBe("Fix the login bug")
     })
 
-    it("repairs missing task text from ACH", () => {
+    it("repairs missing task text from ACH", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [
-                    {
-                        type: "text",
-                        text: "<user_message>Implement feature X</user_message>",
-                    },
-                ],
-                ts: 100,
-            },
+            {role: "user", content: [{type: "text", text: "<user_message>Implement feature X</user_message>"}], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "",
-            size: 100,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "", size: 100, ts: 1})
         writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.taskRepaired).toBe(true)
 
         const hi = readJson("history_item.json") as Record<string, unknown>
         expect(hi.task).toBe("Implement feature X")
     })
 
-    it("recomputes incorrect size", () => {
+    it("recomputes incorrect size", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [{ type: "text", text: "Hi" }],
-                ts: 100,
-            },
+            {role: "user", content: [{ type: "text", text: "Hi" }], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Real task",
-            size: 1, // wrong!
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 1, ts: 1})
         writeJson("ui_messages.json", [{ type: "say", say: "text", text: "A" }])
         writeJson("task_metadata.json", { created: 1 })
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.sizeRepaired).toBe(true)
 
         const hi = readJson("history_item.json") as Record<string, unknown>
@@ -158,90 +108,52 @@ describe("repairTaskDir", () => {
         expect(hi.size).toBeGreaterThan(0)
     })
 
-    it("does not write in dry-run mode", () => {
+    it("does not write in dry-run mode", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [
-                    { type: "text", text: "<user_message>Dry task</user_message>" },
-                ],
-                ts: 100,
-            },
+            {role: "user", content: [{type: "text", text: "<user_message>Dry task</user_message>"}], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Task #1",
-            size: 1,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Task #1", size: 1, ts: 1})
         writeJson("ui_messages.json", [])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir, { dryRun: true })
+        const result = await repairTaskDir(taskDir, { dryRun: true })
         expect(result.uiRepaired).toBe(true)
         expect(result.taskRepaired).toBe(true)
         expect(result.sizeRepaired).toBe(true)
 
-        // ui_messages should still be empty (not written)
         const ui = readJson("ui_messages.json") as Array<unknown>
         expect(ui).toEqual([])
 
-        // history_item task should still be placeholder
         const hi = readJson("history_item.json") as Record<string, unknown>
         expect(hi.task).toBe("Task #1")
     })
 
-    it("creates backup files when backup is enabled", () => {
+    it("creates backup files when backup is enabled", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [{ type: "text", text: "Hello" }],
-                ts: 100,
-            },
+            {role: "user", content: [{ type: "text", text: "Hello" }], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Real task",
-            size: 100,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 100, ts: 1})
         writeJson("ui_messages.json", [])
         writeJson("task_metadata.json", {})
 
-        repairTaskDir(taskDir, { backup: true })
+        await repairTaskDir(taskDir, { backup: true })
 
-        // Check for .bak files (backupFile creates filePath.YYYYMMDD-HHmmss.bak.json)
         const files = fs.readdirSync(taskDir)
         const bakFiles = files.filter((f) => /\.\d{8}-\d{6}\.bak\.json$/.test(f))
         expect(bakFiles.length).toBeGreaterThanOrEqual(1)
-        // Original ui_messages should have been written (repaired)
         const ui = readJson("ui_messages.json") as Array<unknown>
         expect(ui).toHaveLength(1)
     })
 
-    it("handles all three repairs combined", () => {
+    it("handles all three repairs combined", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [
-                    {
-                        type: "text",
-                        text: "<user_message>Complete redesign</user_message>",
-                    },
-                ],
-                ts: 100,
-            },
+            {role: "user", content: [{type: "text", text: "<user_message>Complete redesign</user_message>"}], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Task #99",
-            size: 0,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Task #99", size: 0, ts: 1})
         writeJson("ui_messages.json", [])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.uiRepaired).toBe(true)
         expect(result.taskRepaired).toBe(true)
         expect(result.sizeRepaired).toBe(true)
@@ -255,65 +167,39 @@ describe("repairTaskDir", () => {
         expect(ui).toHaveLength(1)
     })
 
-    it("reports error when task cannot be extracted from ACH", () => {
+    it("reports error when task cannot be extracted from ACH", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [{ type: "text", text: "No user_message tag here" }],
-                ts: 100,
-            },
+            {role: "user", content: [{ type: "text", text: "No user_message tag here" }], ts: 100},
         ])
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Task #1",
-            size: 100,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Task #1", size: 100, ts: 1})
         writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
+        const result = await repairTaskDir(taskDir)
         expect(result.errors).toContain("could not extract task from api_conversation_history")
     })
 
-    it("handles missing history_item.json gracefully", () => {
+    it("handles missing history_item.json gracefully", async () => {
         writeJson("api_conversation_history.json", [
-            {
-                role: "user",
-                content: [{ type: "text", text: "Hello" }],
-                ts: 100,
-            },
+            {role: "user", content: [{ type: "text", text: "Hello" }], ts: 100},
         ])
         writeJson("ui_messages.json", [])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir)
-        expect(result.errors).toContain(
-            "missing history_item.json — cannot repair task or size",
-        )
-        // ui repair should still happen
+        const result = await repairTaskDir(taskDir)
+        expect(result.errors).toContain("missing history_item.json — cannot repair task or size")
         expect(result.uiRepaired).toBe(true)
     })
 
-    it("handles partial ACH recovery with truncated flag", () => {
-        // Write truncated JSON array
+    it("handles partial ACH recovery with truncated flag", async () => {
         const achPath = path.join(taskDir, "api_conversation_history.json")
-        fs.writeFileSync(
-            achPath,
-            '[{"role":"user","content":[{"type":"text","text":"Hello"}],"ts":100}',
-            "utf8",
-        )
+        fs.writeFileSync(achPath, '[{"role":"user","content":[{"type":"text","text":"Hello"}],"ts":100}', "utf8")
 
-        writeJson("history_item.json", {
-            id: "task-abc",
-            task: "Real task",
-            size: 100,
-            ts: 1,
-        })
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 100, ts: 1})
         writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
         writeJson("task_metadata.json", {})
 
-        const result = repairTaskDir(taskDir, { backup: false })
+        const result = await repairTaskDir(taskDir, { backup: false })
         expect(result.apiTruncated).toBe(true)
         expect(result.sizeRepaired).toBe(true)
     })

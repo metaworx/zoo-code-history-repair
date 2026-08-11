@@ -64,10 +64,10 @@ export interface RepairTaskOptions {
     }>
 }
 
-export function repairTaskDir(
+export async function repairTaskDir(
     taskDir: string,
     options: RepairTaskOptions = {},
-): RepairResult {
+): Promise<RepairResult> {
     const taskId = path.basename(taskDir)
     const result: RepairResult = {
         taskId,
@@ -92,12 +92,15 @@ export function repairTaskDir(
     const hiTx = new JsonFileTransaction(hiPath, false, [])
     const tmTx = new JsonFileTransaction(tmPath, false, [])
 
-    let apiHistory = apiTx.load(false).getData() as unknown[] | null
-    const historyItem = hiTx.load(false).getData() as HistoryItem | null
-    const taskMetadata = tmTx.load(false).getData()
+    await apiTx.load(false)
+    let apiHistory = apiTx.getData() as unknown[] | null
+    await hiTx.load(false)
+    const historyItem = hiTx.getData() as HistoryItem | null
+    await tmTx.load(false)
+    const taskMetadata = tmTx.getData()
 
     if (!apiHistory || !Array.isArray(apiHistory)) {
-        const partial = readPartialJsonArray(apiPath)
+        const partial = await readPartialJsonArray(apiPath)
         if (partial && partial.data.length > 0) {
             apiHistory = partial.data
             if (partial.truncated) {
@@ -114,12 +117,13 @@ export function repairTaskDir(
     }
 
     // R-2: Pre-repair detection — drive repair from detected corruption reasons
-    const corruption = inspectTaskDir(taskId, taskDir, null, {})
+    const corruption = await inspectTaskDir(taskId, taskDir, null, {})
     const reasonSet = new Set(corruption.reasons.map(r => r.reason))
 
     // --- 1. Rebuild ui_messages.json ---
     const uiTx = new JsonFileTransaction(uiPath, false, [])
-    const existingUi = uiTx.load(false).getData() as unknown[] | null
+    await uiTx.load(false)
+    const existingUi = uiTx.getData() as unknown[] | null
     const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
     const shouldRebuildUi = existingIsEmpty || options.forceUim || reasonSet.has("empty_ui_messages")
 
@@ -127,7 +131,8 @@ export function repairTaskDir(
         const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
         if (newUi.length > 0) {
             if (!options.dryRun) {
-                const bak = uiTx.setData(newUi).save(true, options.backup !== false)
+                uiTx.setData(newUi)
+                const bak = await uiTx.save(true, options.backup !== false)
                 if (bak) result.backups.push(bak)
             }
             result.uiRepaired = true
@@ -221,7 +226,8 @@ export function repairTaskDir(
         }
 
         // --- 4. Recompute size (after all modifications) ---
-        const uiMessages = uiTx.load(false).getData() as unknown[] | null
+        await uiTx.load(false)
+        const uiMessages = uiTx.getData() as unknown[] | null
         const expectedSize = computeTaskSize(
             uiMessages ?? [],
             apiHistory,
@@ -236,7 +242,8 @@ export function repairTaskDir(
         }
 
         if (modified && !options.dryRun) {
-            const bak = hiTx.setData(historyItem).save(true, options.backup !== false)
+            hiTx.setData(historyItem)
+            const bak = await hiTx.save(true, options.backup !== false)
             if (bak) result.backups.push(bak)
         }
         if (modified && !result.touchedFiles.includes(HISTORY_ITEM_NAME)) {

@@ -31,26 +31,26 @@ describe("IndexTransaction", () => {
     })
 
     describe("getEntries", () => {
-        it("returns empty array when no data", () => {
+        it("returns empty array when no data", async () => {
             const idx = new IndexTransaction()
             // read(false) returns null by default in tests (no real file)
-            const entries = idx.getEntries()
+            const entries = await idx.getEntries()
             expect(entries).toEqual([])
         })
     })
 
     describe("getById", () => {
-        it("returns null when not found", () => {
+        it("returns null when not found", async () => {
             const idx = new IndexTransaction()
-            const entry = idx.getById("nonexistent")
+            const entry = await idx.getById("nonexistent")
             expect(entry).toBeNull()
         })
     })
 
     describe("getFullIndex", () => {
-        it("returns empty Map when no entries", () => {
+        it("returns empty Map when no entries", async () => {
             const idx = new IndexTransaction()
-            const map = idx.getFullIndex()
+            const map = await idx.getFullIndex()
             expect(map.size).toBe(0)
         })
     })
@@ -76,7 +76,7 @@ describe("IndexTransaction", () => {
             fs.rmSync(tmpRoot, {recursive: true, force: true})
         })
 
-        it("repair(true) dry-run returns items without writing", () => {
+        it("repair(true) dry-run returns items without writing", async () => {
             const dir = path.join(tasksDir, "task-1")
             fs.mkdirSync(dir)
             fs.writeFileSync(
@@ -86,13 +86,13 @@ describe("IndexTransaction", () => {
             mockListTaskDirs.mockReturnValue([dir])
 
             const idx = new IndexTransaction(false)
-            const {items, written} = idx.repair(true, undefined, {dryRun: true})
+            const {items, written} = await idx.repair(true, undefined, {dryRun: true})
             expect(written).toBe(false)
             expect(items.length).toBe(1)
             expect(items[0].id).toBe("task-1")
         })
 
-        it("repair(true) writes index to disk", () => {
+        it("repair(true) writes index to disk", async () => {
             const dir = path.join(tasksDir, "task-1")
             fs.mkdirSync(dir)
             fs.writeFileSync(
@@ -102,7 +102,7 @@ describe("IndexTransaction", () => {
             mockListTaskDirs.mockReturnValue([dir])
 
             const idx = new IndexTransaction(false)
-            const {items, written} = idx.repair(true, undefined, {
+            const {items, written} = await idx.repair(true, undefined, {
                 dryRun: false,
                 backup: false,
             })
@@ -111,7 +111,7 @@ describe("IndexTransaction", () => {
             expect(items[0].id).toBe("task-1")
         })
 
-        it("repair(true) scoped to single ID only touches that entry", () => {
+        it("repair(true) scoped to single ID only touches that entry", async () => {
             const dir1 = path.join(tasksDir, "task-1")
             fs.mkdirSync(dir1)
             fs.writeFileSync(
@@ -139,7 +139,7 @@ describe("IndexTransaction", () => {
 
             // Repair only task-2 from disk
             const idx = new IndexTransaction(false)
-            const {items} = idx.repair(true, "task-2", {dryRun: true})
+            const {items} = await idx.repair(true, "task-2", {dryRun: true})
 
             // task-1 should keep its original index value (not replaced from disk)
             const task1 = items.find(i => i.id === "task-1")

@@ -66,8 +66,8 @@ describe("delete command", () => {
         vi.clearAllMocks()
     })
 
-    it("dry-run: prints would-delete messages and returns without modifying", () => {
-        action("task-123", {force: false})
+    it("dry-run: prints would-delete messages and returns without modifying", async () => {
+        await action("task-123", {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Would delete:")
@@ -77,8 +77,8 @@ describe("delete command", () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("force: dir not found prints message and still strips index", () => {
-        action("ghost", {force: true})
+    it("force: dir not found prints message and still strips index", async () => {
+        await action("ghost", {force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Directory not found:")
@@ -86,24 +86,24 @@ describe("delete command", () => {
         expect(output).toContain("Stripped ghost from _index.json")
     })
 
-    it("force: strips array-format index entry with backup", () => {
+    it("force: strips array-format index entry with backup", async () => {
         mockIdxGetEntries.mockReturnValue([
             {id: "task-1"}, {id: "task-2"}, {id: "task-3"},
         ])
 
-        action("task-2", {force: true, backup: true})
+        await action("task-2", {force: true, backup: true})
 
         expect(mockIdxSave).toHaveBeenCalledWith(false, true)
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("3 → 2 entries")
     })
 
-    it("force: strips index entry with backup disabled", () => {
+    it("force: strips index entry with backup disabled", async () => {
         mockIdxGetEntries.mockReturnValue([
             {id: "a"}, {id: "b"},
         ])
 
-        action("a", {force: true, backup: false})
+        await action("a", {force: true, backup: false})
 
         expect(mockIdxSave).toHaveBeenCalledWith(false, false)
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")

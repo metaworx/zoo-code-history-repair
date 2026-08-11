@@ -33,7 +33,7 @@ vi.mock("../../format.js", () => ({
 
 import {action} from "../../commands/restore.js"
 
-describe("restore command", () => {
+describe("restore command", async () => {
     let consoleLogSpy: ReturnType<typeof vi.spyOn>
     let consoleErrorSpy: ReturnType<typeof vi.spyOn>
     let exitSpy: ReturnType<typeof vi.spyOn>
@@ -50,23 +50,23 @@ describe("restore command", () => {
         vi.clearAllMocks()
     })
 
-    it("list mode: no backups found", () => {
+    it("list mode: no backups found", async () => {
         mockListBackups.mockReturnValue([])
 
-        action(undefined, undefined, {})
+        await action(undefined, undefined, {})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("No backup files found")
     })
 
-    it("list mode: groups backups by task and timestamp", () => {
+    it("list mode: groups backups by task and timestamp", async () => {
         mockListBackups.mockReturnValue([
             {taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"},
             {taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/y.bak", baseName: "ui_messages.json", basePath: "/t1/ui_messages.json"},
             {taskId: "t2", timestamp: "20260102-130000", bakPath: "/t2/z.bak", baseName: "history_item.json", basePath: "/t2/history_item.json"},
         ])
 
-        action(undefined, undefined, {})
+        await action(undefined, undefined, {})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("t1:")
@@ -75,96 +75,96 @@ describe("restore command", () => {
         expect(output).toContain("ui_messages.json")
     })
 
-    it("restore mode, dry-run: shows 'Would restore'", () => {
+    it("restore mode, dry-run: shows 'Would restore'", async () => {
         mockRestoreFromBackups.mockReturnValue({
             restored: [{taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"}],
             skipped: [],
         })
 
-        action("t1", undefined, {force: false})
+        await action("t1", undefined, {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Would restore")
         expect(output).not.toContain("Restored:")
     })
 
-    it("restore mode, force: shows 'Restored'", () => {
+    it("restore mode, force: shows 'Restored'", async () => {
         mockRestoreFromBackups.mockReturnValue({
             restored: [{taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"}],
             skipped: [],
         })
 
-        action("t1", undefined, {force: true})
+        await action("t1", undefined, {force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Restored:")
     })
 
-    it("restore mode: no matching backups", () => {
+    it("restore mode: no matching backups", async () => {
         mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
 
-        action("t1", "20260101-120000", {force: false})
+        await action("t1", "20260101-120000", {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("No matching backups found")
     })
 
-    it("restore mode: shows skipped items", () => {
+    it("restore mode: shows skipped items", async () => {
         mockRestoreFromBackups.mockReturnValue({
             restored: [],
             skipped: ["/t1/history_item.json (already matches backup)"],
         })
 
-        action("t1", undefined, {force: false})
+        await action("t1", undefined, {force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Skipped:")
     })
 
-    it("delete mode, dry-run: shows 'Would delete'", () => {
+    it("delete mode, dry-run: shows 'Would delete'", async () => {
         mockDeleteBackups.mockReturnValue({
             deleted: ["/t1/history_item.json.bak"],
             skipped: [],
         })
 
-        action("t1", undefined, {delete: true, force: false})
+        await action("t1", undefined, {delete: true, force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Would delete")
     })
 
-    it("delete mode, force: shows 'Deleted'", () => {
+    it("delete mode, force: shows 'Deleted'", async () => {
         mockDeleteBackups.mockReturnValue({
             deleted: ["/t1/history_item.json.bak"],
             skipped: [],
         })
 
-        action("t1", undefined, {delete: true, force: true})
+        await action("t1", undefined, {delete: true, force: true})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Deleted:")
     })
 
-    it("delete mode, no matching backups", () => {
+    it("delete mode, no matching backups", async () => {
         mockDeleteBackups.mockReturnValue({deleted: [], skipped: []})
 
-        action("t1", undefined, {delete: true, force: false})
+        await action("t1", undefined, {delete: true, force: false})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("No matching backups found")
     })
 
-    it("delete without taskId or timestamp: error and exit 1", () => {
-        action(undefined, undefined, {delete: true})
+    it("delete without taskId or timestamp: error and exit 1", async () => {
+        await action(undefined, undefined, {delete: true})
 
         expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--delete requires"))
         expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
-    it("passes options to restoreFromBackups", () => {
+    it("passes options to restoreFromBackups", async () => {
         mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
 
-        action("t1", "20260101-120000", {force: false})
+        await action("t1", "20260101-120000", {force: false})
 
         expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
             taskId: "t1",
@@ -173,10 +173,10 @@ describe("restore command", () => {
         })
     })
 
-    it("passes options to deleteBackups", () => {
+    it("passes options to deleteBackups", async () => {
         mockDeleteBackups.mockReturnValue({deleted: [], skipped: []})
 
-        action("t1", "20260101-120000", {delete: true, force: true})
+        await action("t1", "20260101-120000", {delete: true, force: true})
 
         expect(mockDeleteBackups).toHaveBeenCalledWith("/fake/root/tasks", {
             taskId: "t1",

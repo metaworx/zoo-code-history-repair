@@ -1,4 +1,5 @@
-import fs from "node:fs"
+import fs from "node:fs/promises"
+import {Dirent} from "node:fs"
 import path from "node:path"
 import {listTaskDirs} from "./paths.js"
 
@@ -41,15 +42,15 @@ export function parseTimestamp(ts: string): Date | null {
     )
 }
 
-export function listBackups(tasksDir: string): BackupEntry[] {
+export async function listBackups(tasksDir: string): Promise<BackupEntry[]> {
     const entries: BackupEntry[] = []
     const taskDirs = listTaskDirs(tasksDir)
 
     for (const taskDir of taskDirs) {
         const taskId = path.basename(taskDir)
-        let dirEntries: fs.Dirent[]
+        let dirEntries: Dirent[]
         try {
-            dirEntries = fs.readdirSync(taskDir, {withFileTypes: true})
+            dirEntries = await fs.readdir(taskDir, {withFileTypes: true})
         } catch {
             continue
         }
@@ -76,11 +77,11 @@ export function listBackups(tasksDir: string): BackupEntry[] {
     return entries
 }
 
-export function restoreFromBackups(
+export async function restoreFromBackups(
     tasksDir: string,
     opts: RestoreOptions,
-): {restored: BackupEntry[]; skipped: string[]} {
-    const all = listBackups(tasksDir)
+): Promise<{restored: BackupEntry[]; skipped: string[]}> {
+    const all = await listBackups(tasksDir)
     const filtered = filterEntries(all, opts)
     const restored: BackupEntry[] = []
     const skipped: string[] = []
@@ -89,23 +90,28 @@ export function restoreFromBackups(
     const toRestore = deduplicateByNewest(filtered, opts)
 
     for (const entry of toRestore) {
-        if (!fs.existsSync(entry.bakPath)) {
+        try {
+            await fs.access(entry.bakPath)
+        } catch {
             skipped.push(`${entry.bakPath} (missing)`)
             continue
         }
 
         // Idempotency: skip if current file already matches backup content
-        if (fs.existsSync(entry.basePath)) {
-            const currentContent = fs.readFileSync(entry.basePath)
-            const backupContent = fs.readFileSync(entry.bakPath)
+        try {
+            await fs.access(entry.basePath)
+            const currentContent = await fs.readFile(entry.basePath)
+            const backupContent = await fs.readFile(entry.bakPath)
             if (currentContent.equals(backupContent)) {
                 skipped.push(`${entry.basePath} (already matches backup)`)
                 continue
             }
+        } catch {
+            // base file doesn't exist — proceed with restore
         }
 
         if (!opts.dryRun) {
-            fs.copyFileSync(entry.bakPath, entry.basePath)
+            await fs.copyFile(entry.bakPath, entry.basePath)
         }
         restored.push(entry)
     }
@@ -113,23 +119,25 @@ export function restoreFromBackups(
     return {restored, skipped}
 }
 
-export function deleteBackups(
+export async function deleteBackups(
     tasksDir: string,
     opts: DeleteOptions,
-): {deleted: string[]; skipped: string[]} {
-    const all = listBackups(tasksDir)
+): Promise<{deleted: string[]; skipped: string[]}> {
+    const all = await listBackups(tasksDir)
     const filtered = filterEntries(all, {taskId: opts.taskId, timestamp: opts.timestamp})
     const deleted: string[] = []
     const skipped: string[] = []
 
     for (const entry of filtered) {
-        if (!fs.existsSync(entry.bakPath)) {
+        try {
+            await fs.access(entry.bakPath)
+        } catch {
             skipped.push(`${entry.bakPath} (missing)`)
             continue
         }
 
         if (!opts.dryRun) {
-            fs.rmSync(entry.bakPath)
+            await fs.rm(entry.bakPath)
         }
         deleted.push(entry.bakPath)
     }

@@ -1,5 +1,5 @@
 // src/lib/readJson.ts
-import fs from "node:fs"
+import fs from "node:fs/promises"
 
 export interface PartialArrayResult<T> {
     data: T[]
@@ -15,10 +15,14 @@ export interface PartialArrayResult<T> {
  *
  * Returns null if no elements can be recovered.
  */
-export function readPartialJsonArray<T = unknown>(filePath: string): PartialArrayResult<T> | null {
-    if (!fs.existsSync(filePath)) return null
+export async function readPartialJsonArray<T = unknown>(filePath: string): Promise<PartialArrayResult<T> | null> {
+    try {
+        await fs.access(filePath)
+    } catch {
+        return null
+    }
 
-    const raw = fs.readFileSync(filePath, "utf8")
+    const raw = await fs.readFile(filePath, "utf8")
     if (!raw.trim()) return null
 
     // Fast path: intact JSON

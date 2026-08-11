@@ -29,15 +29,15 @@ export const options = [
 
 const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
 
-export function action(cmdOpts: {
+export async function action(cmdOpts: {
     force?: boolean;
     backup?: boolean;
     verbose?: boolean;
     fixedInputToken?: number;
     verifyUiSync?: boolean;
-}): void {
+}): Promise<void> {
     const root = resolveRoot()
-    const ra = repairAllCorrupted(root, {
+    const ra = await repairAllCorrupted(root, {
         dryRun: !cmdOpts.force,
         backup: cmdOpts.backup !== false,
         fixedInputToken: cmdOpts.fixedInputToken,

@@ -1,7 +1,5 @@
 import crypto from "node:crypto"
-import deasync from "deasync"
-import fs from "node:fs"
-import fsPromises from "node:fs/promises"
+import fs from "node:fs/promises"
 import path from "node:path"
 import {safeWriteJson} from "./io/safeWriteJson.js"
 import {getValidatorByFile, ValidationResult, ValidatorFn} from "./validation.js"
@@ -11,6 +9,7 @@ export interface FileSnapshot {
     mtimeMs: number
     ctimeMs: number
     size: number
+    inode: number
 }
 
 function formatTimestamp(ms: boolean = false): string {
@@ -27,23 +26,39 @@ function formatTimestamp(ms: boolean = false): string {
 
 export const backupTimestamp = formatTimestamp()
 
-function statSnapshot(filePath: string): FileSnapshot | null {
+async function statSnapshot(filePath: string): Promise<FileSnapshot | null> {
     try {
-        const s = fs.statSync(filePath)
-        return {mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, size: s.size}
+        const s = await fs.stat(filePath)
+        return {mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, size: s.size, inode: s.ino}
     } catch {
         return null
     }
 }
 
-function snapshotMatch(a: FileSnapshot, b: FileSnapshot): boolean {
-    return a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs && a.size === b.size
+function snapshotMatch(a: FileSnapshot, b: FileSnapshot): string | null {
+    let s = []
+
+    if (a.mtimeMs !== b.mtimeMs)
+        s.push(`mtime: ${a.mtimeMs} <> ${b.mtimeMs}`)
+
+    if (a.ctimeMs !== b.ctimeMs)
+        s.push(`ctimeMs: ${a.ctimeMs} <> ${b.ctimeMs}`)
+
+    if (a.size !== b.size)
+        s.push(`size: ${a.size} <> ${b.size}`)
+
+    if (a.inode !== b.inode)
+        s.push(`inode: ${a.inode} <> ${b.inode}`)
+
+    if (s.length > 0)
+        return s.join("; ")
+
+    return null
 }
 
-export function readJsonFile<T = unknown>(filePath: string): T | null {
+export async function readJsonFile<T = unknown>(filePath: string): Promise<T | null> {
     try {
-        if (!fs.existsSync(filePath)) return null
-        const raw = fs.readFileSync(filePath, "utf8")
+        const raw = await fs.readFile(filePath, "utf8")
         if (!raw.trim()) return null
         return JSON.parse(raw) as T
     } catch {
@@ -63,10 +78,9 @@ export interface SaveFileOptions {
 }
 
 /** Compute a SHA1 checksum of a JSON file with volatile fields (updatedAt, ts) stripped. */
-export function contentHash(filePath: string): string | null {
-    if (!fs.existsSync(filePath)) return null
+export async function contentHash(filePath: string): Promise<string | null> {
     try {
-        const raw = fs.readFileSync(filePath, "utf8")
+        const raw = await fs.readFile(filePath, "utf8")
         const data = JSON.parse(raw)
         stripVolatile(data)
         return crypto.createHash("sha1").update(JSON.stringify(data)).digest("hex")
@@ -92,27 +106,27 @@ function stripVolatile(obj: unknown): void {
  * Write data to a file with atomic rename, inter-process locking, and optional backup.
  *
  * Delegates to safeWriteJson for lock + stream + atomic rename.
- * Snapshot-based concurrent modification check happens synchronously before the async write fires.
- * Node.js keeps the process alive until the pending I/O completes.
+ * Snapshot-based concurrent modification check runs before the async write.
  */
-export function saveFile(filePath: string, data: unknown, options: SaveFileOptions = {}): FileSnapshot | null {
+export async function saveFile(filePath: string, data: unknown, options: SaveFileOptions = {}): Promise<FileSnapshot | null> {
     if (options.snapshot) {
-        const current = statSnapshot(filePath)
-        if (current && !snapshotMatch(options.snapshot, current)) {
-            throw new Error(`Concurrent modification detected for ${filePath}: file changed since last read`)
+        const current = await statSnapshot(filePath)
+        if (current) {
+            const s = snapshotMatch(options.snapshot, current)
+            if (s !== null) {
+                throw new Error(`Concurrent modification detected for ${filePath}: file changed since last read (${s})`)
+            }
         }
     }
 
-    deasync(
-        safeWriteJson(filePath, data, {
-            stringify: options.stringify ?? false,
-            keepBackup: !!options.backup,
-        }).then(async (result) => {
-            if (result.backupPath && options.backup) {
-                await fsPromises.rename(result.backupPath, options.backup)
-            }
-        })
-    )
+    const result = await safeWriteJson(filePath, data, {
+        stringify: options.stringify ?? false,
+        keepBackup: !!options.backup,
+    })
+
+    if (result.backupPath && options.backup) {
+        await fs.rename(result.backupPath, options.backup)
+    }
 
     return statSnapshot(filePath)
 }
@@ -145,10 +159,10 @@ export class FileTransaction {
         this.validators.push(fn)
     }
 
-    load(validate: boolean = true, force: boolean = false): this {
+    async load(validate: boolean = true, force: boolean = false): Promise<this> {
         if (!force && this.hasRead) return this
 
-        this.data = this._read()
+        this.data = await this._read()
 
         if (validate && this.data != null && this.validators.length > 0) {
             this.validate(true)
@@ -174,7 +188,7 @@ export class FileTransaction {
     }
 
     /** Save the current in-memory data to disk. */
-    save(validate: boolean = true, backup: boolean = true): string | null {
+    async save(validate: boolean = true, backup: boolean = true): Promise<string | null> {
         if (this.readOnly) throw new Error(`Cannot save read-only FileTransaction for ${this.filePath}`)
 
         if (validate) {
@@ -188,12 +202,12 @@ export class FileTransaction {
         }
 
         const backupName = backup ? `${this.filePath}.${backupTimestamp}.bak.json` : undefined
-        this._write(this.data, {backup: backupName})
+        await this._write(this.data, {backup: backupName})
         return backupName ?? null
     }
 
     validate($throw: boolean = false): ValidationResult {
-        if (!this.hasRead) this.load(false).getData()
+        if (!this.hasRead) throw new Error(`Cannot validate before loading ${this.filePath}`)
 
         if (this.data === null) {
             const result: ValidationResult = {
@@ -249,7 +263,7 @@ export class FileTransaction {
     /**
      * Read and parse the file from disk into the in-memory representation.
      *
-     * Called by `read()` to perform the actual file I/O and any format-specific
+     * Called by `load()` to perform the actual file I/O and any format-specific
      * parsing. The base implementation reads the file as a UTF-8 string.
      *
      * Subclasses override this to provide format-specific parsing
@@ -257,13 +271,13 @@ export class FileTransaction {
      *
      * @returns The parsed data, or null if the file cannot be read.
      */
-    protected _read(): string | null {
-        this.snapshot = statSnapshot(this.filePath)
+    protected async _read(): Promise<string | null> {
+        this.snapshot = await statSnapshot(this.filePath)
         if (!this.snapshot) {
             this.hasRead = true
             return null
         }
-        const s = fs.readFileSync(this.filePath, "utf8");
+        const s = await fs.readFile(this.filePath, "utf8");
         this.hasRead = true
         return s
     }
@@ -281,8 +295,8 @@ export class FileTransaction {
      * @param data The in-memory data to serialize and write.
      * @param options Options forwarded to saveFile (stringify, backup, snapshot).
      */
-    protected _write(data: unknown, options: SaveFileOptions = {}): void {
-        saveFile(this.filePath, data, {
+    protected async _write(data: unknown, options: SaveFileOptions = {}): Promise<void> {
+        await saveFile(this.filePath, data, {
             stringify: false,
             snapshot: this.snapshot ?? undefined,
             ...options,
@@ -299,8 +313,8 @@ export function resolveTarget(target: string | undefined, root: string): string 
 
 export class JsonFileTransaction extends FileTransaction {
 
-    protected _read(): any {
-        const raw = super._read()
+    protected async _read(): Promise<any> {
+        const raw = await super._read()
         if (raw == null || !raw.trim()) return null
         try {
             return JSON.parse(raw)
@@ -309,7 +323,7 @@ export class JsonFileTransaction extends FileTransaction {
         }
     }
 
-    protected _write(data: unknown, options: SaveFileOptions = {}): void {
-        super._write(data, {stringify: true, ...options})
+    protected async _write(data: unknown, options: SaveFileOptions = {}): Promise<void> {
+        await super._write(data, {stringify: true, ...options})
     }
 }

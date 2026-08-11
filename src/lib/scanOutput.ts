@@ -1,14 +1,18 @@
+import fs from "node:fs"
 import path from "node:path"
 import type {CorruptionReason, TaskCorruption} from "../types.js"
 import {API_HISTORY_NAME} from "./paths.js"
-import {JsonFileTransaction} from "./file.js";
 
 /** Count entries in a JSON array file. Returns 0 if missing or not an array. */
 export function countEntries(dir: string | undefined, filename: string): number {
     if (!dir) return 0
-    const tx = new JsonFileTransaction(path.join(dir, filename))
-    const data = tx.load(false).getData() as unknown[] | null
-    return Array.isArray(data) ? data.length : 0
+    try {
+        const raw = fs.readFileSync(path.join(dir, filename), "utf8")
+        const data = JSON.parse(raw)
+        return Array.isArray(data) ? data.length : 0
+    } catch {
+        return 0
+    }
 }
 
 /**

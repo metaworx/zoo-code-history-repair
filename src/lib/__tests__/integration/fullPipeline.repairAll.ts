@@ -53,7 +53,7 @@ const HEALTHY = new Set([
     "019fdcba-5173-74cd-a9c3-9663d7917aa2",
 ]);
 
-export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => () => {
+export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) => async () => {
     const indexPath = path.join(tasksDir, "_index.json");
 
     // ── Phase 0: Snapshot initial state ──
@@ -67,11 +67,11 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
         const taskHashes = new Map<string, string | null>();
         for (const f of [HISTORY_ITEM_NAME, UI_MESSAGES_NAME, API_HISTORY_NAME]) {
             const fp = path.join(taskDir, f);
-            taskHashes.set(f, fs.existsSync(fp) ? contentHash(fp) : null);
+            taskHashes.set(f, fs.existsSync(fp) ? await contentHash(fp) : null);
         }
         hashesBefore.set(id, taskHashes);
     }
-    const indexHashBefore = contentHash(indexPath);
+    const indexHashBefore = await contentHash(indexPath);
 
     // Shared task IDs used across phases
     const detailTaskId = "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913";
@@ -81,7 +81,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 1b: scan --json (structured output validation) ──
     consoleLogSpy.mockClear();
-    scanAction({json: true});
+    await scanAction({json: true});
     const scanJson1 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     expect(scanJson1.indexItemCount).toBe(9);
     expect(scanJson1.taskDirCount).toBe(11);
@@ -107,7 +107,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     })
 
     // ── Phase 1: list-corrupt before repair ──
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
 
     // Every expected corrupt task must appear
@@ -126,7 +126,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 1c: list-corrupt --json before repair ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcJson1 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const lcCorruptions1 = lcJson1.corruptions as Array<Record<string, unknown>>;
     expect(lcCorruptions1.length).toBe(7);
@@ -147,7 +147,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     const idxOut = `${indexPath}:entries[${detailTaskId}]`;
 
     consoleLogSpy.mockClear();
-    validateAction(detailTaskId, {warnings: true});
+    await validateAction(detailTaskId, {warnings: true});
     const v1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(v1).toContain(hiOut + ":");
     expect(v1).toContain(uiOut + ":");
@@ -164,7 +164,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 3: Repair all (with backups) ──
     consoleLogSpy.mockClear();
-    repairAllAction({force: true, backup: true});
+    await repairAllAction({force: true, backup: true});
     const rOut1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
 
     // Verify repair output for specific tasks
@@ -199,19 +199,19 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     // Backup checksums match originals
     const hiHashBefore = hashesBefore.get(detailTaskId)!.get(HISTORY_ITEM_NAME)!;
     const uiHashBefore = hashesBefore.get(detailTaskId)!.get(UI_MESSAGES_NAME)!;
-    expect(contentHash(path.join(detailTaskDir, hiBak!)), "hi backup checksum").toBe(hiHashBefore);
-    expect(contentHash(path.join(detailTaskDir, uiBak!)), "ui backup checksum").toBe(uiHashBefore);
+    expect(await contentHash(path.join(detailTaskDir, hiBak!)), "hi backup checksum").toBe(hiHashBefore);
+    expect(await contentHash(path.join(detailTaskDir, uiBak!)), "ui backup checksum").toBe(uiHashBefore);
 
     // _index.json backup
     const indexBaks = listBackupFiles(tasksDir);
     expect(indexBaks.length).toBeGreaterThanOrEqual(1);
     const idxBak = indexBaks.find(f => f.startsWith("_index.json."));
     expect(idxBak, "_index.json backup").toBeDefined();
-    expect(contentHash(path.join(tasksDir, idxBak!)), "index backup checksum").toBe(indexHashBefore);
+    expect(await contentHash(path.join(tasksDir, idxBak!)), "index backup checksum").toBe(indexHashBefore);
 
     // ── Phase 3b: scan --json after repair ──
     consoleLogSpy.mockClear();
-    scanAction({json: true});
+    await scanAction({json: true});
     const scanJson2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     expect(readJson(FIXTURE_SCAN_AFTER_FILE)).toDeepEqualJson(scanJson2, {
         ignoreProps: ['version', 'taskMatch', 'storageRoot'],
@@ -224,7 +224,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 4: list-corrupt after repair (fewer reasons) ──
     consoleLogSpy.mockClear();
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
 
     // Fully-repaired tasks (those with only placeholder_task_name + interrupted_task
@@ -252,7 +252,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 4b: list-corrupt --json after repair ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcJson2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const lcCorruptions2 = lcJson2.corruptions as Array<Record<string, unknown>>;
     expect(lcCorruptions2.length, "JSON: corruptions must decrease after repair").toBeLessThan(7);
@@ -274,7 +274,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 6: validate after repair ──
     consoleLogSpy.mockClear();
-    validateAction(detailTaskId, {warnings: false});
+    await validateAction(detailTaskId, {warnings: false});
     const v2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     // The fully repaired task should have 0 errors, 0 warnings
     expect(v2).toContain("0 errors");
@@ -282,7 +282,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 6b: validate --json after repair ──
     consoleLogSpy.mockClear();
-    validateAction(detailTaskId, {json: true, warnings: false});
+    await validateAction(detailTaskId, {json: true, warnings: false});
     const vJson2 = getJsonOutput(consoleLogSpy) as Record<string, Record<string, unknown>>;
     const hiKey = path.join(detailTaskDir, HISTORY_ITEM_NAME);
     const hiResult = vJson2[hiKey];
@@ -294,9 +294,9 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     const detailHiPath = path.join(detailTaskDir, HISTORY_ITEM_NAME);
     const detailUiPath = path.join(detailTaskDir, UI_MESSAGES_NAME);
 
-    const detailHiHashAfter = contentHash(detailHiPath);
-    const detailUiHashAfter = contentHash(detailUiPath);
-    const indexHashAfter = contentHash(indexPath);
+    const detailHiHashAfter = await contentHash(detailHiPath);
+    const detailUiHashAfter = await contentHash(detailUiPath);
+    const indexHashAfter = await contentHash(indexPath);
 
     expect(detailHiHashAfter).not.toBeNull();
     expect(detailUiHashAfter).not.toBeNull();
@@ -321,7 +321,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     const v2Before = v2;
 
     consoleLogSpy.mockClear();
-    repairAllAction({force: true, backup: true});
+    await repairAllAction({force: true, backup: true});
     const rOut2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
 
     // Second repair must not report any repaired tasks (only previously unrepaired)
@@ -348,13 +348,13 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     expect(bakCountAfter, "no new backup files created in second pass").toBe(bakCountBefore);
 
     // Checksums unchanged after second repair
-    expect(contentHash(detailHiPath)).toBe(detailHiHashAfter);
-    expect(contentHash(detailUiPath)).toBe(detailUiHashAfter);
-    expect(contentHash(indexPath)).toBe(indexHashAfter);
+    expect(await contentHash(detailHiPath)).toBe(detailHiHashAfter);
+    expect(await contentHash(detailUiPath)).toBe(detailUiHashAfter);
+    expect(await contentHash(indexPath)).toBe(indexHashAfter);
 
     // ── Phase 8b: scan --json after second repair (idempotency) ──
     consoleLogSpy.mockClear();
-    scanAction({json: true});
+    await scanAction({json: true});
     const scanJson3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     assertJsonEqual(readJson(FIXTURE_SCAN_AFTER_FILE), scanJson3, {
         ignoreProps: ['version', 'taskMatch', 'storageRoot'],
@@ -367,13 +367,13 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 9: list-corrupt after second repair (stable) ──
     consoleLogSpy.mockClear();
-    listCorruptAction({});
+    await listCorruptAction({});
     const lc3 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(lc3).toBe(lc2Before);
 
     // ── Phase 9b: list-corrupt --json after second repair (stable) ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcJson3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const lcCorruptions3 = lcJson3.corruptions as Array<Record<string, unknown>>;
     expect(lcCorruptions3.length, "JSON: corruptions must be stable after second repair").toBe(lcCorruptions2.length);
@@ -384,7 +384,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 10: validate after second repair (stable) ──
     consoleLogSpy.mockClear();
-    validateAction(detailTaskId, {warnings: false});
+    await validateAction(detailTaskId, {warnings: false});
     const v3 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(v3).toBe(v2Before);
 
@@ -394,7 +394,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
         for (const f of [HISTORY_ITEM_NAME, UI_MESSAGES_NAME, API_HISTORY_NAME]) {
             const fp = path.join(taskDir, f);
             if (fs.existsSync(fp)) {
-                const hash = contentHash(fp);
+                const hash = await contentHash(fp);
                 const before = hashesBefore.get(id);
                 if (before && before.has(f) && before.get(f) !== null) {
                     expect(hash, `${id}/${f}: healthy task file must not change`).toBe(before.get(f));
@@ -405,34 +405,34 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 12: Delete unrepairable orphan (post-repair cleanup) ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcDel1 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const delCorruptions1 = lcDel1.corruptions as Array<{ taskId: string }>;
     expect(delCorruptions1.some(c => c.taskId === orphanId), "orphan must still be in list-corrupt before delete").toBe(true);
 
     consoleLogSpy.mockClear();
-    deleteAction(orphanId, {force: true, backup: false});
+    await deleteAction(orphanId, {force: true, backup: false});
     const delOut1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(delOut1).toContain("Deleted:");
     expect(delOut1).toContain(orphanId);
 
     // ── Phase 13: list-corrupt --json empty after delete ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcDel2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const delCorruptions2 = lcDel2.corruptions as Array<{ taskId: string }>;
     expect(delCorruptions2.length, "list-corrupt must be empty after delete").toBe(0);
 
     // ── Phase 14: Delete again — idempotent ──
     consoleLogSpy.mockClear();
-    deleteAction(orphanId, {force: true, backup: false});
+    await deleteAction(orphanId, {force: true, backup: false});
     const delOut2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(delOut2).toContain("Directory not found:");
     expect(delOut2).toContain(orphanId);
 
     // ── Phase 15: list-corrupt --json still empty ──
     consoleLogSpy.mockClear();
-    listCorruptAction({json: true});
+    await listCorruptAction({json: true});
     const lcDel3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const delCorruptions3 = lcDel3.corruptions as Array<{ taskId: string }>;
     expect(delCorruptions3.length, "list-corrupt must remain empty after idempotent delete").toBe(0);

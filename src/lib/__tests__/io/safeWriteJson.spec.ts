@@ -52,6 +52,7 @@ describe("safeWriteJson", () => {
 
 	beforeAll(() => {
 		originalConsoleError = console.error
+		console.error = () => {}
 	})
 
 	afterAll(() => {

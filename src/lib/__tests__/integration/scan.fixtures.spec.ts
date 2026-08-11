@@ -53,17 +53,17 @@ const HEALTHY = new Set([
     "019fdcba-5173-74cd-a9c3-9663d7917aa2",
 ]);
 
-describe("scan against fixtures (integration)", () => {
-    const result = scanStorage(FIXTURE_ROOT);
+describe("scan against fixtures (integration)", async () => {
+    const result = await scanStorage(FIXTURE_ROOT);
 
-    it("detects all expected corrupt tasks", () => {
+    it("detects all expected corrupt tasks", async () => {
         const corruptIds = result.corruptions.map((c) => c.taskId);
         for (const id of Object.keys(EXPECTED)) {
             expect(corruptIds).toContain(id);
         }
     });
 
-    it("reports correct corruption reasons per task", () => {
+    it("reports correct corruption reasons per task", async () => {
         for (const [id, expectedReasons] of Object.entries(EXPECTED)) {
             const c = result.corruptions.find((x) => x.taskId === id);
             expect(c, `missing corruption entry for ${id}`).toBeDefined();
@@ -77,20 +77,20 @@ describe("scan against fixtures (integration)", () => {
         }
     });
 
-    it("reports zero corruptions for healthy tasks", () => {
+    it("reports zero corruptions for healthy tasks", async () => {
         for (const id of HEALTHY) {
             const c = result.corruptions.find((x) => x.taskId === id);
             expect(c, `healthy task ${id} should not appear in corruptions`).toBeUndefined();
         }
     });
 
-    it("has correct index and task dir counts", () => {
+    it("has correct index and task dir counts", async () => {
         expect(result.indexItems.length).toBe(9); // 10 tasks minus 019fde29 (orphan)
         expect(result.taskDirs.length).toBe(11);
         expect(result.corruptions.length).toBe(7);
     });
 
-    it("folder_orphan tasks have null indexItem", () => {
+    it("folder_orphan tasks have null indexItem", async () => {
         const orphans = result.corruptions.filter((c) =>
             c.reasons.some(r => r.reason === "folder_orphan"),
         );
@@ -100,8 +100,8 @@ describe("scan against fixtures (integration)", () => {
     });
 });
 
-describe("scan output helpers against fixtures (integration)", () => {
-    const result = scanStorage(FIXTURE_ROOT);
+describe("scan output helpers against fixtures (integration)", async () => {
+    const result = await scanStorage(FIXTURE_ROOT);
 
     // Expected entry counts per corrupt task (matching CLI output)
     const ENTRY_COUNTS: Record<string, { ach: number; uim: number }> = {
@@ -114,38 +114,38 @@ describe("scan output helpers against fixtures (integration)", () => {
         "019fde29-32cc-76c3-a156-e5287fc5fd2c": {ach: 84, uim: 188},
     };
 
-    it("countEntries returns correct ACH/UIM counts for all corrupt tasks", () => {
+    it("countEntries returns correct ACH/UIM counts for all corrupt tasks", async () => {
         for (const c of result.corruptions) {
             const expected = ENTRY_COUNTS[c.taskId];
             expect(expected, `no expected counts for ${c.taskId}`).toBeDefined();
-            const ach = countEntries(c.dir, API_HISTORY_NAME);
-            const uim = countEntries(c.dir, UI_MESSAGES_NAME);
+            const ach = await countEntries(c.dir, API_HISTORY_NAME);
+            const uim = await countEntries(c.dir, UI_MESSAGES_NAME);
             expect(ach, `${c.taskId}: ACH entries`).toBe(expected.ach);
             expect(uim, `${c.taskId}: UIM entries`).toBe(expected.uim);
         }
     });
 
-    it("countEntries does not throw on corrupt ui_messages.json (regression)", () => {
+    it("countEntries does not throw on corrupt ui_messages.json (regression)", async () => {
         // Task 019f0f12-02f9-70df-a35e-2b110efe4107 has scrambled say/type fields
         // that triggered the validation crash before the fix.
         const taskDir = path.join(TASKS_DIR, "019f0f12-02f9-70df-a35e-2b110efe4107");
-        const uimCount = countEntries(taskDir, UI_MESSAGES_NAME);
+        const uimCount = await countEntries(taskDir, UI_MESSAGES_NAME);
         expect(uimCount).toBe(113);
-        const achCount = countEntries(taskDir, API_HISTORY_NAME);
+        const achCount = await countEntries(taskDir, API_HISTORY_NAME);
         expect(achCount).toBe(256);
     });
 
-    it("countEntries returns 0 for missing file", () => {
+    it("countEntries returns 0 for missing file", async () => {
         const taskDir = path.join(TASKS_DIR, "019ede5a-9327-70cc-9c54-2d227182e4d1");
-        const count = countEntries(taskDir, UI_MESSAGES_NAME);
+        const count = await countEntries(taskDir, UI_MESSAGES_NAME);
         expect(count).toBe(0);
     });
 
-    it("countEntries returns 0 for undefined dir", () => {
-        expect(countEntries(undefined, UI_MESSAGES_NAME)).toBe(0);
+    it("countEntries returns 0 for undefined dir", async () => {
+        expect(await countEntries(undefined, UI_MESSAGES_NAME)).toBe(0);
     });
 
-    it("recoverabilityScore matches expected values", () => {
+    it("recoverabilityScore matches expected values", async () => {
         const EXPECTED_SCORES: Record<string, string> = {
             "019ede5a-9327-70cc-9c54-2d227182e4d1": "0%",
             "019f0f12-02f9-70df-a35e-2b110efe4107": "50%",
@@ -158,7 +158,7 @@ describe("scan output helpers against fixtures (integration)", () => {
         for (const c of result.corruptions) {
             const expected = EXPECTED_SCORES[c.taskId];
             expect(expected, `no expected score for ${c.taskId}`).toBeDefined();
-            expect(recoverabilityScore(c), `${c.taskId} score`).toBe(expected);
+            expect(await recoverabilityScore(c), `${c.taskId} score`).toBe(expected);
         }
     });
 });

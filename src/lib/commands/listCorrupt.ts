@@ -20,14 +20,14 @@ export const options: Array<[string, string, unknown]> = [
     ["--no-warnings", "Suppress warning-level corruption reasons", true],
 ]
 
-export function action(cmdOpts: {
+export async function action(cmdOpts: {
     verifyUiSync?: boolean;
     json?: boolean;
     summary?: boolean;
     warnings?: boolean;
-}): void {
+}): Promise<void> {
     const root = resolveRoot()
-    const result = scanStorage(root, {
+    const result = await scanStorage(root, {
         verifyUiSync: !!cmdOpts.verifyUiSync,
         showWarnings: cmdOpts.warnings !== false,
     })

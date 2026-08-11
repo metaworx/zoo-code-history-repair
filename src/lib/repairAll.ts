@@ -27,11 +27,11 @@ export interface RepairAllResult {
 /**
  * Scan storage for corruption, then repair every corrupted task and rebuild _index.json.
  */
-export function repairAllCorrupted(
+export async function repairAllCorrupted(
     storageRoot: string,
     options: RepairAllOptions = {},
-): RepairAllResult {
-    const scan = scanStorage(storageRoot, {verifyUiSync: options.verifyUiSync})
+): Promise<RepairAllResult> {
+    const scan = await scanStorage(storageRoot, {verifyUiSync: options.verifyUiSync})
     const corruptIds = scan.corruptions.map(c => c.taskId)
 
     // R-6: Reuse scan.indexItems instead of re-reading _index.json
@@ -45,7 +45,7 @@ export function repairAllCorrupted(
 
     for (const taskId of corruptIds) {
         const taskDir = path.join(scan.tasksDir, taskId)
-        const r = repairTaskDir(taskDir, {
+        const r = await repairTaskDir(taskDir, {
             dryRun: options.dryRun,
             backup: options.backup !== false,
             fixedInputToken: options.fixedInputToken,
@@ -72,7 +72,7 @@ export function repairAllCorrupted(
     let indexRemoved: string[] = []
 
     const idx = new IndexTransaction(false)
-    const rebuildResult = idx.repair(true, undefined, {
+    const rebuildResult = await idx.repair(true, undefined, {
         dryRun: options.dryRun,
         backup: options.backup !== false,
     })
