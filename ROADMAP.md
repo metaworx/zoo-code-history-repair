@@ -27,7 +27,7 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 
 ### v0.6.0 — Plugin Integration
 
-- [ ] Use real Zoo Code TypeScript types (`ClineMessage`, `ApiMessage`, etc.) via optional dependency
+- [x] Use real Zoo Code TypeScript types (`ClineMessage`, `ApiMessage`, etc.) via optional dependency
 - [ ] Reuse Zoo Code's `safeWriteJson` / path helpers where available
 - [ ] Contribute a "Repair Task History" command to the JetBrains plugin
 - [ ] Register as a VS Code extension command (via Extension Host)

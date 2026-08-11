@@ -1,3 +1,10 @@
+/**
+ * Loose HistoryItem type used across the repair pipeline.
+ *
+ * For strict validation, use HistoryItemForRepair from
+ * src/lib/validate/historyItem.ts, which is derived from
+ * @roo-code/types' historyItemSchema via z.infer<>.
+ */
 export interface HistoryItem {
     id: string
     ts?: number

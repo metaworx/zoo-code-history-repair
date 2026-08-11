@@ -22,25 +22,24 @@ describe("validateUiMessages", () => {
     it("event missing ts → error", () => {
         const r = validateUiMessages([{type: "say", say: "text", text: "hi"}])
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_TS")).toBe(true)
+        expect(r.issues.some(i => i.field === "[0].ts")).toBe(true)
     })
 
     it("event invalid type → error", () => {
         const r = validateUiMessages([{ts: 100, type: "other", say: "text", text: "hi"}])
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "INVALID_TYPE")).toBe(true)
+        expect(r.issues.some(i => i.field === "[0].type")).toBe(true)
     })
 
     it("event invalid say → error", () => {
         const r = validateUiMessages([{ts: 100, type: "say", say: "unknown", text: "hi"}])
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "INVALID_SAY")).toBe(true)
+        expect(r.issues.some(i => i.field === "[0].say")).toBe(true)
     })
 
-    it("event missing text → error", () => {
+    it("event missing text → valid (text is optional in Zoo schema)", () => {
         const r = validateUiMessages([{ts: 100, type: "say", say: "text"}])
-        expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_TEXT")).toBe(true)
+        expect(r.valid).toBe(true)
     })
 
     it("valid events → valid", () => {

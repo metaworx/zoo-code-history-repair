@@ -60,7 +60,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     expect(v1).toContain("tokensOut: tokensOut is 0");
     expect(v1).toContain("totalCost: totalCost is 0");
     expect(v1).toContain("ui_messages array is empty");
-    expect(v1).toContain("5 files checked, 3 valid, 2 errors, 9 warnings");
+    expect(v1).toContain("5 files checked, 3 valid, 4 errors, 7 warnings");
 
     // --- Phase 3: Repair the task (with backups) ---
     consoleLogSpy.mockClear();

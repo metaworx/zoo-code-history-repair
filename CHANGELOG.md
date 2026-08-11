@@ -7,6 +7,44 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-11
+
+### Added
+
+- **Zod validation integration** — replaced hand-rolled field validators (~300 lines) with Zoo Code's canonical Zod
+  schemas from `@roo-code/types` v1.115.0
+- `src/lib/validate/zod.ts` — translation helper: `zodIssueToValidationIssue()`, `zodResultToValidationResult()`,
+  `safeParseAsWarning()`; converts Zod's binary success/failure to our `ValidationResult` with error/warning distinction
+- `taskMetadataSchema` — new Zod schema for `task_metadata.json` (Zoo Code has none); validates `files_in_context` array
+  with optional top-level passthrough for forward compatibility
+- `historyItemForRepair` schema — extends Zoo's `historyItemSchema` with `.extend()` (makes `size`/`workspace`/`mode`/
+  `apiConfigName` required, adds `"interrupted"` to `status` enum) and `.superRefine()` for corruption heuristics
+  (PLACEHOLDER_TASK, ZERO_SIZE, zero tokens, status consistency, UUID validation)
+- `indexSchema` with `entriesWithRefs` — `.superRefine()` on entries array for duplicate detection + cross-reference
+  validation (dangling `parentTaskId`/`delegatedToId`/`childIds`/etc.), replaces manual `idMap` loop
+- `uiMessageEventSchema` — Zod per-event schema aligned with Zoo Code's 28 `say` values and 11 `ask` values (from
+  `rooCodeEventsSchema`), replacing the old hand-rolled text/reasoning/tool-only check
+- `achTurnSchema` / `contentBlockSchema` — Zod message-content validation for `api_conversation_history.json`
+
+### Changed
+
+- `@roo-code/types` ^1.115.0 added as runtime dependency; `zod` 3.25.76 is transitive via the types package (our direct
+  `zod` dependency was removed to match Zoo's exact version)
+- `issueToReason()` now handles Zod's `invalid_type` error code on the `task` field, mapping it to `missing_task_text`
+- `rebuildIndexFromDisk` now correctly computes `size` from actual on-disk file sizes (previously left corrupted 0
+  values)
+- Validator error codes changed: structural errors now use Zod's built-in codes (`invalid_type`, `invalid_enum_value`)
+  instead of custom codes (`MISSING_ID`, `INVALID_TYPE`, etc.); `.superRefine()` custom issues retain our codes via
+  `params.code`
+- `validate` command: per-entry `_index.json` validation now runs the same full historyItem validator as disk items,
+  doubling error/warning counts for tasks corrupted in both index and disk
+
+### Fixed
+
+- `task_metadata.json` now properly validated against its schema (previously accepted any object)
+- 4 fixture files updated: `_index.rebuilt.json` (corrected `size: 1766515`), `scan.before.json` and
+  `list-corrupt.before.json` (reordered `zero_size`/`zero_tokens` to match new source ordering)
+
 ## [0.5.0] — 2026-08-10
 
 ### Added

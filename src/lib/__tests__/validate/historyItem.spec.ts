@@ -37,7 +37,7 @@ describe("validateHistoryItem", () => {
     it("missing id → error", () => {
         const r = validateHistoryItem(makeValidEntry({id: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_ID")).toBe(true)
+        expect(r.issues.some(i => i.field === "id")).toBe(true)
     })
 
     it("invalid UUID → error", () => {
@@ -49,13 +49,13 @@ describe("validateHistoryItem", () => {
     it("missing ts → error", () => {
         const r = validateHistoryItem(makeValidEntry({ts: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_TS")).toBe(true)
+        expect(r.issues.some(i => i.field === "ts")).toBe(true)
     })
 
     it("missing number → error", () => {
         const r = validateHistoryItem(makeValidEntry({number: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_NUMBER")).toBe(true)
+        expect(r.issues.some(i => i.field === "number")).toBe(true)
     })
 
     it("number ≤ 0 → error", () => {
@@ -67,7 +67,7 @@ describe("validateHistoryItem", () => {
     it("missing task → error", () => {
         const r = validateHistoryItem(makeValidEntry({task: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_TASK")).toBe(true)
+        expect(r.issues.some(i => i.field === "task")).toBe(true)
     })
 
     it("placeholder task → error", () => {
@@ -95,31 +95,31 @@ describe("validateHistoryItem", () => {
     it("missing size → error", () => {
         const r = validateHistoryItem(makeValidEntry({size: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_SIZE")).toBe(true)
+        expect(r.issues.some(i => i.field === "size")).toBe(true)
     })
 
     it("missing workspace → error", () => {
         const r = validateHistoryItem(makeValidEntry({workspace: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_WORKSPACE")).toBe(true)
+        expect(r.issues.some(i => i.field === "workspace")).toBe(true)
     })
 
     it("missing mode → error", () => {
         const r = validateHistoryItem(makeValidEntry({mode: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_MODE")).toBe(true)
+        expect(r.issues.some(i => i.field === "mode")).toBe(true)
     })
 
     it("missing apiConfigName → error", () => {
         const r = validateHistoryItem(makeValidEntry({apiConfigName: undefined}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "MISSING_API_CONFIG")).toBe(true)
+        expect(r.issues.some(i => i.field === "apiConfigName")).toBe(true)
     })
 
     it("invalid status → error", () => {
         const r = validateHistoryItem(makeValidEntry({status: "unknown_status"}))
         expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "INVALID_STATUS")).toBe(true)
+        expect(r.issues.some(i => i.field === "status")).toBe(true)
     })
 
     it("missing status → valid (normal)", () => {

@@ -1,8 +1,10 @@
+import {z, ZodIssueCode} from "zod"
+import {historyItemSchema} from "@roo-code/types"
 import type {ValidationResult} from "../validation.js"
-import {error, warning, validationOk} from "../validation.js"
+import {error, warning} from "../validation.js"
+import {zodResultToValidationResult} from "./zod.js"
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VALID_STATUSES = new Set(["active", "delegated", "completed", "interrupted"])
 
 type EntryMap = Map<string, Record<string, unknown>>
 
@@ -10,52 +12,294 @@ function isUuid(v: unknown): boolean {
     return typeof v === "string" && UUID_RE.test(v)
 }
 
-function checkString(entry: Record<string, unknown>, key: string, required: boolean): string | null {
-    const v = entry[key]
-    if (v === undefined || v === null) {
-        if (required) return `missing required field "${key}"`
-        return null
-    }
-    if (typeof v !== "string" || !v.trim()) return `field "${key}" must be a non-empty string`
-    return null
-}
+/**
+ * Extended history item schema for repair validation.
+ *
+ * Builds on Zoo Code's canonical historyItemSchema, making repair-critical
+ * fields required and adding corruption heuristics via .superRefine().
+ */
+export const historyItemForRepair = historyItemSchema.extend({
+    // Zoo makes these optional; we require them for repair
+    size: z.number(),
+    workspace: z.string(),
+    mode: z.string(),
+    apiConfigName: z.string(),
 
-function checkNumber(entry: Record<string, unknown>, key: string, required: boolean): string | null {
-    const v = entry[key]
-    if (v === undefined || v === null) {
-        if (required) return `missing required field "${key}"`
-        return null
-    }
-    if (typeof v !== "number" || !Number.isFinite(v)) return `field "${key}" must be a finite number`
-    return null
-}
+    // Zoo's status enum lacks "interrupted" — we add it
+    status: z.enum(["active", "completed", "delegated", "interrupted"]).optional(),
 
-function checkInteger(entry: Record<string, unknown>, key: string, required: boolean): string | null {
-    const v = entry[key]
-    if (v === undefined || v === null) {
-        if (required) return `missing required field "${key}"`
-        return null
-    }
-    if (typeof v !== "number" || !Number.isInteger(v)) return `field "${key}" must be an integer`
-    return null
-}
+    // Re-declare for clarity (already in base schema but we want explicit types)
+    parentTaskId: z.string().optional(),
+    rootTaskId: z.string().optional(),
+    delegatedToId: z.string().optional(),
+    awaitingChildId: z.string().optional(),
+    completedByChildId: z.string().optional(),
+    childIds: z.array(z.string()).optional(),
+    completionResultSummary: z.string().optional(),
+}).superRefine((item, ctx) => {
+    // --- Required field format checks (Zoo accepts any string/number) ---
 
-function checkUuid(entry: Record<string, unknown>, key: string): string | null {
-    const v = entry[key]
-    if (v === undefined || v === null) return null
-    if (!isUuid(v)) return `field "${key}" must be a UUID`
-    return null
-}
-
-function checkUuidArray(entry: Record<string, unknown>, key: string): string | null {
-    const v = entry[key]
-    if (v === undefined || v === null) return null
-    if (!Array.isArray(v)) return `field "${key}" must be an array`
-    for (let i = 0; i < (v as unknown[]).length; i++) {
-        if (!isUuid((v as unknown[])[i])) return `field "${key}[${i}]" must be a UUID`
+    if (!isUuid(item.id)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "id must be a UUID",
+            path: ["id"],
+            params: {severity: "error", code: "INVALID_UUID"},
+        })
     }
-    return null
-}
+
+    if (!Number.isInteger(item.number) || item.number <= 0) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "number must be an integer > 0",
+            path: ["number"],
+            params: {severity: "error", code: "INVALID_NUMBER"},
+        })
+    }
+
+    if (!Number.isInteger(item.tokensIn)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "tokensIn must be an integer",
+            path: ["tokensIn"],
+            params: {severity: "error", code: "MISSING_TOKENS_IN"},
+        })
+    }
+
+    if (!Number.isInteger(item.tokensOut)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "tokensOut must be an integer",
+            path: ["tokensOut"],
+            params: {severity: "error", code: "MISSING_TOKENS_OUT"},
+        })
+    }
+
+    if (!Number.isInteger(item.size)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "size must be an integer",
+            path: ["size"],
+            params: {severity: "error", code: "MISSING_SIZE"},
+        })
+    }
+
+    // --- Corruption heuristics ---
+
+    // PLACEHOLDER_TASK: "Task #N" or "Task #N (...)" pattern
+    // Also flag empty or whitespace-only task as missing
+    const task = (item.task as string).trim()
+    if (!task) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "task is empty",
+            path: ["task"],
+            params: {severity: "error", code: "MISSING_TASK"},
+        })
+    } else if (/^Task\s*#\s*\d+(\s*\(.*\))?$/i.test(task)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "task is a placeholder: " + task,
+            path: ["task"],
+            params: {severity: "error", code: "PLACEHOLDER_TASK"},
+        })
+    }
+
+    // Zero-value corruption indicators
+    if (item.size === 0) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "size is 0",
+            path: ["size"],
+            params: {severity: "error", code: "ZERO_SIZE"},
+        })
+    }
+
+    if (item.tokensIn === 0) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "tokensIn is 0",
+            path: ["tokensIn"],
+            params: {severity: "warning", code: "ZERO_TOKENS_IN"},
+        })
+    }
+
+    if (item.tokensOut === 0) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "tokensOut is 0",
+            path: ["tokensOut"],
+            params: {severity: "warning", code: "ZERO_TOKENS_OUT"},
+        })
+    }
+
+    if (item.totalCost === 0) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "totalCost is 0",
+            path: ["totalCost"],
+            params: {severity: "warning", code: "ZERO_TOTAL_COST"},
+        })
+    }
+
+    // Optional field format checks (warnings, not errors)
+    if (item.cacheWrites !== undefined && !Number.isInteger(item.cacheWrites)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "cacheWrites must be an integer",
+            path: ["cacheWrites"],
+            params: {severity: "warning", code: "INVALID_CACHE_WRITES"},
+        })
+    }
+
+    if (item.cacheReads !== undefined && !Number.isInteger(item.cacheReads)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "cacheReads must be an integer",
+            path: ["cacheReads"],
+            params: {severity: "warning", code: "INVALID_CACHE_READS"},
+        })
+    }
+
+    if (item.parentTaskId !== undefined && item.parentTaskId !== null && !isUuid(item.parentTaskId)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "parentTaskId must be a UUID",
+            path: ["parentTaskId"],
+            params: {severity: "error", code: "INVALID_PARENT_TASK_ID"},
+        })
+    }
+
+    if (item.rootTaskId !== undefined && item.rootTaskId !== null && !isUuid(item.rootTaskId)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "rootTaskId must be a UUID",
+            path: ["rootTaskId"],
+            params: {severity: "error", code: "INVALID_ROOT_TASK_ID"},
+        })
+    }
+
+    if (item.delegatedToId !== undefined && item.delegatedToId !== null && !isUuid(item.delegatedToId)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "delegatedToId must be a UUID",
+            path: ["delegatedToId"],
+            params: {severity: "error", code: "INVALID_DELEGATED_TO"},
+        })
+    }
+
+    if (item.awaitingChildId !== undefined && item.awaitingChildId !== null && !isUuid(item.awaitingChildId)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "awaitingChildId must be a UUID",
+            path: ["awaitingChildId"],
+            params: {severity: "error", code: "INVALID_AWAITING_CHILD"},
+        })
+    }
+
+    if (item.completedByChildId !== undefined && item.completedByChildId !== null && !isUuid(item.completedByChildId)) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: "completedByChildId must be a UUID",
+            path: ["completedByChildId"],
+            params: {severity: "error", code: "INVALID_COMPLETED_BY"},
+        })
+    }
+
+    if (item.childIds !== undefined && item.childIds !== null) {
+        for (let i = 0; i < item.childIds.length; i++) {
+            if (!isUuid(item.childIds[i])) {
+                ctx.addIssue({
+                    code: ZodIssueCode.custom,
+                    message: `childIds[${i}] must be a UUID`,
+                    path: ["childIds", i],
+                    params: {severity: "error", code: "INVALID_CHILD_IDS"},
+                })
+            }
+        }
+    }
+
+    // --- Status-specific consistency checks ---
+
+    const status = item.status
+    if (status === "delegated") {
+        if (!item.delegatedToId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "delegated tasks must have delegatedToId",
+                path: ["delegatedToId"],
+                params: {severity: "error", code: "STATUS_DELEGATED_MISSING"},
+            })
+        }
+        if (!item.awaitingChildId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "delegated tasks must have awaitingChildId",
+                path: ["awaitingChildId"],
+                params: {severity: "error", code: "STATUS_DELEGATED_MISSING"},
+            })
+        }
+        if (!item.childIds || item.childIds.length === 0) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "delegated tasks must have childIds",
+                path: ["childIds"],
+                params: {severity: "error", code: "STATUS_DELEGATED_MISSING"},
+            })
+        }
+        if (!item.completedByChildId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "delegated tasks must have completedByChildId",
+                path: ["completedByChildId"],
+                params: {severity: "error", code: "STATUS_DELEGATED_MISSING"},
+            })
+        }
+        if (!item.completionResultSummary) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "delegated tasks must have completionResultSummary",
+                path: ["completionResultSummary"],
+                params: {severity: "error", code: "STATUS_DELEGATED_MISSING"},
+            })
+        }
+    }
+
+    if (status === "completed") {
+        if (!item.parentTaskId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "completed tasks must have parentTaskId",
+                path: ["parentTaskId"],
+                params: {severity: "error", code: "STATUS_COMPLETED_MISSING"},
+            })
+        }
+    }
+
+    if (status === "interrupted") {
+        if (!item.parentTaskId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "interrupted tasks must have parentTaskId",
+                path: ["parentTaskId"],
+                params: {severity: "error", code: "STATUS_INTERRUPTED_MISSING"},
+            })
+        }
+    }
+
+    if (status === "active") {
+        if (item.awaitingChildId) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "active tasks must not have awaitingChildId",
+                path: ["awaitingChildId"],
+                params: {severity: "error", code: "STATUS_ACTIVE_FORBIDDEN"},
+            })
+        }
+    }
+})
+
+export type HistoryItemForRepair = z.infer<typeof historyItemForRepair>
 
 /**
  * Validate a single history_item.json entry or _index.json entry.
@@ -85,111 +329,14 @@ export function validateHistoryItem(
         }
     }
 
-    const e = data as Record<string, unknown>
-    const issues: ReturnType<typeof error>[] = []
-    const e2 = (code: string, field: string, msg: string) => issues.push(error(code, field, msg))
-    const w2 = (code: string, field: string, msg: string) => issues.push(warning(code, field, msg))
+    const parsed = historyItemForRepair.safeParse(data)
+    const result = zodResultToValidationResult(
+        parsed.success ? null : parsed,
+    )
 
-    // Required fields
-    const s = checkString(e, "id", true)
-    if (s) e2("MISSING_ID", "id", s)
-    else if (!isUuid(e.id)) e2("INVALID_UUID", "id", "id must be a UUID")
-
-    const tsErr = checkNumber(e, "ts", true)
-    if (tsErr) e2("MISSING_TS", "ts", tsErr)
-
-    const numErr = checkInteger(e, "number", true)
-    if (numErr) e2("MISSING_NUMBER", "number", numErr)
-    else if ((e.number as number) <= 0) e2("INVALID_NUMBER", "number", "number must be > 0")
-
-    const taskErr = checkString(e, "task", true)
-    if (taskErr) e2("MISSING_TASK", "task", taskErr)
-    else {
-        const t = (e.task as string).trim()
-        if (/^Task\s*#\s*\d+(\s*\(.*\))?$/i.test(t)) {
-            e2("PLACEHOLDER_TASK", "task", "task is a placeholder: " + t)
-        }
-    }
-
-    // Token fields: required, 0 is warning not error
-    const tInErr = checkInteger(e, "tokensIn", true)
-    if (tInErr) e2("MISSING_TOKENS_IN", "tokensIn", tInErr)
-    else if ((e.tokensIn as number) === 0) w2("ZERO_TOKENS_IN", "tokensIn", "tokensIn is 0")
-
-    const tOutErr = checkInteger(e, "tokensOut", true)
-    if (tOutErr) e2("MISSING_TOKENS_OUT", "tokensOut", tOutErr)
-    else if ((e.tokensOut as number) === 0) w2("ZERO_TOKENS_OUT", "tokensOut", "tokensOut is 0")
-
-    const tcErr = checkNumber(e, "totalCost", true)
-    if (tcErr) e2("MISSING_TOTAL_COST", "totalCost", tcErr)
-    else if ((e.totalCost as number) === 0) w2("ZERO_TOTAL_COST", "totalCost", "totalCost is 0")
-
-    const szErr = checkInteger(e, "size", true)
-    if (szErr) e2("MISSING_SIZE", "size", szErr)
-    else if ((e.size as number) === 0) w2("ZERO_SIZE", "size", "size is 0")
-
-    const wsErr = checkString(e, "workspace", true)
-    if (wsErr) e2("MISSING_WORKSPACE", "workspace", wsErr)
-
-    const modeErr = checkString(e, "mode", true)
-    if (modeErr) e2("MISSING_MODE", "mode", modeErr)
-
-    const acnErr = checkString(e, "apiConfigName", true)
-    if (acnErr) e2("MISSING_API_CONFIG", "apiConfigName", acnErr)
-
-    // Optional fields
-    if (e.status !== undefined && e.status !== null) {
-        if (typeof e.status !== "string" || !VALID_STATUSES.has(e.status)) {
-            e2("INVALID_STATUS", "status", `status must be one of active|delegated|completed|interrupted, got ${JSON.stringify(e.status)}`)
-        }
-    }
-    // Missing status is normal — not corruption
-
-    const cwErr = checkInteger(e, "cacheWrites", false)
-    if (cwErr) w2("INVALID_CACHE_WRITES", "cacheWrites", cwErr)
-
-    const crErr = checkInteger(e, "cacheReads", false)
-    if (crErr) w2("INVALID_CACHE_READS", "cacheReads", crErr)
-
-    const ptErr = checkUuid(e, "parentTaskId")
-    if (ptErr) e2("INVALID_PARENT_TASK_ID", "parentTaskId", ptErr)
-
-    const rtErr = checkUuid(e, "rootTaskId")
-    if (rtErr) e2("INVALID_ROOT_TASK_ID", "rootTaskId", rtErr)
-
-    const ciErr = checkUuidArray(e, "childIds")
-    if (ciErr) e2("INVALID_CHILD_IDS", "childIds", ciErr)
-
-    const ccErr = checkUuid(e, "completedByChildId")
-    if (ccErr) e2("INVALID_COMPLETED_BY", "completedByChildId", ccErr)
-
-    const dtErr = checkUuid(e, "delegatedToId")
-    if (dtErr) e2("INVALID_DELEGATED_TO", "delegatedToId", dtErr)
-
-    const acErr = checkUuid(e, "awaitingChildId")
-    if (acErr) e2("INVALID_AWAITING_CHILD", "awaitingChildId", acErr)
-
-    // Status-specific consistency (derived from real data analysis)
-    const status = e.status as string | undefined
-    if (status === "delegated") {
-        if (!e.delegatedToId) e2("STATUS_DELEGATED_MISSING", "delegatedToId", "delegated tasks must have delegatedToId")
-        if (!e.awaitingChildId) e2("STATUS_DELEGATED_MISSING", "awaitingChildId", "delegated tasks must have awaitingChildId")
-        if (!e.childIds) e2("STATUS_DELEGATED_MISSING", "childIds", "delegated tasks must have childIds")
-        if (!e.completedByChildId) e2("STATUS_DELEGATED_MISSING", "completedByChildId", "delegated tasks must have completedByChildId")
-        if (!e.completionResultSummary) e2("STATUS_DELEGATED_MISSING", "completionResultSummary", "delegated tasks must have completionResultSummary")
-    }
-    if (status === "completed") {
-        if (!e.parentTaskId) e2("STATUS_COMPLETED_MISSING", "parentTaskId", "completed tasks must have parentTaskId")
-    }
-    if (status === "interrupted") {
-        if (!e.parentTaskId) e2("STATUS_INTERRUPTED_MISSING", "parentTaskId", "interrupted tasks must have parentTaskId")
-    }
-    if (status === "active") {
-        if (e.awaitingChildId) e2("STATUS_ACTIVE_FORBIDDEN", "awaitingChildId", "active tasks must not have awaitingChildId")
-    }
-
-    // Cross-reference consistency (only when fullIndex is provided)
+    // Cross-reference consistency (post-parse — needs external id map)
     if (fullIndex) {
+        const e = data as Record<string, unknown>
         const refs: Array<[string, unknown]> = [
             ["rootTaskId", e.rootTaskId],
             ["parentTaskId", e.parentTaskId],
@@ -204,16 +351,17 @@ export function validateHistoryItem(
         for (const [field, refId] of refs) {
             if (refId === undefined || refId === null) continue
             if (!fullIndex.has(refId as string)) {
-                e2("DANGLING_REF", field, `reference "${refId}" does not exist in index`)
+                result.issues.push(error("DANGLING_REF", field, `reference "${refId}" does not exist in index`))
             }
         }
     }
 
-    const errors = issues.filter(i => i.severity === "error")
+    // Recalculate error/warning counts after adding cross-ref issues
+    const errors = result.issues.filter(i => i.severity === "error")
     return {
         valid: errors.length === 0,
-        issues,
+        issues: result.issues,
         errorCount: errors.length,
-        warningCount: issues.length - errors.length,
+        warningCount: result.issues.length - errors.length,
     }
 }

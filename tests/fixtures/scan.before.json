@@ -80,12 +80,12 @@
                     "source": "hi,idx"
                 },
                 {
-                    "reason": "zero_tokens",
-                    "source": "hi"
-                },
-                {
                     "reason": "zero_size",
                     "source": "hi,idx"
+                },
+                {
+                    "reason": "zero_tokens",
+                    "source": "hi"
                 },
                 {
                     "reason": "empty_ui_messages",

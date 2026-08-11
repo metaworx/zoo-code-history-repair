@@ -1,6 +1,89 @@
+import {z, ZodIssueCode} from "zod"
 import type {ValidationResult} from "../validation.js"
-import {error, warning} from "../validation.js"
-import {validateHistoryItem} from "./historyItem.js"
+import {error} from "../validation.js"
+import {zodResultToValidationResult} from "./zod.js"
+import {historyItemForRepair} from "./historyItem.js"
+
+/**
+ * Entries array with cross-reference validation.
+ * Checks for duplicate IDs and dangling references between entries.
+ */
+const entriesWithRefs = z.array(historyItemForRepair).superRefine((entries, ctx) => {
+    const ids = new Set<string>()
+    const duplicates = new Set<string>()
+
+    for (const e of entries) {
+        if (ids.has(e.id)) {
+            duplicates.add(e.id)
+        }
+        ids.add(e.id)
+    }
+
+    for (const id of duplicates) {
+        ctx.addIssue({
+            code: ZodIssueCode.custom,
+            message: `duplicate entry id: ${id}`,
+            path: ["entries"],
+            params: {severity: "error", code: "DUPLICATE_ID"},
+        })
+    }
+
+    // Per-entry cross-reference validation
+    const refOk = (ref: string | undefined | null, field: string, i: number) => {
+        if (ref === undefined || ref === null) return
+        if (!ids.has(ref)) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: `${field} references missing id: ${ref}`,
+                path: ["entries", i, field],
+                params: {severity: "error", code: "DANGLING_REF"},
+            })
+        }
+    }
+
+    entries.forEach((e, i) => {
+        refOk(e.parentTaskId, "parentTaskId", i)
+        refOk(e.rootTaskId, "rootTaskId", i)
+        refOk(e.delegatedToId, "delegatedToId", i)
+        refOk(e.completedByChildId, "completedByChildId", i)
+        refOk(e.awaitingChildId, "awaitingChildId", i)
+
+        if (e.childIds) {
+            e.childIds.forEach((cid, j) => {
+                if (!ids.has(cid)) {
+                    ctx.addIssue({
+                        code: ZodIssueCode.custom,
+                        message: `childIds[${j}] references missing id: ${cid}`,
+                        path: ["entries", i, "childIds", j],
+                        params: {severity: "error", code: "DANGLING_REF"},
+                    })
+                }
+            })
+        }
+
+        // Self-reference check
+        if (e.parentTaskId && e.parentTaskId === e.id) {
+            ctx.addIssue({
+                code: ZodIssueCode.custom,
+                message: "parentTaskId must not equal own id",
+                path: ["entries", i, "parentTaskId"],
+                params: {severity: "error", code: "SELF_REFERENCE"},
+            })
+        }
+    })
+})
+
+/**
+ * Full index schema: {version, updatedAt, entries} with cross-reference
+ * validation embedded in the entries array.
+ */
+export const indexSchema = z.object({
+    version: z.number(),
+    updatedAt: z.number().finite(),
+    entries: entriesWithRefs,
+})
+
+export type IndexData = z.infer<typeof indexSchema>
 
 export function validateIndex(data: unknown): ValidationResult {
     if (data === null || data === undefined) {
@@ -8,7 +91,7 @@ export function validateIndex(data: unknown): ValidationResult {
             valid: false,
             issues: [error("NOT_JSON", "", "index is null or undefined")],
             errorCount: 1,
-            warningCount: 0
+            warningCount: 0,
         }
     }
 
@@ -22,7 +105,7 @@ export function validateIndex(data: unknown): ValidationResult {
             valid: false,
             issues: [error("NOT_OBJECT", "", "index must be an object")],
             errorCount: 1,
-            warningCount: 0
+            warningCount: 0,
         }
     }
 
@@ -31,74 +114,56 @@ export function validateIndex(data: unknown): ValidationResult {
             valid: false,
             issues: [error("NOT_OBJECT", "", "index must be an object")],
             errorCount: 1,
-            warningCount: 0
+            warningCount: 0,
         }
     }
 
     const idx = data as Record<string, unknown>
-    const issues: ReturnType<typeof error>[] = []
-    const e2 = (code: string, field: string, msg: string) => issues.push(error(code, field, msg))
-    const w2 = (code: string, field: string, msg: string) => issues.push(warning(code, field, msg))
 
-    // Structure checks
+    // Pre-checks before Zod parsing (version, structure)
+    const issues: ReturnType<typeof error>[] = []
+
     if (!("version" in idx)) {
-        e2("MISSING_VERSION", "version", "index must have a version field")
+        issues.push(error("MISSING_VERSION", "version", "index must have a version field"))
     } else if (idx.version !== 1) {
-        w2("UNSUPPORTED_VERSION", "version", `index version ${idx.version} is not supported (expected 1)`)
+        issues.push({
+            code: "UNSUPPORTED_VERSION",
+            severity: "warning",
+            field: "version",
+            message: `index version ${idx.version} is not supported (expected 1)`,
+        })
     }
 
     if (!("updatedAt" in idx)) {
-        e2("MISSING_UPDATED_AT", "updatedAt", "index must have an updatedAt field")
+        issues.push(error("MISSING_UPDATED_AT", "updatedAt", "index must have an updatedAt field"))
     } else if (typeof idx.updatedAt !== "number" || !Number.isFinite(idx.updatedAt as number)) {
-        e2("INVALID_UPDATED_AT", "updatedAt", "updatedAt must be a number (epoch ms)")
+        issues.push(error("INVALID_UPDATED_AT", "updatedAt", "updatedAt must be a number (epoch ms)"))
     }
 
     if (!("entries" in idx)) {
-        e2("MISSING_ENTRIES", "entries", "index must have an entries array")
-        return finish(issues)
+        issues.push(error("MISSING_ENTRIES", "entries", "index must have an entries array"))
+        const errs = issues.filter(i => i.severity === "error")
+        return {valid: errs.length === 0, issues, errorCount: errs.length, warningCount: issues.length - errs.length}
     }
 
     if (!Array.isArray(idx.entries)) {
-        e2("INVALID_ENTRIES", "entries", "entries must be an array")
-        return finish(issues)
+        issues.push(error("INVALID_ENTRIES", "entries", "entries must be an array"))
+        const errs = issues.filter(i => i.severity === "error")
+        return {valid: errs.length === 0, issues, errorCount: errs.length, warningCount: issues.length - errs.length}
     }
 
-    const entries = idx.entries as Array<Record<string, unknown>>
-
-    // Build id map for cross-reference validation
-    const idMap = new Map<string, Record<string, unknown>>()
-    for (const entry of entries) {
-        if (entry && typeof entry === "object" && typeof entry.id === "string") {
-            idMap.set(entry.id, entry)
-        }
+    // Zod parsing with cross-reference validation
+    const parsed = indexSchema.safeParse(data)
+    if (!parsed.success) {
+        const result = zodResultToValidationResult(parsed)
+        // Prepend pre-check issues
+        result.issues.unshift(...issues)
+        const errs = result.issues.filter(i => i.severity === "error")
+        return {valid: errs.length === 0, issues: result.issues, errorCount: errs.length, warningCount: result.issues.length - errs.length}
     }
 
-    // Per-entry validation with cross-reference checks
-    for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i]
-        if (!entry || typeof entry !== "object") {
-            e2("INVALID_ENTRY", `entries[${i}]`, "entry is not an object")
-            continue
-        }
-
-        if (typeof entry.id !== "string") {
-            e2("MISSING_ENTRY_ID", `entries[${i}].id`, "entry must have a string id")
-            // Still validate what we can
-        }
-
-        const hiResult = validateHistoryItem(entry, idMap)
-        for (const issue of hiResult.issues) {
-            issues.push({
-                ...issue,
-                field: `entries[${i}].${issue.field}`.replace(/\.$/, ""),
-            })
-        }
-    }
-
-    return finish(issues)
-}
-
-function finish(issues: ReturnType<typeof error>[]): ValidationResult {
-    const errors = issues.filter(i => i.severity === "error")
-    return {valid: errors.length === 0, issues, errorCount: errors.length, warningCount: issues.length - errors.length}
+    // If Zod passes, still include pre-check issues (warnings like UNSUPPORTED_VERSION)
+    const allIssues = [...issues]
+    const errs = allIssues.filter(i => i.severity === "error")
+    return {valid: errs.length === 0, issues: allIssues, errorCount: errs.length, warningCount: allIssues.length - errs.length}
 }

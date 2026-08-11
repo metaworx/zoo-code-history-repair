@@ -24,7 +24,7 @@
             "cacheWrites": 0,
             "cacheReads": 0,
             "totalCost": 0,
-            "size": 0,
+            "size": 1766515,
             "workspace": "/home/user/projects/generic-project/file.ext/file.ext/file.ext/x",
             "mode": "debug",
             "apiConfigName": "deepseek",

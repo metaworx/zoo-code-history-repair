@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { scanStorage } from "../scan.js"
+import {scanStorage} from "../scan.js"
 
 describe("scanStorage", () => {
     let root: string
@@ -14,7 +14,7 @@ describe("scanStorage", () => {
     })
 
     afterEach(() => {
-        fs.rmSync(root, { recursive: true, force: true })
+        fs.rmSync(root, {recursive: true, force: true})
     })
 
     it("reports folder_orphan when task dir is not in index", () => {
@@ -22,7 +22,7 @@ describe("scanStorage", () => {
         fs.mkdirSync(dir)
         fs.writeFileSync(
             path.join(dir, "history_item.json"),
-            JSON.stringify({ id: "orphan-id", task: "Real", size: 99 }),
+            JSON.stringify({id: "orphan-id", task: "Real", size: 99}),
         )
         fs.writeFileSync(path.join(tasksDir, "_index.json"), "[]")
 
@@ -34,7 +34,7 @@ describe("scanStorage", () => {
     it("reports index_orphan when index entry has no folder", () => {
         fs.writeFileSync(
             path.join(tasksDir, "_index.json"),
-            JSON.stringify([{ id: "ghost", task: "Ghost", size: 0 }]),
+            JSON.stringify([{id: "ghost", task: "Ghost", size: 0}]),
         )
 
         const result = scanStorage(root)
@@ -48,19 +48,27 @@ describe("scanStorage", () => {
         const id = "bad"
         const dir = path.join(tasksDir, id)
         fs.mkdirSync(dir)
+        const entry = {
+            id, task: "Task #1", size: 0, ts: 1, number: 1,
+            tokensIn: 10, tokensOut: 10, totalCost: 0.01,
+            workspace: "/ws", mode: "code", apiConfigName: "default",
+        }
         fs.writeFileSync(
             path.join(dir, "history_item.json"),
-            JSON.stringify({ id, task: "Task #1", size: 0 }),
+            JSON.stringify(entry),
         )
         fs.writeFileSync(
             path.join(tasksDir, "_index.json"),
-            JSON.stringify([{ id, task: "Task #1", size: 0 }]),
+            JSON.stringify([entry]),
         )
 
         const result = scanStorage(root)
         const hit = result.corruptions.find((c) => c.taskId === id)
         expect(hit?.reasons).toEqual(
-            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi,idx"}, {reason: "zero_size", source: "hi,idx"}]),
+            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi,idx"}, {
+                reason: "zero_size",
+                source: "hi,idx"
+            }]),
         )
     })
 })

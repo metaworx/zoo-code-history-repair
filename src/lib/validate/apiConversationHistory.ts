@@ -1,5 +1,29 @@
+import {z} from "zod"
 import type {ValidationResult} from "../validation.js"
 import {error, validationOk, warning} from "../validation.js"
+import {zodResultToValidationResult} from "./zod.js"
+
+/**
+ * Schema for an individual content block within an ACH turn.
+ * Supports text, tool_use, and tool_result block types (Anthropic format).
+ */
+const contentBlockSchema = z.object({
+    type: z.string(),
+    text: z.string().optional(),
+    tool_use_id: z.string().optional(),
+    name: z.string().optional(),
+    id: z.string().optional(),
+    input: z.record(z.string(), z.unknown()).optional(),
+    content: z.unknown().optional(),
+}).passthrough()
+
+/**
+ * Schema for a single ACH turn (role + content array).
+ */
+const achTurnSchema = z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.array(contentBlockSchema),
+}).passthrough()
 
 export function validateApiConversationHistory(data: unknown): ValidationResult {
     if (data === null || data === undefined) {
@@ -7,7 +31,7 @@ export function validateApiConversationHistory(data: unknown): ValidationResult 
             valid: false,
             issues: [error("NOT_JSON", "", "data is null or undefined")],
             errorCount: 1,
-            warningCount: 0
+            warningCount: 0,
         }
     }
 
@@ -16,7 +40,7 @@ export function validateApiConversationHistory(data: unknown): ValidationResult 
             valid: false,
             issues: [error("NOT_ARRAY", "", "api_conversation_history must be an array")],
             errorCount: 1,
-            warningCount: 0
+            warningCount: 0,
         }
     }
 
@@ -25,53 +49,39 @@ export function validateApiConversationHistory(data: unknown): ValidationResult 
             valid: true,
             issues: [warning("EMPTY_ARRAY", "", "api_conversation_history array is empty")],
             errorCount: 0,
-            warningCount: 1
+            warningCount: 1,
         }
     }
 
-    const issues = []
-    const turns = data as Array<Record<string, unknown>>
+    const allIssues: ReturnType<typeof error>[] = []
 
-    for (let i = 0; i < turns.length; i++) {
-        const turn = turns[i]
+    for (let i = 0; i < (data as unknown[]).length; i++) {
+        const turn = (data as unknown[])[i]
         const prefix = `[${i}]`
 
         if (!turn || typeof turn !== "object") {
-            issues.push(error("INVALID_TURN", prefix, "turn is not an object"))
+            allIssues.push(error("INVALID_TURN", prefix, "turn is not an object"))
             continue
         }
 
-        if (turn.role !== "user" && turn.role !== "assistant") {
-            issues.push(error("INVALID_ROLE", `${prefix}.role`, `expected "user" or "assistant", got ${JSON.stringify(turn.role)}`))
-        }
-
-        if (!Array.isArray(turn.content)) {
-            issues.push(error("MISSING_CONTENT", `${prefix}.content`, "content must be an array"))
-            continue
-        }
-
-        const content = turn.content as Array<Record<string, unknown>>
-        for (let j = 0; j < content.length; j++) {
-            const block = content[j]
-            const bp = `${prefix}.content[${j}]`
-
-            if (!block || typeof block !== "object") {
-                issues.push(error("INVALID_BLOCK", bp, "content block is not an object"))
-                continue
-            }
-
-            if (typeof block.type !== "string") {
-                issues.push(error("MISSING_TYPE", `${bp}.type`, "content block missing type"))
+        const parsed = achTurnSchema.safeParse(turn)
+        if (!parsed.success) {
+            const result = zodResultToValidationResult(parsed)
+            for (const issue of result.issues) {
+                allIssues.push({
+                    ...issue,
+                    field: `${prefix}.${issue.field}`.replace(/\.$/, ""),
+                })
             }
         }
     }
 
-    const errors = issues.filter(i => i.severity === "error")
+    const errors = allIssues.filter(i => i.severity === "error")
     return {
         valid: errors.length === 0,
-        issues,
+        issues: allIssues,
         errorCount: errors.length,
-        warningCount: issues.length - errors.length,
+        warningCount: allIssues.length - errors.length,
     }
 }
 
@@ -93,7 +103,7 @@ export function validateInterruptedTask(apiHistory: unknown[]): ValidationResult
                     valid: true,
                     issues: [warning("INTERRUPTED_TASK", "", "last turn ends with tool_use — task may be interrupted")],
                     errorCount: 0,
-                    warningCount: 1
+                    warningCount: 1,
                 }
             }
         }

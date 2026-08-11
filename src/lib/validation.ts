@@ -55,19 +55,27 @@ function joinSources(sources: Set<string>): string {
 }
 
 /** Map validator issue codes to CorruptionReason (context-free). */
-function issueToReason(issue: { code: string }): CorruptionReason | null {
+function issueToReason(issue: { code: string; field?: string }): CorruptionReason | null {
     const map: Record<string, CorruptionReason> = {
         "PLACEHOLDER_TASK": "placeholder_task_name",
         "ZERO_SIZE": "zero_size",
         "MISSING_TASK": "missing_task_text",
+        "MISSING_SIZE": "zero_size",
         "ZERO_TOKENS_IN": "zero_tokens",
         "ZERO_TOKENS_OUT": "zero_tokens",
         "ZERO_TOTAL_COST": "zero_tokens",
         "EMPTY_ARRAY": "empty_ui_messages",
         "INTERRUPTED_TASK": "interrupted_task",
         "UI_SYNC_MISMATCH": "ui_sync_mismatch",
+        // Zod built-in codes mapped to reasons when on specific fields
+        "invalid_type": "missing_task_text", // when field is "task", treated as missing_task_text
     }
-    return map[issue.code] ?? null
+    if (map[issue.code]) {
+        // invalid_type is only missing_task_text when on the "task" field
+        if (issue.code === "invalid_type" && issue.field !== "task") return null
+        return map[issue.code]
+    }
+    return null
 }
 
 /** File basename to source abbreviation for CorruptionReason.source */

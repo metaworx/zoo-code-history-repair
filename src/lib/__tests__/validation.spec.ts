@@ -50,11 +50,21 @@ describe("inspectTaskDir", () => {
             task: "Task #1",
             size: 0,
             ts: 1,
+            number: 1,
+            tokensIn: 10,
+            tokensOut: 10,
+            totalCost: 0.01,
+            workspace: "/ws",
+            mode: "code",
+            apiConfigName: "default",
         } satisfies HistoryItem)
 
         const result = inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
-            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi"}, {reason: "zero_size", source: "hi"}]),
+            expect.arrayContaining([{reason: "placeholder_task_name", source: "hi"}, {
+                reason: "zero_size",
+                source: "hi"
+            }]),
         )
         expect(result.diskItem?.task).toBe("Task #1")
     })
@@ -64,13 +74,24 @@ describe("inspectTaskDir", () => {
             id: "abc",
             task: "Real task",
             size: 100,
+            number: 1,
+            ts: 1,
+            tokensIn: 10,
+            tokensOut: 10,
+            totalCost: 0.01,
+            workspace: "/ws",
+            mode: "code",
+            apiConfigName: "default",
         })
         writeJson("ui_messages.json", [])
         writeJson("api_conversation_history.json", [])
 
         const result = inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual(
-            expect.arrayContaining([{reason: "empty_ui_messages", source: "uim"}, {reason: "empty_api_history", source: "ach"}]),
+            expect.arrayContaining([{reason: "empty_ui_messages", source: "uim"}, {
+                reason: "empty_api_history",
+                source: "ach"
+            }]),
         )
     })
 
@@ -82,6 +103,11 @@ describe("inspectTaskDir", () => {
             tokensIn: 10,
             tokensOut: 20,
             totalCost: 0.01,
+            number: 1,
+            ts: 1,
+            workspace: "/ws",
+            mode: "code",
+            apiConfigName: "default",
         })
         writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
         writeJson("api_conversation_history.json", [{role: "user", content: "hi"}])
@@ -93,37 +119,33 @@ describe("inspectTaskDir", () => {
     // --- v0.2.0 features (merged from detectCorruptionV2.spec.ts) ---
 
     describe("missing_task_text", () => {
-        it("flags empty task string", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "",
-                size: 100,
-                ts: 1,
-            } satisfies HistoryItem)
+        const base = {
+            id: "abc",
+            size: 100,
+            ts: 1,
+            number: 1,
+            tokensIn: 10,
+            tokensOut: 10,
+            totalCost: 0.01,
+            workspace: "/ws",
+            mode: "code",
+            apiConfigName: "default"
+        }
 
+        it("flags empty task string", () => {
+            writeJson("history_item.json", {...base, task: ""} satisfies HistoryItem)
             const result = inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
         it("flags undefined task", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                size: 100,
-                ts: 1,
-            } satisfies Partial<HistoryItem> as HistoryItem)
-
+            writeJson("history_item.json", {...base} satisfies Partial<HistoryItem> as HistoryItem)
             const result = inspectTaskDir("abc", tmp, null)
             expect(result.reasons).toContainEqual({reason: "missing_task_text", source: "hi"})
         })
 
         it("does not flag non-empty task", () => {
-            writeJson("history_item.json", {
-                id: "abc",
-                task: "Real task",
-                size: 100,
-                ts: 1,
-            })
-
+            writeJson("history_item.json", {...base, task: "Real task"})
             const result = inspectTaskDir("abc", tmp, null)
             expect(result.reasons).not.toContainEqual({reason: "missing_task_text", source: "hi"})
         })
@@ -137,7 +159,7 @@ describe("inspectTaskDir", () => {
                 size: 100,
                 ts: 1,
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "assistant",
@@ -163,7 +185,7 @@ describe("inspectTaskDir", () => {
                 size: 100,
                 ts: 1,
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "assistant",
@@ -189,17 +211,17 @@ describe("inspectTaskDir", () => {
                 size: 100,
                 ts: 1,
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Do X" }],
+                    content: [{type: "text", text: "Do X"}],
                 },
                 {
                     role: "assistant",
                     content: [
-                        { type: "text", text: "Okay" },
-                        { type: "tool_use", name: "write_file", id: "tu1", input: {} },
+                        {type: "text", text: "Okay"},
+                        {type: "tool_use", name: "write_file", id: "tu1", input: {}},
                     ],
                 },
             ])
@@ -214,18 +236,25 @@ describe("inspectTaskDir", () => {
                 task: "Real task",
                 size: 0,
                 ts: 1,
+                number: 1,
+                tokensIn: 10,
+                tokensOut: 10,
+                totalCost: 0.01,
+                workspace: "/ws",
+                mode: "code",
+                apiConfigName: "default",
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Do X" }],
+                    content: [{type: "text", text: "Do X"}],
                 },
                 {
                     role: "assistant",
                     content: [
-                        { type: "text", text: "Okay" },
-                        { type: "tool_use", name: "write_file", id: "tu1", input: {} },
+                        {type: "text", text: "Okay"},
+                        {type: "tool_use", name: "write_file", id: "tu1", input: {}},
                     ],
                 },
             ])
@@ -242,7 +271,7 @@ describe("inspectTaskDir", () => {
                 size: 100,
                 ts: 1,
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "assistant",
@@ -251,7 +280,7 @@ describe("inspectTaskDir", () => {
                             type: "tool_use",
                             name: "read_file",
                             id: "toolu_01",
-                            input: { path: "/foo" },
+                            input: {path: "/foo"},
                         },
                     ],
                 },
@@ -261,13 +290,13 @@ describe("inspectTaskDir", () => {
                         {
                             type: "tool_result",
                             tool_use_id: "toolu_01",
-                            content: [{ type: "text", text: "content" }],
+                            content: [{type: "text", text: "content"}],
                         },
                     ],
                 },
                 {
                     role: "assistant",
-                    content: [{ type: "text", text: "Done!" }],
+                    content: [{type: "text", text: "Done!"}],
                 },
             ])
 
@@ -282,15 +311,15 @@ describe("inspectTaskDir", () => {
                 size: 100,
                 ts: 1,
             })
-            writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+            writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Hello" }],
+                    content: [{type: "text", text: "Hello"}],
                 },
                 {
                     role: "assistant",
-                    content: [{ type: "text", text: "Hi there" }],
+                    content: [{type: "text", text: "Hi there"}],
                 },
             ])
 
@@ -309,18 +338,18 @@ describe("inspectTaskDir", () => {
             })
             // ui has 2 events, but ACH only produces 1
             writeJson("ui_messages.json", [
-                { ts: 100, type: "say", say: "text", text: "A", partial: false },
-                { ts: 101, type: "say", say: "text", text: "B", partial: false },
+                {ts: 100, type: "say", say: "text", text: "A", partial: false},
+                {ts: 101, type: "say", say: "text", text: "B", partial: false},
             ])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Hello" }],
+                    content: [{type: "text", text: "Hello"}],
                     ts: 100,
                 },
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, { verifyUiSync: true })
+            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
@@ -333,17 +362,17 @@ describe("inspectTaskDir", () => {
             })
             // ui says "Old text" but ACH would produce "Hello"
             writeJson("ui_messages.json", [
-                { ts: 100, type: "say", say: "text", text: "Old text", partial: false },
+                {ts: 100, type: "say", say: "text", text: "Old text", partial: false},
             ])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Hello" }],
+                    content: [{type: "text", text: "Hello"}],
                     ts: 100,
                 },
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, { verifyUiSync: true })
+            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).toContainEqual({reason: "ui_sync_mismatch", source: "uim,ach"})
         })
 
@@ -355,17 +384,17 @@ describe("inspectTaskDir", () => {
                 ts: 1,
             })
             writeJson("ui_messages.json", [
-                { ts: 0, type: "say", say: "text", text: "Hello", partial: false },
+                {ts: 0, type: "say", say: "text", text: "Hello", partial: false},
             ])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Hello" }],
+                    content: [{type: "text", text: "Hello"}],
                     ts: 0,
                 },
             ])
 
-            const result = inspectTaskDir("abc", tmp, null, { verifyUiSync: true })
+            const result = inspectTaskDir("abc", tmp, null, {verifyUiSync: true})
             expect(result.reasons).not.toContain("ui_sync_mismatch")
         })
 
@@ -377,12 +406,12 @@ describe("inspectTaskDir", () => {
                 ts: 1,
             })
             writeJson("ui_messages.json", [
-                { ts: 100, type: "say", say: "text", text: "Mismatched", partial: false },
+                {ts: 100, type: "say", say: "text", text: "Mismatched", partial: false},
             ])
             writeJson("api_conversation_history.json", [
                 {
                     role: "user",
-                    content: [{ type: "text", text: "Hello" }],
+                    content: [{type: "text", text: "Hello"}],
                     ts: 100,
                 },
             ])

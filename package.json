@@ -1,6 +1,6 @@
 {
   "name": "zoo-code-history-repair",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Scan and repair Zoo Code / Roo-style task history indexes and corrupted task metadata",
   "type": "module",
   "bin": {
@@ -40,13 +40,14 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@roo-code/types": "^1.115.0",
     "commander": "^12.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "@vitest/coverage-v8": "^3.2.4",
     "vitest": "^3.2.4"
   }
 }

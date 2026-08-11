@@ -70,8 +70,8 @@ Dry-run messages are colorized red. Disable colors with `--no-color` or `NO_COLO
 
 ```bash
 # Print version information
-zoo-code-history-repair --version       # "Zoo Code History Repair, v0.5.0"
-zoo-code-history-repair --version-only  # "0.5.0"
+zoo-code-history-repair --version       # "Zoo Code History Repair, v0.6.0"
+zoo-code-history-repair --version-only  # "0.6.0"
 ```
 
 All commands have detailed help available via `help <command>` (e.g. `zoo-code-history-repair help scan`).
@@ -106,15 +106,15 @@ zoo-code-history-repair validate ~/.zoo-code/.../_index.json
 zoo-code-history-repair validate --json --warnings
 ```
 
-Each validated file type has its own validator:
+Each validated file type uses Zod schemas (from `@roo-code/types` or our own extensions) with corruption heuristics layered via `.superRefine()`:
 
 | File | Validates |
 |------|-----------|
-| `_index.json` | `version`=1, `updatedAt` (finite number), `entries` array, per-entry cross-reference integrity |
-| `history_item.json` | UUID format on `id`/`parentTaskId`/`rootTaskId`/etc., required fields (`id`, `ts`, `task`, `workspace`, `mode`, `apiConfigName`), number types on `tokensIn`/`tokensOut`/`totalCost`, status-specific consistency rules (`delegated`→`delegatedToId` required, `active`→`awaitingChildId` forbidden), dangling reference detection |
-| `api_conversation_history.json` | Array structure, turn-level `role` ("user"/"assistant"), `content` array, block `type` field |
-| `ui_messages.json` | Array structure, event-level `ts` (number), `type` ("say"), `say` (text/reasoning/tool), `text` (string) |
-| `task_metadata.json` | Must be a JSON object if present (no required fields) |
+| `_index.json` | `version`=1, `updatedAt` (finite number), `entries` array, per-entry Zod parsing via `historyItemSchema` + cross-reference integrity via `.superRefine()` (dangling `parentTaskId`/`delegatedToId`/`childIds`/etc.) |
+| `history_item.json` | Zoo Code's canonical `historyItemSchema` extended with `.superRefine()` for corruption heuristics: placeholder task names, zero fields, UUID validation, status consistency (`delegated`→`delegatedToId`, `active`→`awaitingChildId` forbidden, `"interrupted"` status added) |
+| `api_conversation_history.json` | Array structure, turn-level `role` ("user"/"assistant"), `content` array with Zod block validation, interrupted task detection |
+| `ui_messages.json` | Array structure, Zod per-event schema aligned with Zoo Code's 28 `say` values and 11 `ask` values, optional fields (`partial`, `reasoning`, `images`, etc.) |
+| `task_metadata.json` | Zod schema for `files_in_context` array (path, record_state, record_source, timestamps) with optional top-level passthrough |
 
 All validators produce errors (invalid data) and warnings (suspicious but non-fatal). Use `--warnings` to see both; by default only errors are shown.
 
@@ -184,7 +184,7 @@ size = compactBytes(ui_messages) + compactBytes(api_history) + compactBytes(hist
 flowchart TB
     subgraph Validators["File-Type Validators (src/lib/validate/)"]
         direction TB
-        V1["validateHistoryItem — 30+ checks, status rules"]
+        V1["validateHistoryItem — Zod schema + corruption heuristics"]
         V2["validateIndex — structure + cross-references"]
         V3["validateApiConversationHistory — turns, roles, blocks"]
         V4["validateUiMessages — events, say/text, ts"]
