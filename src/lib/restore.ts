@@ -2,7 +2,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import {listBackups, parseTimestamp, BackupEntry} from "./file.js"
 
-export {BackupEntry, listBackups}
+export {BackupEntry, listBackups, parseTimestamp}
 
 export interface ListBackupsResult {
     entries: BackupEntry[]

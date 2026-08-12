@@ -489,7 +489,18 @@ export class JsonFileTransaction extends FileTransaction {
         }
     }
 
+    /**
+     * Serialize and write JSON data.
+     *
+     * `options` is mutated in place (stringify defaulted to `true` when not
+     * already set) rather than being replaced via object spread. saveFile()
+     * and consolidateBackups() mutate `options.backup` (true → the retained
+     * .bak_*.tmp path, then → the final consolidated path or undefined), and
+     * FileTransaction.save() must observe those mutations in order to rename
+     * the backup to its final .bak.json name.
+     */
     protected async _write(data: unknown, options: SaveFileOptions = {}): Promise<void> {
-        await super._write(data, {stringify: true, ...options})
+        options.stringify ??= true
+        await super._write(data, options)
     }
 }
