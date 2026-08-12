@@ -1,9 +1,10 @@
 import crypto from "node:crypto"
+import {Dirent} from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import {safeWriteJson} from "./io/safeWriteJson.js"
 import {getValidatorByFile, ValidationResult, ValidatorFn} from "./validation.js"
-import {resolveTasksDir} from "./paths.js";
+import {resolveTasksDir, listTaskDirs} from "./paths.js";
 
 export interface FileSnapshot {
     mtimeMs: number
@@ -72,9 +73,10 @@ export interface SaveFileOptions {
     /** When true (default), data is an object to be JSON-serialized via json-stream-stringify.
      *  When false, data is already a string — write directly. */
     stringify?: boolean
-    /** If provided and a backup was created, the internal .bak_*.tmp is renamed to this path.
-     *  If omitted, the backup is deleted. */
-    backup?: string
+    /** When a string, the internal .bak_*.tmp is renamed to this path.
+     *  When true, the .bak_*.tmp path is retained for post-save consolidation.
+     *  When omitted/falsy, the backup is deleted by safeWriteJson. */
+    backup?: boolean | string | null
 }
 
 /** Compute a SHA1 checksum of a JSON file with volatile fields (updatedAt, ts) stripped. */
@@ -124,11 +126,163 @@ export async function saveFile(filePath: string, data: unknown, options: SaveFil
         keepBackup: !!options.backup,
     })
 
-    if (result.backupPath && options.backup) {
+    if (result.backupPath && typeof options.backup === "string") {
         await fs.rename(result.backupPath, options.backup)
+    } else if (result.backupPath && options.backup === true) {
+        options.backup = result.backupPath
     }
 
     return statSnapshot(filePath)
+}
+
+const TIMESTAMP_RE = /\.(\d{8}-\d{6})\.bak\.json$/
+
+export function parseTimestamp(ts: string): Date | null {
+    const m = ts.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/)
+    if (!m) return null
+    return new Date(
+        Number(m[1]),
+        Number(m[2]) - 1,
+        Number(m[3]),
+        Number(m[4]),
+        Number(m[5]),
+        Number(m[6]),
+    )
+}
+
+export interface BackupEntry {
+    taskId: string
+    timestamp: string
+    bakPath: string
+    baseName: string
+    basePath: string
+}
+
+export async function listBackups(tasksDir: string): Promise<BackupEntry[]> {
+    const entries: BackupEntry[] = []
+    const taskDirs = listTaskDirs(tasksDir)
+
+    for (const taskDir of taskDirs) {
+        const taskId = path.basename(taskDir)
+        let dirEntries: Dirent[]
+        try {
+            dirEntries = await fs.readdir(taskDir, {withFileTypes: true})
+        } catch {
+            continue
+        }
+
+        for (const de of dirEntries) {
+            if (!de.isFile()) continue
+            const m = de.name.match(TIMESTAMP_RE)
+            if (!m) continue
+
+            const timestamp = m[1]
+            const baseName = de.name.slice(0, de.name.indexOf(`.${timestamp}.bak.json`))
+
+            entries.push({
+                taskId,
+                timestamp,
+                bakPath: path.join(taskDir, de.name),
+                baseName,
+                basePath: path.join(taskDir, baseName),
+            })
+        }
+    }
+
+    return entries
+}
+
+/**
+ * List backup files in a directory matching the `{basename}.{YYYYMMDD-HHmmss}.bak.json` pattern,
+ * filtered to entries whose basename (before the timestamp) is in `basenames[]`.
+ * Returns full paths.
+ */
+export async function listBackupsForFile(dir: string, basenames: string[]): Promise<string[]> {
+    const result: string[] = []
+    let dirEntries: Dirent[]
+    try {
+        dirEntries = await fs.readdir(dir, {withFileTypes: true})
+    } catch {
+        return result
+    }
+
+    for (const de of dirEntries) {
+        if (!de.isFile()) continue
+        const m = de.name.match(TIMESTAMP_RE)
+        if (!m) continue
+
+        const timestamp = m[1]
+        const baseName = de.name.slice(0, de.name.indexOf(`.${timestamp}.bak.json`))
+
+        if (basenames.includes(baseName)) {
+            result.push(path.join(dir, de.name))
+        }
+    }
+
+    return result
+}
+
+export interface BackupConsolidationResult {
+    /** The target file path that was saved. */
+    target: string
+    /** The newBackup path if it was kept (unique content), undefined if deduplicated. */
+    new?: string
+    /** Backup paths that were removed because they matched the target's content hash. */
+    removed: string[]
+}
+
+/**
+ * Consolidate backups for a target file by removing duplicates via content hash.
+ *
+ * 1. Lists backups for `target`'s basename + `additionalBasenames`
+ * 2. Removes any backup whose content hash matches the target file
+ * 3. If `newBackup` is provided and its content hash matches any remaining backup,
+ *    deletes `newBackup` (deduplication) — `new` is returned as undefined
+ * 4. Otherwise returns `new: newBackup`
+ *
+ * `newBackup` is NEVER included in `removed[]`.
+ */
+export async function consolidateBackups(
+    target: string,
+    newBackup?: string,
+    additionalBasenames?: string[]
+): Promise<BackupConsolidationResult> {
+    const dir = path.dirname(target)
+    const targetBasename = path.basename(target)
+    const basenames = [targetBasename, ...(additionalBasenames ?? [])]
+
+    const backups = await listBackupsForFile(dir, basenames)
+    const targetHash = await contentHash(target)
+    const removed: string[] = []
+
+    if (targetHash) {
+        for (const bak of backups) {
+            // Never consider newBackup for removal in this pass
+            if (bak === newBackup) continue
+            const bakHash = await contentHash(bak)
+            if (bakHash === targetHash) {
+                await fs.rm(bak)
+                removed.push(bak)
+            }
+        }
+    }
+
+    if (newBackup) {
+        const newHash = await contentHash(newBackup)
+        if (newHash) {
+            const remaining = backups.filter(b => !removed.includes(b) && b !== newBackup)
+            for (const bak of remaining) {
+                const bakHash = await contentHash(bak)
+                if (bakHash === newHash) {
+                    await fs.rm(newBackup)
+                    return {target, removed}
+                }
+            }
+        }
+        return {target, new: newBackup, removed}
+    }
+
+    return {target, removed}
 }
 
 export class FileTransaction {
@@ -201,9 +355,14 @@ export class FileTransaction {
             }
         }
 
-        const backupName = backup ? `${this.filePath}.${backupTimestamp}.bak.json` : undefined
-        await this._write(this.data, {backup: backupName})
-        return backupName ?? null
+        const opts: SaveFileOptions = {backup: backup ? true : undefined}
+        await this._write(this.data, opts)
+        if (typeof opts.backup === "string") {
+            const finalName = `${this.filePath}.${backupTimestamp}.bak.json`
+            await fs.rename(opts.backup, finalName)
+            return finalName
+        }
+        return null
     }
 
     validate($throw: boolean = false): ValidationResult {
@@ -294,13 +453,20 @@ export class FileTransaction {
      *
      * @param data The in-memory data to serialize and write.
      * @param options Options forwarded to saveFile (stringify, backup, snapshot).
+     *                Mutated in place: backup may change from true → path string.
      */
     protected async _write(data: unknown, options: SaveFileOptions = {}): Promise<void> {
-        await saveFile(this.filePath, data, {
-            stringify: false,
-            snapshot: this.snapshot ?? undefined,
-            ...options,
-        })
+        const wasAutoBackup = options.backup === true
+
+        options.stringify ??= false
+        options.snapshot ??= this.snapshot ?? undefined
+
+        await saveFile(this.filePath, data, options)
+
+        if (wasAutoBackup && typeof options.backup === "string") {
+            const result = await consolidateBackups(this.filePath, options.backup)
+            options.backup = result.new
+        }
     }
 }
 
