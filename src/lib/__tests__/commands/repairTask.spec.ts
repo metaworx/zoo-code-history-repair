@@ -38,6 +38,7 @@ vi.mock("../../paths.js", () => ({
     resolveTasksDir: mockResolveTasksDir,
     resolveIndexPath: mockResolveIndexPath,
     HISTORY_ITEM_NAME: "history_item.json",
+    UI_MESSAGES_NAME: "ui_messages.json",
 }))
 
 vi.mock("../../repairTask.js", () => ({

@@ -1,6 +1,7 @@
 import {scanStorage} from "../scan.js"
 import {recoverabilityScore} from "../scanOutput.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
+import {UI_MESSAGES_NAME} from "../paths.js";
 
 export const name = "list-corrupt"
 export const summary = "List only corrupted task ids"
@@ -14,7 +15,7 @@ With --json, outputs a JSON array of corruption entries.`
 export const additionalHelp = ABBREV_HELP
 
 export const options: Array<[string, string, unknown]> = [
-    ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
+    ["--verify-ui-sync", `Compare ${UI_MESSAGES_NAME} against ACH-derived reconstruction`, false],
     ["--json", "Output machine-parseable JSON", false],
     ["--no-summary", "Suppress summary line", true],
     ["--no-warnings", "Suppress warning-level corruption reasons", true],

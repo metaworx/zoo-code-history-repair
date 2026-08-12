@@ -22,6 +22,9 @@ vi.mock("../../cliContext.js", () => ({
 
 vi.mock("../../paths.js", () => ({
     resolveTasksDir: mockResolveTasksDir,
+    DEFAULT_INDEX_BASENAME: "_index",
+    DEFAULT_INDEX_NAME: "_index.json",
+    HISTORY_ITEM_NAME: "history_item.json",
 }))
 
 vi.mock("../../IndexTransaction.js", () => ({
@@ -94,7 +97,7 @@ describe("rebuildIndex command", () => {
 
         await action({force: false, backup: false})
 
-        expect(mockRepair).toHaveBeenCalledWith(false, undefined, {
+        expect(mockRepair).toHaveBeenCalledWith(undefined, {
             dryRun: true,
             backup: false,
         })

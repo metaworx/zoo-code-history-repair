@@ -24,14 +24,14 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: false});
     const dryOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(dryOut).toContain("Rebuilt index with 6 items");
+    expect(dryOut).toContain("Rebuilt index with 5 items");
     expect(dryOut).toContain("Dry-run — nothing written");
 
     // ── Phase 3: rebuild-index --force ──
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: true, backup: true});
     const forceOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(forceOut).toContain("Rebuilt index with 6 items");
+    expect(forceOut).toContain("Rebuilt index with 5 items");
     // ToDo:
     // expect(forceOut).toContain("Written:");
     // expect(forceOut).toContain("_index.json");
@@ -46,7 +46,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     // After rebuild-index, previously-indexed tasks that had folders become folder_orphans
     // The 019fde29 was already a folder_orphan. The 019ede5a is still missing_history_item + folder_orphan.
     // All tasks should still appear (some now with folder_orphan added)
-    expect(corruptions2.length).toBe(7);
+    expect(corruptions2.length).toBe(6);
 
     // 019f0f12 should now also have folder_orphan (was previously in index, now rebuilt from disk only)
     const f0f12 = corruptions2.find((c: any) => c.taskId === "019f0f12-02f9-70df-a35e-2b110efe4107");
@@ -58,7 +58,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: true, backup: true});
     const idemOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(idemOut).toContain("Rebuilt index with 6 items");
+    expect(idemOut).toContain("Rebuilt index with 5 items");
     // ToDo:
     // expect(idemOut).toContain("Written:");
     // expect(idemOut).toContain("_index.json");

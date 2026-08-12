@@ -1,4 +1,4 @@
-import {guessStorageRoots} from "./paths.js"
+import {API_HISTORY_NAME, DEFAULT_INDEX_NAME, guessStorageRoots, HISTORY_ITEM_NAME, UI_MESSAGES_NAME} from "./paths.js"
 
 let _root: string | undefined
 
@@ -45,8 +45,8 @@ export function getVersionBanner(): string {
 
 export const ABBREV_HELP = `
 Output abbreviations:
-  ach  = api_conversation_history.json
+  ach  = ${API_HISTORY_NAME}
   calc = computed from task files on disk
-  hi   = history_item.json
-  uim  = ui_messages.json
-  idx  = _index.json`
+  hi   = ${HISTORY_ITEM_NAME}
+  uim  = ${UI_MESSAGES_NAME}
+  idx  = ${DEFAULT_INDEX_NAME}`

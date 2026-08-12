@@ -1,11 +1,11 @@
 import {scanStorage} from "../scan.js"
 import {taskMatch, truncate} from "../format.js"
 import {align, alignSummary, countEntries, recoverabilityScore} from "../scanOutput.js"
-import {API_HISTORY_NAME, UI_MESSAGES_NAME} from "../paths.js"
+import {API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME} from "../paths.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 
 export const name = "scan"
-export const summary = "Scan _index.json + task directories for corruption"
+export const summary = `Scan _index.json + task directories for corruption`
 export const description = `${summary}.
 
 Reads the _index.json and all task directories, cross-references entries,
@@ -19,20 +19,20 @@ Corruption reasons detected by scan:
   1. placeholder_task_name — task field matches "Task #N" / "Task #N (Incomplete)" pattern
   2. zero_size              — size field is 0 or null/missing (on disk or in index)
   3. missing_task_text      — disk task field is empty or whitespace-only
-  4. missing_history_item   — history_item.json is missing or unreadable
+  4. missing_history_item   — ${HISTORY_ITEM_NAME} is missing or unreadable
   5. invalid_json           — (not yet produced) a JSON file is syntactically invalid or truncated
   6. missing_task_dir       — (not yet produced) an index entry has no corresponding task directory
-  7. empty_ui_messages      — ui_messages.json exists but contains an empty array
-  8. empty_api_history      — api_conversation_history.json exists but contains an empty array
-  9. index_orphan           — entry in _index.json has no task directory on disk
- 10. folder_orphan          — task directory on disk is absent from _index.json
- 11. ui_sync_mismatch       — (opt-in) ui_messages.json differs from ACH-derived reconstruction
+  7. empty_ui_messages      — ${UI_MESSAGES_NAME} exists but contains an empty array
+  8. empty_api_history      — ${API_HISTORY_NAME} exists but contains an empty array
+  9. index_orphan           — entry in ${DEFAULT_INDEX_NAME} has no task directory on disk
+ 10. folder_orphan          — task directory on disk is absent from ${DEFAULT_INDEX_NAME}
+ 11. ui_sync_mismatch       — (opt-in) ${UI_MESSAGES_NAME} differs from ACH-derived reconstruction
  12. interrupted_task       — task appears interrupted (last turn ends with tool_use + other corruption)
  13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries
 ${ABBREV_HELP}`
 
 export const options: Array<[string, string, unknown]> = [
-    ["--verify-ui-sync", "Compare ui_messages.json against ACH-derived reconstruction", false],
+    ["--verify-ui-sync", `Compare ${UI_MESSAGES_NAME} against ACH-derived reconstruction`, false],
     ["--json", "Output machine-parseable JSON", false],
     ["--quiet", "Suppress per-task detail lines (summary only)", false],
     ["--no-summary", "Suppress header summary block", true],

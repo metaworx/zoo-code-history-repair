@@ -35,6 +35,7 @@ vi.mock("../../cliContext.js", () => ({
 vi.mock("../../paths.js", () => ({
     resolveTasksDir: mockResolveTasksDir,
     resolveIndexPath: mockResolveIndexPath,
+    DEFAULT_INDEX_NAME: "_index.json",
 }))
 
 vi.mock("../../IndexTransaction.js", () => ({

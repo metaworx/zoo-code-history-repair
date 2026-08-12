@@ -32,6 +32,9 @@ vi.mock("../../scanOutput.js", () => ({
 }))
 
 vi.mock("../../paths.js", () => ({
+    DEFAULT_INDEX_BASENAME: "_index",
+    DEFAULT_INDEX_NAME: "_index.json",
+    HISTORY_ITEM_NAME: "history_item.json",
     API_HISTORY_NAME: "api_conversation_history.json",
     UI_MESSAGES_NAME: "ui_messages.json",
 }))

@@ -3,6 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
 
+export const DEFAULT_INDEX_BASENAME = "_index"
 export const DEFAULT_INDEX_NAME = "_index.json"
 export const HISTORY_ITEM_NAME = "history_item.json"
 export const UI_MESSAGES_NAME = "ui_messages.json"

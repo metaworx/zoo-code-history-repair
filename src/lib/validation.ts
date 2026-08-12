@@ -1,7 +1,13 @@
 import path from "node:path"
 import fs from "node:fs/promises"
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
-import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
+import {
+    API_HISTORY_NAME,
+    DEFAULT_INDEX_NAME,
+    HISTORY_ITEM_NAME,
+    TASK_METADATA_NAME,
+    UI_MESSAGES_NAME,
+} from "./paths.js"
 import {JsonFileTransaction, resolveTarget} from "./file.js";
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {validateIndex} from "./validate/index.js";
@@ -256,19 +262,19 @@ export function warning(code: string, field: string, message: string, context?: 
 export function getValidatorByFile(filePath: string): ValidatorFn | undefined {
     const base = path.basename(filePath)
 
-    if (base === "_index.json")
+    if (base === DEFAULT_INDEX_NAME)
         return validateIndex
 
-    if (base === "history_item.json")
+    if (base === HISTORY_ITEM_NAME)
         return validateHistoryItem
 
-    if (base === "api_conversation_history.json")
+    if (base === API_HISTORY_NAME)
         return validateApiConversationHistory
 
-    if (base === "ui_messages.json")
+    if (base === UI_MESSAGES_NAME)
         return validateUiMessages
 
-    if (base === "task_metadata.json")
+    if (base === TASK_METADATA_NAME)
         return validateTaskMetadata
 
     return undefined;
@@ -313,7 +319,7 @@ export async function validatePath(target: string | undefined): Promise<Validate
 
             // Also validate the _index.json entry for this task with cross-references
             const parentDir = path.dirname(resolved)
-            const indexPath = path.join(parentDir, "_index.json")
+            const indexPath = path.join(parentDir, DEFAULT_INDEX_NAME)
             try {
                 await fs.access(indexPath)
                 const indexTx = new JsonFileTransaction(indexPath)
@@ -341,7 +347,7 @@ export async function validatePath(target: string | undefined): Promise<Validate
             }
         } else {
             // Validate all task dirs + index (storage root)
-            const indexPath = path.join(resolved, "_index.json")
+            const indexPath = path.join(resolved, DEFAULT_INDEX_NAME)
             try {
                 await fs.access(indexPath)
                 const file = new JsonFileTransaction(indexPath)

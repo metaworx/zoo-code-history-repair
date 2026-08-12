@@ -3,7 +3,7 @@
     "storageRoot": ".\\tests\\fixtures\\",
     "tasksDir": "tests\\fixtures\\tasks",
     "indexPath": "tests\\fixtures\\tasks\\_index.json",
-    "indexItemCount": 10,
+    "indexItemCount": 8,
     "taskDirCount": 11,
     "corruptions": [
         {
@@ -22,6 +22,36 @@
             "recoverability": "0%",
             "achEntries": 0,
             "uimEntries": 0
+        },
+        {
+            "taskId": "019fb786-503a-76ca-8708-fee1243c878d",
+            "dir": "tests\\fixtures\\tasks\\019fb786-503a-76ca-8708-fee1243c878d",
+            "reasons": [
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "0%",
+            "achEntries": 516,
+            "uimEntries": 1,
+            "diskTask": "egan in a mild voice such as children use when they wish to be\npraised. “We have had an explanation today.”\n\n“Well, what happened? What did he say? Natásha, how glad I am\nyou’re not angry with me! Tel...",
+            "sizeDisk": 1681939
+        },
+        {
+            "taskId": "019fddaa-5136-7106-abef-adac81fd56a3",
+            "dir": "tests\\fixtures\\tasks\\019fddaa-5136-7106-abef-adac81fd56a3",
+            "reasons": [
+                {
+                    "reason": "folder_orphan",
+                    "source": "hi"
+                }
+            ],
+            "recoverability": "0%",
+            "achEntries": 1,
+            "uimEntries": 3,
+            "diskTask": "did not\ndesire war",
+            "sizeDisk": 4769
         }
     ]
 }

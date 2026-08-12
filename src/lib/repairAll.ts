@@ -72,7 +72,7 @@ export async function repairAllCorrupted(
     let indexRemoved: string[] = []
 
     const idx = new IndexTransaction(false)
-    const rebuildResult = await idx.repair(true, undefined, {
+    const rebuildResult = await idx.repair(undefined, {
         dryRun: options.dryRun,
         backup: options.backup !== false,
     })

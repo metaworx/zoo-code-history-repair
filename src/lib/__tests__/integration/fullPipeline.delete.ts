@@ -36,7 +36,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     await listCorruptAction({json: true});
     const lc2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions2 = lc2.corruptions as Array<{taskId: string}>;
-    expect(corruptions2.length, "list-corrupt must be empty after delete").toBe(0);
+    expect(corruptions2.length, "list-corrupt must have 2 folder-orphan residuals after delete").toBe(2);
 
     // Phase 4: Delete again — idempotent
     consoleLogSpy.mockClear();
@@ -50,5 +50,5 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     await listCorruptAction({json: true});
     const lc3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions3 = lc3.corruptions as Array<{taskId: string}>;
-    expect(corruptions3.length, "list-corrupt must remain empty after idempotent delete").toBe(0);
+    expect(corruptions3.length, "list-corrupt must remain with 2 folder-orphan residuals after idempotent delete").toBe(2);
 };

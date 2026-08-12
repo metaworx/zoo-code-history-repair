@@ -1,6 +1,6 @@
 import {formatRepairParts} from "../repairTask.js"
 import {repairAllCorrupted} from "../repairAll.js"
-import {resolveTasksDir} from "../paths.js"
+import {DEFAULT_INDEX_NAME, resolveTasksDir, UI_MESSAGES_NAME} from "../paths.js"
 import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
 import {c, colorize} from "../format.js"
 import {alignSummary} from "../scanOutput.js"
@@ -24,7 +24,7 @@ export const options = [
     ["--no-backup", "Skip creating timestamped backup files"],
     ["--verbose", "Show all processed tasks including skipped", false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
-    ["--verify-ui-sync", "Verify ui_messages.json sync with ACH reconstruction", false],
+    ["--verify-ui-sync", `Verify ${UI_MESSAGES_NAME} sync with ACH reconstruction`, false],
 ] as const
 
 const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
@@ -79,7 +79,7 @@ export async function action(cmdOpts: {
         if (ra.indexAdded.length > 0) addendum.push(`+${ra.indexAdded.length} added: ${ra.indexAdded.join(", ")}`)
         if (ra.indexRemoved.length > 0) addendum.push(`−${ra.indexRemoved.length} removed: ${ra.indexRemoved.join(", ")}`)
         const extra = addendum.length > 0 ? ` (${addendum.join(", ")})` : ""
-        console.log(`_index.json rebuilt: ${ra.indexEntries} entries${extra}`)
+        console.log(`${DEFAULT_INDEX_NAME} rebuilt: ${ra.indexEntries} entries${extra}`)
     }
 
     const prefix = cmdOpts.force ? "" : "[DRY-RUN] "

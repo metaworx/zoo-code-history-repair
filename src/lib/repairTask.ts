@@ -111,7 +111,7 @@ export async function repairTaskDir(
 
     if (!apiHistory || !Array.isArray(apiHistory)) {
         result.unrepairable = true
-        result.errors.push("missing or invalid api_conversation_history.json — cannot repair")
+        result.errors.push(`missing or invalid ${API_HISTORY_NAME} — cannot repair`)
         result.hint = `This task cannot be repaired. Remove it with: zoo-code-history-repair delete ${taskId} --force`
         return result
     }
@@ -250,7 +250,7 @@ export async function repairTaskDir(
             result.touchedFiles.push(HISTORY_ITEM_NAME)
         }
     } else {
-        result.errors.push("missing history_item.json — cannot repair task or size")
+        result.errors.push(`missing ${HISTORY_ITEM_NAME} — cannot repair task or size`)
         result.hint = `This task cannot be repaired. Remove it with: zoo-code-history-repair delete ${taskId} --force`
     }
 

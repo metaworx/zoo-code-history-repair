@@ -1,5 +1,5 @@
 import path from "node:path"
-import {HISTORY_ITEM_NAME, resolveTasksDir} from "../paths.js"
+import {HISTORY_ITEM_NAME, resolveTasksDir, UI_MESSAGES_NAME} from "../paths.js"
 import {JsonFileTransaction} from "../file.js";
 import {IndexTransaction} from "../IndexTransaction.js"
 import {formatRepairParts, repairTaskDir} from "../repairTask.js"
@@ -27,7 +27,7 @@ export const additionalHelp = ABBREV_HELP
 export const options = [
     ["--force", "Actually write changes (default: dry-run)", false],
     ["--no-backup", "Do not create timestamped backup files"],
-    ["--force-uim", "Force ui_messages.json rebuild even when not corrupt", false],
+    ["--force-uim", `Force ${UI_MESSAGES_NAME} rebuild even when not corrupt`, false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
 ] as const
 
