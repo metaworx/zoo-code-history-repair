@@ -43,7 +43,7 @@ export class IndexTransaction extends JsonFileTransaction {
         const root = resolveRoot()
         const tasksDir = resolveTasksDir(root)
         const indexPath = resolveIndexPath(tasksDir)
-        super(indexPath, readOnly, [])
+        super(indexPath, readOnly)
         this.storageRoot = root
         this.tasksDir = tasksDir
     }
