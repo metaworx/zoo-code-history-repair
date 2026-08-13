@@ -82,14 +82,19 @@ console.error(`Scramble source: ${Buffer.byteLength(LOREM_SOURCE, "utf8").toLoca
 
 // ── Field classification ────────────────────────────────────────────────────
 const UUID_FIELDS = new Set([
-    "id", "parentTaskId", "rootTaskId", "delegatedToId", "completedByChildId",
+    "id", "parentTaskId", "rootTaskId", "delegatedToId", "completedByChildId", "awaitingChildId",
 ]);
 const ENUM_FIELDS = new Set(["mode", "role", "type", "status"]);
 const UUID_ARRAY_FIELDS = new Set(["childIds"]);
 const PATH_FIELDS = new Set(["workspace"]);
 const PROVIDER_FIELDS = new Set(["apiConfigName"]);
 const PLACEHOLDER_TASK_RE = /^Task\s*#\s*\d+(\s*\(.*\))?$/i;
-const USER_MESSAGE_RE = /(<user_message>)([\s\S]*?)(<\/user_message>)/gi;
+// Value-based UUID preservation: a string that is itself a UUID is kept.
+const UUID_VALUE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_ANY_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+const TAG_RE = /<\/?[a-z][a-z0-9_]*>/i
+// Split/matching variant — preserves XML-ish tags and embedded UUIDs.
+const TOKEN_SPLIT_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|<\/?[a-z][a-z0-9_]*>/gi
 
 // ── Path detection ──────────────────────────────────────────────────────────
 
@@ -142,6 +147,18 @@ function loremExact(targetBytes: number): string {
     return buf.slice(offset, offset + targetBytes).toString("utf8");
 }
 
+/** Scramble a string while preserving embedded UUIDs and XML-ish tags. */
+function scramblePreservingTokens(value: string): string {
+    const tokens = value.match(TOKEN_SPLIT_RE) ?? [];
+    const parts = value.split(TOKEN_SPLIT_RE);
+    let out = "";
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) out += loremExact(Buffer.byteLength(parts[i], "utf8"));
+        if (i < tokens.length) out += tokens[i];
+    }
+    return out;
+}
+
 // ── Core scramble logic ──────────────────────────────────────────────────────
 
 const globalReplacements = new Map<string, string>();
@@ -160,18 +177,16 @@ function scrambleString(value: string, key: string): string {
     if (result !== value) return result;
 
     if (globalReplacements.has(value)) return globalReplacements.get(value)!;
-    if (key === "task" && PLACEHOLDER_TASK_RE.test(value)) return value;
     if (UUID_FIELDS.has(key)) return value;
     if (UUID_ARRAY_FIELDS.has(key)) return value;
+    if (UUID_VALUE_RE.test(value)) return value;
+    if (key === "task" && PLACEHOLDER_TASK_RE.test(value)) return value;
     if (ENUM_FIELDS.has(key)) return value;
     if (PATH_FIELDS.has(key)) return genericPath(targetBytes);
     if (PROVIDER_FIELDS.has(key)) return genericProvider(targetBytes);
     if (looksLikeFilePath(value)) return genericPath(targetBytes);
-    if (USER_MESSAGE_RE.test(value)) {
-        return value.replace(USER_MESSAGE_RE, (_full, openTag: string, content: string, closeTag: string) => {
-            const scrambledContent = loremExact(Buffer.byteLength(content, "utf8"));
-            return openTag + scrambledContent + closeTag;
-        });
+    if (UUID_ANY_RE.test(value) || TAG_RE.test(value)) {
+        return scramblePreservingTokens(value);
     }
     return loremExact(targetBytes);
 }
