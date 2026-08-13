@@ -8,7 +8,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import {expect, vi} from "vitest";
+import {
+    expect,
+    vi
+} from "vitest";
 import {action as repairTaskAction} from "../../commands/repairTask.js";
 import {action as validateAction} from "../../commands/validate.js";
 import {action as listCorruptAction} from "../../commands/listCorrupt.js";
@@ -66,7 +69,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     consoleLogSpy.mockClear();
     await repairTaskAction(TASK_ID, {force: true, backup: true});
     const rOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(rOut).toContain(`${TASK_ID}: repaired ui(ach→uim), task(ach→hi), size(calc→hi), tokens(estimate→hi)`);
+    expect(rOut).toContain(`${TASK_ID}: repaired ui(ach→uim), task(ach→hi), size(calc→hi), tokens(estimate→hi), ach(interrupted→ach)`);
     expect(rOut).toContain("Backups:");
 
     // Backup files in output + on disk + checksums match originals

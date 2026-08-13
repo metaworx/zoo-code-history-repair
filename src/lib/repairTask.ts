@@ -1,14 +1,34 @@
 import path from "node:path"
 import type {HistoryItem} from "../types.js"
-import {API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
-import {JsonFileTransaction, listBackupsForTask} from "./file.js";
-import {inspectTaskDir, isPlaceholderTaskName} from "./validation.js";
+import {
+    API_HISTORY_NAME,
+    DEFAULT_INDEX_NAME,
+    HISTORY_ITEM_NAME,
+    TASK_METADATA_NAME,
+    UI_MESSAGES_NAME,
+} from "./paths.js"
+import {
+    JsonFileTransaction,
+    listBackupsForTask
+} from "./file.js";
+import {
+    inspectTaskDir,
+    isPlaceholderTaskName
+} from "./validation.js";
 import {readPartialJsonArray} from "./io/readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
-import {resolveReferences, type ReferenceSource} from "./resolveReferences.js"
+import {
+    type ReferenceSource,
+    resolveReferences
+} from "./resolveReferences.js"
 import {computeTaskSize} from "./size.js"
-import {estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost,} from "./estimateTokens.js"
+import {
+    estimateCacheReads,
+    estimateTokensIn,
+    estimateTokensOut,
+    estimateTotalCost,
+} from "./estimateTokens.js"
 
 export interface RepairResult {
     taskId: string
@@ -18,6 +38,7 @@ export interface RepairResult {
     tokensRepaired: boolean
     refsRepaired: boolean
     refsRecoverySources?: Array<ReferenceSource>
+    interruptedRepaired: boolean
     tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
     unrepairable: boolean
@@ -38,12 +59,27 @@ export function formatRepairParts(r: RepairResult): string[] {
         const src = r.tokensRecoverySource ?? "?"
         parts.push(`tokens(${src}→hi)`)
     }
+    if (r.interruptedRepaired) {
+        parts.push("ach(interrupted→ach)")
+    }
     if (r.refsRepaired) {
         for (const src of r.refsRecoverySources ?? []) {
             parts.push(`refs(${src}→hi)`)
         }
     }
     return parts
+}
+
+/** Return the id of the last assistant tool_use when the ACH ends with an unanswered tool call. */
+function lastUnansweredToolUseId(apiHistory: unknown[]): string | null {
+    if (!Array.isArray(apiHistory) || apiHistory.length === 0) return null
+    const lastTurn = apiHistory[apiHistory.length - 1] as Record<string, unknown> | null
+    if (!lastTurn || lastTurn.role !== "assistant" || !Array.isArray(lastTurn.content)) return null
+    const blocks = lastTurn.content as Array<Record<string, unknown>>
+    if (blocks.length === 0) return null
+    const lastBlock = blocks[blocks.length - 1]
+    if (!lastBlock || lastBlock.type !== "tool_use") return null
+    return typeof lastBlock.id === "string" ? lastBlock.id : null
 }
 
 /**
@@ -88,6 +124,7 @@ export async function repairTaskDir(
         sizeRepaired: false,
         tokensRepaired: false,
         refsRepaired: false,
+        interruptedRepaired: false,
         apiTruncated: false,
         unrepairable: false,
         errors: [],
@@ -133,7 +170,57 @@ export async function repairTaskDir(
     const corruption = await inspectTaskDir(taskId, taskDir, null, {})
     const reasonSet = new Set(corruption.reasons.map(r => r.reason))
 
-    // --- 1. Rebuild ui_messages.json ---
+    // --- 0. §9.1 synthetic failed tool_result for interrupted tasks ---
+    const interruptedToolUseId = lastUnansweredToolUseId(apiHistory)
+    if (interruptedToolUseId !== null) {
+        apiHistory.push({
+            role: "user",
+            content: [
+                {
+                    type: "tool_result",
+                    tool_use_id: interruptedToolUseId,
+                    is_error: true,
+                    content: "Task was interrupted before completion.",
+                },
+            ],
+        })
+        result.interruptedRepaired = true
+        if (!options.dryRun) {
+            apiTx.setData(apiHistory)
+            const bak = await apiTx.save(true, options.backup !== false)
+            if (bak) result.backups.push(bak)
+        }
+        if (!result.touchedFiles.includes(API_HISTORY_NAME)) {
+            result.touchedFiles.push(API_HISTORY_NAME)
+        }
+    }
+
+    // --- 1. Repair reference fields (before UI rebuild, so newTask taskIds resolve) ---
+    let hiModified = false
+    if (historyItem && options.fullIndex) {
+        const taskIds = options.taskIds ?? new Set(options.fullIndex.keys())
+        const backups: string[] = []
+        const tasksDir = path.dirname(taskDir)
+        for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
+            backups.push(b.bakPath)
+        }
+        for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
+            backups.push(b.bakPath)
+        }
+        const resolution = resolveReferences(historyItem, {
+            fullIndex: options.fullIndex,
+            taskIds,
+            ach: apiHistory,
+            backups,
+        })
+        if (resolution.changed) {
+            result.refsRepaired = true
+            result.refsRecoverySources = [...new Set(resolution.recovered.map(r => r.source))]
+            hiModified = true
+        }
+    }
+
+    // --- 2. Rebuild ui_messages.json ---
     const uiTx = new JsonFileTransaction(uiPath, false, [])
     await uiTx.load(false)
     const existingUi = uiTx.getData() as unknown[] | null
@@ -141,7 +228,13 @@ export async function repairTaskDir(
     const shouldRebuildUi = existingIsEmpty || options.forceUim || reasonSet.has("empty_ui_messages")
 
     if (shouldRebuildUi) {
-        const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0])
+        const newUi = rebuildUiMessages(
+            apiHistory as Parameters<typeof rebuildUiMessages>[0],
+            {
+                childIds: historyItem?.childIds as string[] | undefined,
+                delegatedToId: historyItem?.delegatedToId as string | undefined,
+            },
+        )
         if (newUi.length > 0) {
             if (!options.dryRun) {
                 uiTx.setData(newUi)
@@ -155,9 +248,9 @@ export async function repairTaskDir(
         }
     }
 
-    // --- 2. Repair history_item.json task field ---
+    // --- 3. Repair history_item.json task field ---
     if (historyItem) {
-        let modified = false
+        let modified = hiModified
 
         const taskText = historyItem.task?.trim()
         const isMissing = !taskText
@@ -235,30 +328,6 @@ export async function repairTaskDir(
                 if (historyItem.cacheWrites === undefined || historyItem.cacheWrites === null) {
                     historyItem.cacheWrites = 0
                 }
-            }
-        }
-
-        // --- 3b. Repair reference fields ---
-        if (options.fullIndex) {
-            const taskIds = options.taskIds ?? new Set(options.fullIndex.keys())
-            const backups: string[] = []
-            const tasksDir = path.dirname(taskDir)
-            for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
-                backups.push(b.bakPath)
-            }
-            for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
-                backups.push(b.bakPath)
-            }
-            const resolution = resolveReferences(historyItem, {
-                fullIndex: options.fullIndex,
-                taskIds,
-                ach: apiHistory,
-                backups,
-            })
-            if (resolution.changed) {
-                result.refsRepaired = true
-                result.refsRecoverySources = [...new Set(resolution.recovered.map(r => r.source))]
-                modified = true
             }
         }
 

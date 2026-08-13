@@ -1,5 +1,7 @@
-import { rebuildUiMessages, snakeToCamel } from "../rebuildUiMessages.js"
-import type { UiMessageEvent } from "../rebuildUiMessages.js"
+import {
+    rebuildUiMessages,
+    snakeToCamel
+} from "../rebuildUiMessages.js"
 
 describe("snakeToCamel", () => {
     it("converts simple underscore_case", () => {
@@ -32,7 +34,7 @@ describe("rebuildUiMessages", () => {
 
     it("returns empty array for turns with empty content", () => {
         expect(
-            rebuildUiMessages([{ role: "user", content: [] }]),
+            rebuildUiMessages([{role: "user", content: []}]),
         ).toEqual([])
     })
 
@@ -40,7 +42,7 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "text", text: "Hello world" }],
+                content: [{type: "text", text: "Hello world"}],
                 ts: 1000,
             },
         ])
@@ -56,7 +58,7 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "text", text: "   " }],
+                content: [{type: "text", text: "   "}],
                 ts: 1000,
             },
         ])
@@ -67,31 +69,31 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "assistant",
-                content: [{ type: "text", text: "Sure!" }],
+                content: [{type: "text", text: "Sure!"}],
                 ts: 1000,
             },
         ])
         expect(events).toHaveLength(1)
-        expect(events[0]).toMatchObject({ say: "text", text: "Sure!" })
+        expect(events[0]).toMatchObject({say: "text", text: "Sure!"})
     })
 
     it("maps assistant reasoning block to say:reasoning event", () => {
         const events = rebuildUiMessages([
             {
                 role: "assistant",
-                content: [{ type: "reasoning", text: "Let me think..." }],
+                content: [{type: "reasoning", text: "Let me think..."}],
                 ts: 1000,
             },
         ])
         expect(events).toHaveLength(1)
-        expect(events[0]).toMatchObject({ say: "reasoning", text: "Let me think..." })
+        expect(events[0]).toMatchObject({say: "reasoning", text: "Let me think..."})
     })
 
     it("skips empty reasoning text", () => {
         const events = rebuildUiMessages([
             {
                 role: "assistant",
-                content: [{ type: "reasoning", text: "" }],
+                content: [{type: "reasoning", text: ""}],
                 ts: 1000,
             },
         ])
@@ -107,14 +109,14 @@ describe("rebuildUiMessages", () => {
                         type: "tool_use",
                         name: "read_file",
                         id: "toolu_01",
-                        input: { path: "/foo/bar.ts", isOutsideWorkspace: false },
+                        input: {path: "/foo/bar.ts", isOutsideWorkspace: false},
                     },
                 ],
                 ts: 2000,
             },
         ])
         expect(events).toHaveLength(1)
-        expect(events[0]).toMatchObject({ say: "tool" })
+        expect(events[0]).toMatchObject({say: "tool"})
         const descriptor = JSON.parse(events[0].text)
         expect(descriptor).toMatchObject({
             tool: "readFile",
@@ -151,7 +153,7 @@ describe("rebuildUiMessages", () => {
         })
     })
 
-    it("maps tool_result block to say:tool event with concatenated content", () => {
+    it("skips successful tool_result", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
@@ -160,8 +162,29 @@ describe("rebuildUiMessages", () => {
                         type: "tool_result",
                         tool_use_id: "toolu_01",
                         content: [
-                            { type: "text", text: "Line 1" },
-                            { type: "text", text: "Line 2" },
+                            {type: "text", text: "Line 1"},
+                            {type: "text", text: "Line 2"},
+                        ],
+                    },
+                ],
+                ts: 4000,
+            },
+        ])
+        expect(events).toHaveLength(0)
+    })
+
+    it("maps failed tool_result (is_error) to say:error event", () => {
+        const events = rebuildUiMessages([
+            {
+                role: "user",
+                content: [
+                    {
+                        type: "tool_result",
+                        tool_use_id: "toolu_01",
+                        is_error: true,
+                        content: [
+                            {type: "text", text: "Line 1"},
+                            {type: "text", text: "Line 2"},
                         ],
                     },
                 ],
@@ -169,11 +192,11 @@ describe("rebuildUiMessages", () => {
             },
         ])
         expect(events).toHaveLength(1)
-        expect(events[0]).toMatchObject({ say: "tool" })
+        expect(events[0]).toMatchObject({say: "error"})
         expect(events[0].text).toBe("Line 1\nLine 2")
     })
 
-    it("handles string content items in tool_result", () => {
+    it("maps failed tool_result with string content to say:error", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
@@ -181,16 +204,38 @@ describe("rebuildUiMessages", () => {
                     {
                         type: "tool_result",
                         tool_use_id: "toolu_01",
-                        content: ["plain string", { type: "text", text: "structured" }],
+                        is_error: true,
+                        content: "Task was interrupted before completion.",
+                    },
+                ],
+                ts: 4000,
+            },
+        ])
+        expect(events).toHaveLength(1)
+        expect(events[0]).toMatchObject({say: "error"})
+        expect(events[0].text).toBe("Task was interrupted before completion.")
+    })
+
+    it("handles string content items in failed tool_result", () => {
+        const events = rebuildUiMessages([
+            {
+                role: "user",
+                content: [
+                    {
+                        type: "tool_result",
+                        tool_use_id: "toolu_01",
+                        is_error: true,
+                        content: ["plain string", {type: "text", text: "structured"}],
                     },
                 ],
                 ts: 5000,
             },
         ])
+        expect(events[0].say).toBe("error")
         expect(events[0].text).toBe("plain string\nstructured")
     })
 
-    it("serializes resource-type content as JSON in tool_result", () => {
+    it("serializes resource-type content as JSON in failed tool_result", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
@@ -198,14 +243,16 @@ describe("rebuildUiMessages", () => {
                     {
                         type: "tool_result",
                         tool_use_id: "toolu_01",
-                        content: [{ type: "resource", uri: "file:///x" }],
+                        is_error: true,
+                        content: [{type: "resource", uri: "file:///x"}],
                     },
                 ],
                 ts: 6000,
             },
         ])
+        expect(events[0].say).toBe("error")
         const parsed = JSON.parse(events[0].text)
-        expect(parsed).toMatchObject({ type: "resource", uri: "file:///x" })
+        expect(parsed).toMatchObject({type: "resource", uri: "file:///x"})
     })
 
     it("maps image block (user) to say:text with placeholder", () => {
@@ -215,7 +262,7 @@ describe("rebuildUiMessages", () => {
                 content: [
                     {
                         type: "image",
-                        source: { type: "base64", media_type: "image/png", data: "abc" },
+                        source: {type: "base64", media_type: "image/png", data: "abc"},
                     },
                 ],
                 ts: 7000,
@@ -236,7 +283,7 @@ describe("rebuildUiMessages", () => {
                 content: [
                     {
                         type: "image",
-                        source: { media_type: "image/jpeg" },
+                        source: {media_type: "image/jpeg"},
                     },
                 ],
                 ts: 8000,
@@ -249,7 +296,7 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "image" }],
+                content: [{type: "image"}],
                 ts: 9000,
             },
         ])
@@ -261,9 +308,9 @@ describe("rebuildUiMessages", () => {
             {
                 role: "assistant",
                 content: [
-                    { type: "reasoning", text: "A" },
-                    { type: "text", text: "B" },
-                    { type: "tool_use", name: "read_file", id: "t1", input: {} },
+                    {type: "reasoning", text: "A"},
+                    {type: "text", text: "B"},
+                    {type: "tool_use", name: "read_file", id: "t1", input: {}},
                 ],
                 ts: 100,
             },
@@ -277,12 +324,12 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "text", text: "Q1" }],
+                content: [{type: "text", text: "Q1"}],
                 ts: 10,
             },
             {
                 role: "assistant",
-                content: [{ type: "text", text: "A1" }],
+                content: [{type: "text", text: "A1"}],
                 ts: 20,
             },
         ])
@@ -297,7 +344,7 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "text", text: "No ts" }],
+                content: [{type: "text", text: "No ts"}],
             },
         ])
         expect(events[0].ts).toBe(0)
@@ -307,7 +354,7 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "unknown_block", text: "ignored" }],
+                content: [{type: "unknown_block", text: "ignored"}],
                 ts: 1000,
             },
         ])
@@ -318,18 +365,18 @@ describe("rebuildUiMessages", () => {
         const events = rebuildUiMessages([
             {
                 role: "user",
-                content: [{ type: "text", text: "Fix the bug" }],
+                content: [{type: "text", text: "Fix the bug"}],
                 ts: 100,
             },
             {
                 role: "assistant",
                 content: [
-                    { type: "reasoning", text: "I should check the code" },
+                    {type: "reasoning", text: "I should check the code"},
                     {
                         type: "tool_use",
                         name: "read_file",
                         id: "tu1",
-                        input: { path: "/src/bug.ts" },
+                        input: {path: "/src/bug.ts"},
                     },
                 ],
                 ts: 200,
@@ -340,7 +387,8 @@ describe("rebuildUiMessages", () => {
                     {
                         type: "tool_result",
                         tool_use_id: "tu1",
-                        content: [{ type: "text", text: "line1\nline2" }],
+                        is_error: true,
+                        content: [{type: "text", text: "line1\nline2"}],
                     },
                 ],
                 ts: 300,
@@ -348,12 +396,112 @@ describe("rebuildUiMessages", () => {
         ])
 
         expect(events).toHaveLength(4)
-        expect(events[0]).toMatchObject({ say: "text", text: "Fix the bug", ts: 100 })
+        expect(events[0]).toMatchObject({say: "text", text: "Fix the bug", ts: 100})
         // counter is global across all turns:
         // events[0] ts=100+0=100, events[1] ts=200+1=201,
         // events[2] ts=200+2=202, events[3] ts=300+3=303
-        expect(events[1]).toMatchObject({ say: "reasoning", ts: 201 })
-        expect(events[2]).toMatchObject({ say: "tool", ts: 202 })
-        expect(events[3]).toMatchObject({ say: "tool", ts: 303 })
+        expect(events[1]).toMatchObject({say: "reasoning", ts: 201})
+        expect(events[2]).toMatchObject({say: "tool", ts: 202})
+        expect(events[3]).toMatchObject({say: "error", ts: 303, text: "line1\nline2"})
+    })
+
+    it("strips <environment_details> from user text", () => {
+        const events = rebuildUiMessages([
+            {
+                role: "user",
+                content: [
+                    {
+                        type: "text",
+                        text: "Fix the bug\n<environment_details>some details</environment_details>",
+                    },
+                ],
+                ts: 100,
+            },
+        ])
+        expect(events).toHaveLength(1)
+        expect(events[0].text).toBe("Fix the bug")
+    })
+
+    it("strips <environment_details> from assistant text", () => {
+        const events = rebuildUiMessages([
+            {
+                role: "assistant",
+                content: [
+                    {
+                        type: "text",
+                        text: "Done\n<environment_details>details</environment_details>",
+                    },
+                ],
+                ts: 100,
+            },
+        ])
+        expect(events[0].text).toBe("Done")
+    })
+
+    it("maps new_task tool_use to newTask descriptor with taskId from childIds", () => {
+        const events = rebuildUiMessages(
+            [
+                {
+                    role: "assistant",
+                    content: [
+                        {
+                            type: "tool_use",
+                            name: "new_task",
+                            id: "toolu_nt1",
+                            input: {mode: "code", message: "Implement X"},
+                        },
+                    ],
+                    ts: 100,
+                },
+            ],
+            {childIds: ["child-uuid-1"]},
+        )
+        expect(events).toHaveLength(1)
+        expect(events[0]).toMatchObject({say: "tool"})
+        const descriptor = JSON.parse(events[0].text)
+        expect(descriptor).toEqual({
+            tool: "newTask",
+            mode: "code",
+            content: "Implement X",
+            taskId: "child-uuid-1",
+        })
+    })
+
+    it("resolves newTask taskIds by order-matching multiple childIds", () => {
+        const events = rebuildUiMessages(
+            [
+                {
+                    role: "assistant",
+                    content: [
+                        {type: "tool_use", name: "new_task", id: "n1", input: {mode: "code", message: "A"}},
+                        {type: "tool_use", name: "newTask", id: "n2", input: {mode: "architect", message: "B"}},
+                    ],
+                    ts: 100,
+                },
+            ],
+            {childIds: ["child-1", "child-2"]},
+        )
+        expect(events).toHaveLength(2)
+        expect(JSON.parse(events[0].text)).toMatchObject({tool: "newTask", content: "A", taskId: "child-1"})
+        expect(JSON.parse(events[1].text)).toMatchObject({tool: "newTask", content: "B", taskId: "child-2"})
+    })
+
+    it("uses delegatedToId for the last newTask when childIds are exhausted", () => {
+        const events = rebuildUiMessages(
+            [
+                {
+                    role: "assistant",
+                    content: [
+                        {type: "tool_use", name: "new_task", id: "n1", input: {mode: "code", message: "A"}},
+                        {type: "tool_use", name: "new_task", id: "n2", input: {mode: "code", message: "B"}},
+                    ],
+                    ts: 100,
+                },
+            ],
+            {childIds: ["child-1"], delegatedToId: "awaiting-child"},
+        )
+        expect(events).toHaveLength(2)
+        expect(JSON.parse(events[0].text)).toMatchObject({tool: "newTask", taskId: "child-1"})
+        expect(JSON.parse(events[1].text)).toMatchObject({tool: "newTask", taskId: "awaiting-child"})
     })
 })

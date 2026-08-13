@@ -1,26 +1,28 @@
 /**
  * Reconstruct ui_messages.json from api_conversation_history.json.
  *
- * Mapping rules (verified against working reference task 019fd981):
+ * Mapping rules:
  *
  *   ACH block type       | role      | ui say       | ui text
  *   ---------------------|-----------|--------------|------------------------------------------
- *   text                 | user      | "text"       | block.text
- *   text                 | assistant | "text"       | block.text
+ *   text                 | user/asst | "text"       | block.text (env details stripped)
  *   reasoning            | assistant | "reasoning"  | block.text
  *   tool_use             | assistant | "tool"       | JSON descriptor {tool, path, ...}
- *   tool_result          | user      | "tool"       | concatenated result content
+ *   tool_use (new_task)  | assistant | "tool"       | JSON descriptor {tool:"newTask", mode, content, taskId}
+ *   tool_result (error)  | user      | "error"      | concatenated result content
+ *   tool_result (ok)     | user      | (skipped)    | —
  *   image                | user/asst | "text"       | "[Image: media/type]" placeholder
  *
  * Timestamps: turn-level ts + monotonic +1ms increments within each turn.
  * Tool names: underscore_case → camelCase.
  * MCP tools (mcp-- prefix) include serverName, toolName, arguments in the descriptor.
+ * newTask rows resolve taskId by order-matching parent childIds + delegatedToId.
  */
 
 export interface UiMessageEvent {
     ts: number
     type: "say"
-    say: "text" | "reasoning" | "tool"
+    say: "text" | "reasoning" | "tool" | "error"
     text: string
     partial?: boolean
 }
@@ -38,7 +40,8 @@ interface AchBlock {
     id?: string
     input?: Record<string, unknown>
     tool_use_id?: string
-    content?: Array<{ type: string; text?: string } | string>
+    is_error?: boolean
+    content?: string | Array<{ type: string; text?: string } | string>
     source?: { type: string; media_type?: string; data?: string }
 }
 
@@ -82,6 +85,8 @@ function buildToolUseDescriptor(block: AchBlock): string {
 
 function buildToolResultText(block: AchBlock): string {
     const parts = block.content ?? []
+    if (typeof parts === "string") return parts
+    if (!Array.isArray(parts)) return ""
     const texts: string[] = []
     for (const p of parts) {
         if (typeof p === "string") {
@@ -104,13 +109,72 @@ function buildImagePlaceholder(block: AchBlock): string {
     return `[Image: ${mediaType}]`
 }
 
+const ENV_DETAILS_RE = /<environment_details>[\s\S]*?<\/environment_details>/g
+
+/** Remove the injected <environment_details>…</environment_details> block from text. */
+function stripEnvironmentDetails(text: string): string {
+    return text.replace(ENV_DETAILS_RE, "").trim()
+}
+
+function isNewTaskBlock(block: AchBlock): boolean {
+    const name = block.name ?? ""
+    return name === "new_task" || name === "newTask"
+}
+
+function buildNewTaskDescriptor(block: AchBlock, taskId: string | undefined): string {
+    const input = block.input ?? {}
+    const payload: Record<string, unknown> = {
+        tool: "newTask",
+        mode: (input.mode ?? "") as string,
+        content: (input.message ?? "") as string,
+    }
+    if (taskId) payload.taskId = taskId
+    return JSON.stringify(payload)
+}
+
+export interface RebuildUiContext {
+    /** Parent task's childIds, used to resolve newTask taskIds by position. */
+    childIds?: string[]
+    /** Parent task's delegatedToId — the currently-awaiting (last) child. */
+    delegatedToId?: string
+}
+
+function countNewTaskBlocks(apiHistory: AchTurn[]): number {
+    let count = 0
+    for (const turn of apiHistory) {
+        for (const block of turn.content ?? []) {
+            if (block.type === "tool_use" && isNewTaskBlock(block)) count++
+        }
+    }
+    return count
+}
+
+function resolveNewTaskId(
+    index: number,
+    total: number,
+    childIds: string[],
+    delegatedToId: string | undefined,
+): string | undefined {
+    if (index < childIds.length) return childIds[index]
+    if (index === total - 1 && delegatedToId) return delegatedToId
+    return undefined
+}
+
 /**
  * Reconstruct the full ui_messages.json event array from an
  * api_conversation_history.json turn array.
  */
-export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
+export function rebuildUiMessages(
+    apiHistory: AchTurn[],
+    context: RebuildUiContext = {},
+): UiMessageEvent[] {
+    const childIds = context.childIds ?? []
+    const delegatedToId = context.delegatedToId
+    const newTaskCount = countNewTaskBlocks(apiHistory)
+
     const events: UiMessageEvent[] = []
     let counter = 0
+    let newTaskIndex = 0
 
     for (const turn of apiHistory) {
         const baseTs = turn.ts ?? 0
@@ -121,8 +185,8 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
 
             if (role === "user") {
                 if (bt === "text") {
-                    const tc = block.text ?? ""
-                    if (!tc.trim()) continue
+                    const tc = stripEnvironmentDetails(block.text ?? "")
+                    if (!tc) continue
                     events.push({
                         ts: baseTs + counter,
                         type: "say",
@@ -132,15 +196,18 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
                     })
                     counter++
                 } else if (bt === "tool_result") {
-                    const rt = buildToolResultText(block)
-                    if (!rt) continue
-                    events.push({
-                        ts: baseTs + counter,
-                        type: "say",
-                        say: "tool",
-                        text: rt,
-                    })
-                    counter++
+                    if (block.is_error) {
+                        const rt = buildToolResultText(block)
+                        if (!rt) continue
+                        events.push({
+                            ts: baseTs + counter,
+                            type: "say",
+                            say: "error",
+                            text: rt,
+                        })
+                        counter++
+                    }
+                    // successful tool_result → skipped
                 } else if (bt === "image") {
                     events.push({
                         ts: baseTs + counter,
@@ -164,8 +231,8 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
                     })
                     counter++
                 } else if (bt === "text") {
-                    const tc = block.text ?? ""
-                    if (!tc.trim()) continue
+                    const tc = stripEnvironmentDetails(block.text ?? "")
+                    if (!tc) continue
                     events.push({
                         ts: baseTs + counter,
                         type: "say",
@@ -175,7 +242,14 @@ export function rebuildUiMessages(apiHistory: AchTurn[]): UiMessageEvent[] {
                     })
                     counter++
                 } else if (bt === "tool_use") {
-                    const toolJson = buildToolUseDescriptor(block)
+                    const isNewTask = isNewTaskBlock(block)
+                    const toolJson = isNewTask
+                        ? buildNewTaskDescriptor(
+                            block,
+                            resolveNewTaskId(newTaskIndex, newTaskCount, childIds, delegatedToId),
+                        )
+                        : buildToolUseDescriptor(block)
+                    if (isNewTask) newTaskIndex++
                     events.push({
                         ts: baseTs + counter,
                         type: "say",
