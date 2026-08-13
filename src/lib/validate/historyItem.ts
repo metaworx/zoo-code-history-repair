@@ -265,28 +265,6 @@ export const historyItemForRepair = historyItemSchema.extend({
         }
     }
 
-    if (status === "completed") {
-        if (!item.parentTaskId) {
-            ctx.addIssue({
-                code: ZodIssueCode.custom,
-                message: "completed tasks must have parentTaskId",
-                path: ["parentTaskId"],
-                params: {severity: "error", code: "STATUS_COMPLETED_MISSING"},
-            })
-        }
-    }
-
-    if (status === "interrupted") {
-        if (!item.parentTaskId) {
-            ctx.addIssue({
-                code: ZodIssueCode.custom,
-                message: "interrupted tasks must have parentTaskId",
-                path: ["parentTaskId"],
-                params: {severity: "error", code: "STATUS_INTERRUPTED_MISSING"},
-            })
-        }
-    }
-
     if (status === "active") {
         if (item.awaitingChildId) {
             ctx.addIssue({

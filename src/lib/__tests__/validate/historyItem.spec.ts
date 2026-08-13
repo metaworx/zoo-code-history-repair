@@ -140,16 +140,16 @@ describe("validateHistoryItem", () => {
         expect(r.issues.some(i => i.code === "STATUS_DELEGATED_MISSING" && i.field.includes("delegatedToId"))).toBe(true)
     })
 
-    it("status=completed without parentTaskId → error", () => {
+    it("status=completed without parentTaskId → valid (top-level task)", () => {
         const r = validateHistoryItem(makeValidEntry({status: "completed", parentTaskId: undefined}))
-        expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "STATUS_COMPLETED_MISSING")).toBe(true)
+        expect(r.valid).toBe(true)
+        expect(r.errorCount).toBe(0)
     })
 
-    it("status=interrupted without parentTaskId → error", () => {
+    it("status=interrupted without parentTaskId → valid (abandoned child)", () => {
         const r = validateHistoryItem(makeValidEntry({status: "interrupted", parentTaskId: undefined}))
-        expect(r.valid).toBe(false)
-        expect(r.issues.some(i => i.code === "STATUS_INTERRUPTED_MISSING")).toBe(true)
+        expect(r.valid).toBe(true)
+        expect(r.errorCount).toBe(0)
     })
 
     it("status=active with awaitingChildId → error", () => {
