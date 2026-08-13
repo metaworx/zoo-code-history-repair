@@ -19,9 +19,20 @@ import {
 } from "./paths.js";
 
 export type FileType = "_index" | "api_conversation_history" | "history_item" | "task_metadata" | "ui_messages"
+
+/**
+ * Backup/restore type selection.
+ *
+ * The two `_index` flavors are distinct:
+ * - `_index` (a FileType) is the full index file `_index.json`; its backups use
+ *   the natural `_index.json.{ts}.bak.json` naming.
+ * - `_index.task` is the baseName of per-task index-entry extract backups
+ *   (`_index.task.{ts}.bak.json`), which restore to `history_item.json`.
+ * - `all` matches every type (list/delete only).
+ */
 export type BackupType = FileType | "_index.task" | "all"
 
-/** On-disk filename each FileType maps to. */
+/** On-disk filename (or backup baseName, for `_index.task`) each type maps to. */
 export const TYPE_FILENAME: Record<FileType | Exclude<BackupType, "all">, string> = {
     _index: DEFAULT_INDEX_NAME,
     api_conversation_history: API_HISTORY_NAME,
@@ -32,9 +43,13 @@ export const TYPE_FILENAME: Record<FileType | Exclude<BackupType, "all">, string
 }
 
 /**
- * The baseName a type's .bak.json files carry. For _index the `.json` suffix
- * is replaced by `.task`, marking a per-task index-entry backup (which
- * restores to history_item.json) as distinct from the global `_index.json`.
+ * The baseName a type's .bak.json files carry.
+ *
+ * `_index` maps to `_index.json` — the full index file, whose backups are
+ * `_index.json.{ts}.bak.json` (produced by `FileTransaction.save()` with
+ * `backup:true`). `_index.task` maps to the `_index.task` baseName carried by
+ * per-task index-entry extract backups (`_index.task.{ts}.bak.json`), which
+ * restore to `history_item.json`.
  */
 export function mapTypeToFileName(type: FileType | Exclude<BackupType, "all">): string {
     return TYPE_FILENAME[type]

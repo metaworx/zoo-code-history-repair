@@ -34,7 +34,7 @@ By default runs in dry-run mode. Use --force to actually write.`
 export const options = [
     ["--delete", "Delete backup files instead of restoring", false],
     ["--force", "Actually write changes (default: dry-run)", false],
-    ["--type <t>", "Backup type: history_item (restore/delete default), ui_messages, _index.task, all (list default)"],
+    ["--type <t>", "Backup type: history_item (restore/delete default), ui_messages, api_conversation_history, task_metadata, _index, _index.task, all (list default). _index.task is a per-task index-entry extract that restores to history_item.json; _index is the full index file backup"],
     ["--diff", "Show field-by-field diff instead of restoring", false],
 ] as const
 
