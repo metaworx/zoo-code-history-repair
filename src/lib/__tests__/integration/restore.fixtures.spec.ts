@@ -7,6 +7,7 @@ import path from "node:path";
 import {vi} from "vitest";
 import {
     deleteBackups,
+    diffBackup,
     listBackupsForType,
     restoreFromBackups
 } from "../../restore.js";
@@ -14,7 +15,8 @@ import {
     copyFixtureTasks,
     createTempDir,
     read,
-    touch
+    touch,
+    writeJson
 } from "../testHelpers.js";
 
 const mockReplaceId = vi.hoisted(() => vi.fn(async () => null));
@@ -275,6 +277,82 @@ describe("restore against fixtures (integration)", () => {
             const hi = JSON.parse(read(path.join(d, "history_item.json")));
             expect(hi).not.toHaveProperty("_removedReason");
             expect(hi).not.toHaveProperty("_removedAt");
+        });
+    });
+
+    describe("diffBackup", () => {
+        it("returns changed fields with dotted paths", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const backup = {childIds: ["a", "b"], meta: {x: 1}, tokensIn: 0};
+            const current = {childIds: ["a", "c"], meta: {x: 2}, tokensIn: 0};
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), JSON.stringify(backup));
+            writeJson(path.join(d, "history_item.json"), current);
+
+            const result = await diffBackup(tasksDir, "019f726a-0f50-711c-929e-9546e5100546", "20260808-054500");
+
+            expect(result.baseName).toBe("history_item.json");
+            expect(result.diffs).toHaveLength(2);
+            expect(result.diffs[0]).toEqual({field: "childIds[1]", backup: "b", current: "c"});
+            expect(result.diffs[1]).toEqual({field: "meta.x", backup: 1, current: 2});
+        });
+
+        it("counts unchanged fields correctly", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const backup = {task: "Task #1 (Incomplete)", tokensIn: 0, tokensOut: 0, id: "x", ts: 123};
+            const current = {task: "Fix the login bug", tokensIn: 50000, tokensOut: 12000, id: "x", ts: 123};
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), JSON.stringify(backup));
+            writeJson(path.join(d, "history_item.json"), current);
+
+            const result = await diffBackup(tasksDir, "019f726a-0f50-711c-929e-9546e5100546", "20260808-054500");
+
+            expect(result.diffs).toHaveLength(3);
+            expect(result.unchanged).toBe(2);
+        });
+
+        it("strips _removedReason/_removedAt for _index.task backups", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const entry = {
+                id: "x",
+                task: "from backup",
+                ts: 1,
+                _removedReason: "no_history_item",
+                _removedAt: 1234567890,
+            };
+            const current = {id: "x", task: "current", ts: 2};
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), JSON.stringify(entry));
+            writeJson(path.join(d, "history_item.json"), current);
+
+            const result = await diffBackup(
+                tasksDir,
+                "019f726a-0f50-711c-929e-9546e5100546",
+                "20260808-054500",
+                {type: "_index.task"},
+            );
+
+            const fields = result.diffs.map(e => e.field);
+            expect(fields).not.toContain("_removedReason");
+            expect(fields).not.toContain("_removedAt");
+            expect(result.diffs).toHaveLength(2);
+            expect(result.unchanged).toBe(1);
+        });
+
+        it("handles currentMissing (target file absent)", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), JSON.stringify({a: 1}));
+            fs.rmSync(path.join(d, "history_item.json"));
+
+            const result = await diffBackup(tasksDir, "019f726a-0f50-711c-929e-9546e5100546", "20260808-054500");
+
+            expect(result.currentMissing).toBe(true);
+            expect(result.backupMissing).toBe(false);
+            expect(result.diffs).toHaveLength(0);
+        });
+
+        it("handles backupMissing", async () => {
+            const result = await diffBackup(tasksDir, "019f726a-0f50-711c-929e-9546e5100546", "20260808-054500");
+
+            expect(result.backupMissing).toBe(true);
+            expect(result.currentMissing).toBe(false);
         });
     });
 

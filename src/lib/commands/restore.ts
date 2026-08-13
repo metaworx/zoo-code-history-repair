@@ -8,9 +8,11 @@ import {
     c,
     colorize
 } from "../format.js"
+import type {DiffResult} from "../restore.js"
 import type {BackupEntry} from "../file.js"
 import {
     deleteBackups,
+    diffBackup,
     listBackupsForType,
     restoreFromBackups
 } from "../restore.js"
@@ -33,20 +35,71 @@ export const options = [
     ["--delete", "Delete backup files instead of restoring", false],
     ["--force", "Actually write changes (default: dry-run)", false],
     ["--type <t>", "Backup type: history_item (restore/delete default), ui_messages, _index.task, all (list default)"],
+    ["--diff", "Show field-by-field diff instead of restoring", false],
 ] as const
 
 const dryRunDeleteMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
 const dryRunRestoreMsg = colorize("\n!!Dry-run — nothing written. Use --force to apply changes. !!", c.red)
 
+function formatDiffValue(value: unknown): string {
+    if (value === undefined) return "undefined"
+    return JSON.stringify(value)
+}
+
+function printDiff(diff: DiffResult, timestamp: string): void {
+    console.log(`Diff for ${diff.taskId}/${diff.baseName} (${timestamp}):`)
+    if (diff.currentMissing) {
+        console.log("  (current file does not exist — full restore)")
+        return
+    }
+    if (diff.backupMissing) {
+        console.log("  (backup file missing)")
+        return
+    }
+    for (const d of diff.diffs) {
+        console.log(`  ${d.field}: ${formatDiffValue(d.backup)} → ${formatDiffValue(d.current)}`)
+    }
+    console.log(`  ${diff.diffs.length} fields changed, ${diff.unchanged} fields unchanged`)
+}
+
+function typeFromBaseName(baseName: string): BackupType {
+    switch (baseName) {
+        case "ui_messages.json":
+            return "ui_messages"
+        case "api_conversation_history.json":
+            return "api_conversation_history"
+        case "task_metadata.json":
+            return "task_metadata"
+        case "_index.json":
+            return "_index"
+        case "_index.task":
+            return "_index.task"
+        default:
+            return "history_item"
+    }
+}
+
 export async function action(
     taskId: string | undefined,
     timestamp: string | undefined,
-    cmdOpts: { delete?: boolean; force?: boolean; type?: BackupType },
+    cmdOpts: { delete?: boolean; force?: boolean; type?: BackupType; diff?: boolean },
 ): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
 
     console.log(getVersionBanner())
+
+    if (cmdOpts.diff) {
+        if (!taskId || !timestamp) {
+            console.error("--diff requires a taskId and timestamp argument")
+            process.exit(1)
+        }
+
+        const diff = await diffBackup(tasksDir, taskId, timestamp, {type: cmdOpts.type})
+        printDiff(diff, timestamp)
+        if (diff.backupMissing) process.exit(1)
+        return
+    }
 
     if (cmdOpts.delete) {
         if (!taskId && !timestamp) {
@@ -126,6 +179,13 @@ export async function action(
         console.log(cmdOpts.force ? "Restored:" : "Would restore:")
         for (const e of result.restored) {
             console.log(`  ${e.taskId}: ${e.baseName} ← ${path.basename(e.bakPath)}`)
+        }
+
+        for (const e of result.restored) {
+            const diff = await diffBackup(tasksDir, e.taskId, e.timestamp, {
+                type: typeFromBaseName(e.baseName),
+            })
+            printDiff(diff, e.timestamp)
         }
     }
     if (result.skipped.length > 0) {

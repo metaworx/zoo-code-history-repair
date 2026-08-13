@@ -34,6 +34,21 @@ export interface DeleteOptions {
     type?: BackupType
 }
 
+export interface DiffEntry {
+    field: string        // dotted path, e.g. "task", "tokensIn", "childIds[0]"
+    backup: unknown      // value in the backup
+    current: unknown     // value in the current file (undefined if absent)
+}
+
+export interface DiffResult {
+    taskId: string
+    baseName: string     // e.g. "history_item.json" or "_index.task"
+    diffs: DiffEntry[]   // changed fields only
+    unchanged: number    // count of fields identical in both
+    currentMissing: boolean   // true when the current target file does not exist
+    backupMissing: boolean    // true when the backup file does not exist
+}
+
 /**
  * List backups of a single type across the task tree. The basename filter is
  * pushed down into file.ts's listBackups so the scan can skip non-matching
@@ -139,6 +154,138 @@ export async function deleteBackups(
     }
 
     return {deleted, skipped}
+}
+
+/**
+ * Diff a single backup against its current target file without restoring.
+ * Returns a field-by-field diff with dotted paths plus a count of unchanged
+ * leaf fields. For `_index.task` backups the target is `history_item.json`
+ * (same mapping as restore) and the backup's `_removedReason`/`_removedAt`
+ * metadata is stripped before comparison.
+ */
+export async function diffBackup(
+    tasksDir: string,
+    taskId: string,
+    timestamp: string,
+    opts: { type?: BackupType } = {},
+): Promise<DiffResult> {
+    const rawType = opts.type ?? DEFAULT_TYPE
+    const type: Exclude<BackupType, "all"> = rawType === "all" ? "history_item" : rawType
+    const basenames = mapTypeToFileNames(type)
+    const baseName = mapTypeToFileName(type)
+
+    const entries = (await listBackups(tasksDir, {taskId, basenames}))
+        .filter(e => e.timestamp === timestamp)
+
+    const entry = entries[0]
+
+    if (!entry || !(await fileExists(entry.bakPath))) {
+        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true}
+    }
+
+    const isIndex = entry.baseName === mapTypeToFileName("_index.task")
+    const taskDir = path.dirname(entry.bakPath)
+    const targetPath = isIndex
+        ? path.join(taskDir, HISTORY_ITEM_NAME)
+        : entry.basePath
+
+    const rawBackup = await readJsonFile(entry.bakPath)
+    if (rawBackup === null) {
+        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true}
+    }
+
+    const backupData = isIndex
+        ? stripBackupMetadata(rawBackup as Record<string, unknown>)
+        : rawBackup
+
+    if (!(await fileExists(targetPath))) {
+        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false}
+    }
+
+    const currentData = await readJsonFile(targetPath)
+    if (currentData === null) {
+        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false}
+    }
+
+    const diffs: DiffEntry[] = []
+    let unchanged = 0
+    diffObjects(backupData, currentData, "", diffs, () => {
+        unchanged++
+    })
+
+    return {taskId, baseName, diffs, unchanged, currentMissing: false, backupMissing: false}
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.access(filePath)
+        return true
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Deep-compare two parsed JSON values. Identical leaf fields increment the
+ * unchanged counter via `onUnchanged`; differing leaves are recorded with a
+ * dotted path (`childIds[0]` for arrays, `a.b` for objects).
+ */
+function diffObjects(
+    backup: unknown,
+    current: unknown,
+    path: string,
+    diffs: DiffEntry[],
+    onUnchanged: () => void,
+): void {
+    if (backup === current) {
+        onUnchanged()
+        return
+    }
+
+    const backupIsObj = typeof backup === "object" && backup !== null
+    const currentIsObj = typeof current === "object" && current !== null
+
+    if (!backupIsObj || !currentIsObj) {
+        diffs.push({field: path || "(root)", backup, current})
+        return
+    }
+
+    const backupIsArray = Array.isArray(backup)
+    const currentIsArray = Array.isArray(current)
+
+    if (backupIsArray !== currentIsArray) {
+        diffs.push({field: path || "(root)", backup, current})
+        return
+    }
+
+    if (backupIsArray) {
+        const b = backup as unknown[]
+        const c = current as unknown[]
+        const len = Math.max(b.length, c.length)
+        for (let i = 0; i < len; i++) {
+            const childPath = path ? `${path}[${i}]` : `[${i}]`
+            if (i >= b.length || i >= c.length) {
+                diffs.push({field: childPath, backup: b[i], current: c[i]})
+            } else {
+                diffObjects(b[i], c[i], childPath, diffs, onUnchanged)
+            }
+        }
+        return
+    }
+
+    const b = backup as Record<string, unknown>
+    const c = current as Record<string, unknown>
+    const keys = new Set([...Object.keys(b), ...Object.keys(c)])
+    for (const key of keys) {
+        const childPath = path ? `${path}.${key}` : key
+        const hasB = Object.prototype.hasOwnProperty.call(b, key)
+        const hasC = Object.prototype.hasOwnProperty.call(c, key)
+        if (!hasB || !hasC) {
+            diffs.push({field: childPath, backup: b[key], current: c[key]})
+        } else {
+            diffObjects(b[key], c[key], childPath, diffs, onUnchanged)
+        }
+    }
 }
 
 /**

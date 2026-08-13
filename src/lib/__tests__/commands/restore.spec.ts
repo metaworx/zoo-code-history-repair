@@ -15,6 +15,7 @@ const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => `${r}/tasks`))
 const mockListBackupsForType = vi.hoisted(() => vi.fn())
 const mockRestoreFromBackups = vi.hoisted(() => vi.fn())
 const mockDeleteBackups = vi.hoisted(() => vi.fn())
+const mockDiffBackup = vi.hoisted(() => vi.fn())
 
 vi.mock("../../cliContext.js", () => ({
     setRoot: mockSetRoot,
@@ -31,6 +32,7 @@ vi.mock("../../restore.js", () => ({
     listBackupsForType: mockListBackupsForType,
     restoreFromBackups: mockRestoreFromBackups,
     deleteBackups: mockDeleteBackups,
+    diffBackup: mockDiffBackup,
 }))
 
 vi.mock("../../format.js", () => ({
@@ -54,6 +56,14 @@ describe("restore command", async () => {
         }) as any)
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
+        mockDiffBackup.mockReturnValue({
+            taskId: "t1",
+            baseName: "history_item.json",
+            diffs: [],
+            unchanged: 0,
+            currentMissing: false,
+            backupMissing: false,
+        })
     })
 
     afterEach(() => {
@@ -246,5 +256,83 @@ describe("restore command", async () => {
         await action(undefined, undefined, {type: "_index.task"})
 
         expect(mockListBackupsForType).toHaveBeenCalledWith("/fake/root/tasks", "_index.task")
+    })
+
+    it("--diff requires taskId and timestamp", async () => {
+        await action(undefined, undefined, {diff: true})
+
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--diff requires"))
+        expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it("--diff prints diff without restoring", async () => {
+        mockDiffBackup.mockReturnValue({
+            taskId: "t1",
+            baseName: "history_item.json",
+            diffs: [
+                {field: "task", backup: "old", current: "new"},
+                {field: "tokensIn", backup: 0, current: 50000},
+            ],
+            unchanged: 10,
+            currentMissing: false,
+            backupMissing: false,
+        })
+
+        await action("t1", "20260101-120000", {diff: true})
+
+        expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", {type: undefined})
+        expect(mockRestoreFromBackups).not.toHaveBeenCalled()
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
+        expect(output).toContain('task: "old" → "new"')
+        expect(output).toContain("tokensIn: 0 → 50000")
+        expect(output).toContain("2 fields changed, 10 fields unchanged")
+    })
+
+    it("--diff exits non-zero when backup is missing", async () => {
+        mockDiffBackup.mockReturnValue({
+            taskId: "t1",
+            baseName: "history_item.json",
+            diffs: [],
+            unchanged: 0,
+            currentMissing: false,
+            backupMissing: true,
+        })
+
+        await action("t1", "20260101-120000", {diff: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("(backup file missing)")
+        expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it("prints diff summary per restored entry", async () => {
+        mockRestoreFromBackups.mockReturnValue({
+            restored: [{
+                taskId: "t1",
+                timestamp: "20260101-120000",
+                bakPath: "/t1/history_item.json.20260101-120000.bak.json",
+                baseName: "history_item.json",
+                basePath: "/t1/history_item.json",
+            }],
+            skipped: [],
+        })
+        mockDiffBackup.mockReturnValue({
+            taskId: "t1",
+            baseName: "history_item.json",
+            diffs: [{field: "task", backup: "old", current: "new"}],
+            unchanged: 4,
+            currentMissing: false,
+            backupMissing: false,
+        })
+
+        await action("t1", undefined, {force: false})
+
+        expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", {type: "history_item"})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
+        expect(output).toContain("1 fields changed, 4 fields unchanged")
     })
 })
