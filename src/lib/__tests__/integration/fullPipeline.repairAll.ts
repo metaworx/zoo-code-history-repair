@@ -262,9 +262,8 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     const idsAfter = new Set(indexAfter.entries.map((e: { id: string }) => e.id));
 
     // The merge algorithm removes entries whose disk and index copies are both
-    // imperfect (after backing them up). These two remain imperfect after repair.
+    // imperfect (after backing them up). This one remains imperfect after repair.
     const removedIds = new Set([
-        "019fb786-503a-76ca-8708-fee1243c878d",
         "019fddaa-5136-7106-abef-adac81fd56a3",
     ]);
     // All other original entries must be preserved
@@ -431,7 +430,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     await listCorruptAction({json: true});
     const lcDel2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const delCorruptions2 = lcDel2.corruptions as Array<{ taskId: string }>;
-    expect(delCorruptions2.length, "list-corrupt must have 2 folder-orphan residuals after delete").toBe(2);
+    expect(delCorruptions2.length, "list-corrupt must have 1 folder-orphan residual after delete").toBe(1);
 
     // ── Phase 14: Delete again — idempotent ──
     consoleLogSpy.mockClear();
@@ -445,5 +444,5 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     await listCorruptAction({json: true});
     const lcDel3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const delCorruptions3 = lcDel3.corruptions as Array<{ taskId: string }>;
-    expect(delCorruptions3.length, "list-corrupt must remain with 2 folder-orphan residuals after idempotent delete").toBe(2);
+    expect(delCorruptions3.length, "list-corrupt must remain with 1 folder-orphan residual after idempotent delete").toBe(1);
 }

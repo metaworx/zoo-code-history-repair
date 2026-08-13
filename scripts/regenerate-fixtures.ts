@@ -1,11 +1,11 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {setRoot} from "../../src/lib/cliContext.js"
-import {action as rebuildIndexAction} from "../../src/lib/commands/rebuildIndex.js"
-import {action as repairAllAction} from "../../src/lib/commands/repairAll.js"
-import {action as scanAction} from "../../src/lib/commands/scan.js"
-import {action as listCorruptAction} from "../../src/lib/commands/listCorrupt.js"
+import {setRoot} from "../src/lib/cliContext.js"
+import {action as rebuildIndexAction} from "../src/lib/commands/rebuildIndex.js"
+import {action as repairAllAction} from "../src/lib/commands/repairAll.js"
+import {action as scanAction} from "../src/lib/commands/scan.js"
+import {action as listCorruptAction} from "../src/lib/commands/listCorrupt.js"
 
 const FIXTURE_TASKS = path.resolve("tests/fixtures/tasks")
 const orphan = "019ede5a-9327-70cc-9c54-2d227182e4d1"

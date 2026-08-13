@@ -16,16 +16,6 @@
             ]
         },
         {
-            "taskId": "019fb786-503a-76ca-8708-fee1243c878d",
-            "recoverability": "0%",
-            "reasons": [
-                {
-                    "reason": "folder_orphan",
-                    "source": "hi"
-                }
-            ]
-        },
-        {
             "taskId": "019fddaa-5136-7106-abef-adac81fd56a3",
             "recoverability": "0%",
             "reasons": [

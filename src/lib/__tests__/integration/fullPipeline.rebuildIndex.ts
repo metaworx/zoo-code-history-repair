@@ -24,14 +24,14 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: false});
     const dryOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(dryOut).toContain("Rebuilt index with 5 items");
+    expect(dryOut).toContain("Rebuilt index with 6 items");
     expect(dryOut).toContain("Dry-run — nothing written");
 
     // ── Phase 3: rebuild-index --force ──
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: true, backup: true});
     const forceOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(forceOut).toContain("Rebuilt index with 5 items");
+    expect(forceOut).toContain("Rebuilt index with 6 items");
     // ToDo:
     // expect(forceOut).toContain("Written:");
     // expect(forceOut).toContain("_index.json");
@@ -58,7 +58,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     consoleLogSpy.mockClear();
     await rebuildIndexAction({force: true, backup: true});
     const idemOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
-    expect(idemOut).toContain("Rebuilt index with 5 items");
+    expect(idemOut).toContain("Rebuilt index with 6 items");
     // ToDo:
     // expect(idemOut).toContain("Written:");
     // expect(idemOut).toContain("_index.json");
