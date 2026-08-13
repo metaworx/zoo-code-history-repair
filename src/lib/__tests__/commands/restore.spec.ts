@@ -1,11 +1,18 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi
+} from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"))
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
 const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => `${r}/tasks`))
-const mockListBackups = vi.hoisted(() => vi.fn())
+const mockListBackupsForType = vi.hoisted(() => vi.fn())
 const mockRestoreFromBackups = vi.hoisted(() => vi.fn())
 const mockDeleteBackups = vi.hoisted(() => vi.fn())
 
@@ -21,7 +28,7 @@ vi.mock("../../paths.js", () => ({
 }))
 
 vi.mock("../../restore.js", () => ({
-    listBackups: mockListBackups,
+    listBackupsForType: mockListBackupsForType,
     restoreFromBackups: mockRestoreFromBackups,
     deleteBackups: mockDeleteBackups,
 }))
@@ -39,9 +46,12 @@ describe("restore command", async () => {
     let exitSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
-        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any)
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
+        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        })
+        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        }) as any)
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
     })
@@ -51,7 +61,7 @@ describe("restore command", async () => {
     })
 
     it("list mode: no backups found", async () => {
-        mockListBackups.mockReturnValue([])
+        mockListBackupsForType.mockReturnValue([])
 
         await action(undefined, undefined, {})
 
@@ -60,10 +70,28 @@ describe("restore command", async () => {
     })
 
     it("list mode: groups backups by task and timestamp", async () => {
-        mockListBackups.mockReturnValue([
-            {taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"},
-            {taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/y.bak", baseName: "ui_messages.json", basePath: "/t1/ui_messages.json"},
-            {taskId: "t2", timestamp: "20260102-130000", bakPath: "/t2/z.bak", baseName: "history_item.json", basePath: "/t2/history_item.json"},
+        mockListBackupsForType.mockReturnValue([
+            {
+                taskId: "t1",
+                timestamp: "20260101-120000",
+                bakPath: "/t1/x.bak",
+                baseName: "history_item.json",
+                basePath: "/t1/history_item.json"
+            },
+            {
+                taskId: "t1",
+                timestamp: "20260101-120000",
+                bakPath: "/t1/y.bak",
+                baseName: "ui_messages.json",
+                basePath: "/t1/ui_messages.json"
+            },
+            {
+                taskId: "t2",
+                timestamp: "20260102-130000",
+                bakPath: "/t2/z.bak",
+                baseName: "history_item.json",
+                basePath: "/t2/history_item.json"
+            },
         ])
 
         await action(undefined, undefined, {})
@@ -77,7 +105,13 @@ describe("restore command", async () => {
 
     it("restore mode, dry-run: shows 'Would restore'", async () => {
         mockRestoreFromBackups.mockReturnValue({
-            restored: [{taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"}],
+            restored: [{
+                taskId: "t1",
+                timestamp: "20260101-120000",
+                bakPath: "/t1/x.bak",
+                baseName: "history_item.json",
+                basePath: "/t1/history_item.json"
+            }],
             skipped: [],
         })
 
@@ -90,7 +124,13 @@ describe("restore command", async () => {
 
     it("restore mode, force: shows 'Restored'", async () => {
         mockRestoreFromBackups.mockReturnValue({
-            restored: [{taskId: "t1", timestamp: "20260101-120000", bakPath: "/t1/x.bak", baseName: "history_item.json", basePath: "/t1/history_item.json"}],
+            restored: [{
+                taskId: "t1",
+                timestamp: "20260101-120000",
+                bakPath: "/t1/x.bak",
+                baseName: "history_item.json",
+                basePath: "/t1/history_item.json"
+            }],
             skipped: [],
         })
 
@@ -164,24 +204,47 @@ describe("restore command", async () => {
     it("passes options to restoreFromBackups", async () => {
         mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
 
-        await action("t1", "20260101-120000", {force: false})
+        await action("t1", "20260101-120000", {force: false, type: "history_item"})
 
         expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
             taskId: "t1",
             timestamp: "20260101-120000",
             dryRun: true,
+            type: "history_item",
         })
     })
 
     it("passes options to deleteBackups", async () => {
         mockDeleteBackups.mockReturnValue({deleted: [], skipped: []})
 
-        await action("t1", "20260101-120000", {delete: true, force: true})
+        await action("t1", "20260101-120000", {delete: true, force: true, type: "history_item"})
 
         expect(mockDeleteBackups).toHaveBeenCalledWith("/fake/root/tasks", {
             taskId: "t1",
             timestamp: "20260101-120000",
             dryRun: false,
+            type: "history_item",
         })
+    })
+
+    it("passes --type through to restoreFromBackups", async () => {
+        mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
+
+        await action("t1", "20260101-120000", {force: false, type: "_index.task"})
+
+        expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
+            taskId: "t1",
+            timestamp: "20260101-120000",
+            dryRun: true,
+            type: "_index.task",
+        })
+    })
+
+    it("passes --type through to listBackupsForType in list mode", async () => {
+        mockListBackupsForType.mockReturnValue([])
+
+        await action(undefined, undefined, {type: "_index.task"})
+
+        expect(mockListBackupsForType).toHaveBeenCalledWith("/fake/root/tasks", "_index.task")
     })
 })

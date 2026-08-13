@@ -2,16 +2,15 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import {
+    consolidateBackups,
     FileTransaction,
     JsonFileTransaction,
+    listBackups,
+    listBackupsForTask,
     parseTimestamp,
     readJsonFile,
     saveFile,
-    consolidateBackups,
-    listBackups,
-    listBackupsForFile,
 } from "../file.js"
-import {getValidatorByFile} from "../validation.js"
 
 describe("readJsonFile", () => {
     let tmp: string
@@ -112,7 +111,7 @@ describe("saveFile", () => {
     it("with backup: true mutates options.backup to the .bak_*.tmp path", async () => {
         const f = path.join(tmp, "bool-backup.json")
         fs.writeFileSync(f, '{"old":true}', "utf8")
-        const opts: {backup: boolean | string | null | undefined} = {stringify: true, backup: true}
+        const opts: { backup: boolean | string | null | undefined } = {stringify: true, backup: true}
         await saveFile(f, {new: true}, opts)
         // backup mutated from true to the .bak_*.tmp path string
         expect(typeof opts.backup).toBe("string")
@@ -181,11 +180,11 @@ describe("parseTimestamp", () => {
     })
 })
 
-describe("listBackupsForFile", () => {
+describe("listBackupsForTask", () => {
     let tmp: string
 
     beforeEach(() => {
-        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-lbf-"))
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-lbt-"))
     })
 
     afterEach(() => {
@@ -193,13 +192,13 @@ describe("listBackupsForFile", () => {
     })
 
     it("returns empty array for empty directory", async () => {
-        const result = await listBackupsForFile(tmp, ["data.json"])
+        const result = await listBackupsForTask(tmp, ["data.json"])
         expect(result).toEqual([])
     })
 
     it("returns empty array when no files match basenames", async () => {
         fs.writeFileSync(path.join(tmp, "other.json.20260812-120000.bak.json"), "{}", "utf8")
-        const result = await listBackupsForFile(tmp, ["data.json"])
+        const result = await listBackupsForTask(tmp, ["data.json"])
         expect(result).toEqual([])
     })
 
@@ -209,8 +208,11 @@ describe("listBackupsForFile", () => {
         fs.writeFileSync(dataBak, "{}", "utf8")
         fs.writeFileSync(otherBak, "{}", "utf8")
 
-        const result = await listBackupsForFile(tmp, ["data.json"])
-        expect(result).toEqual([dataBak])
+        const result = await listBackupsForTask(tmp, ["data.json"])
+        expect(result).toHaveLength(1)
+        expect(result[0].bakPath).toBe(dataBak)
+        expect(result[0].baseName).toBe("data.json")
+        expect(result[0].timestamp).toBe("20260812-120000")
     })
 
     it("matches multiple basenames", async () => {
@@ -221,26 +223,27 @@ describe("listBackupsForFile", () => {
         fs.writeFileSync(b, "{}", "utf8")
         fs.writeFileSync(c, "{}", "utf8")
 
-        const result = await listBackupsForFile(tmp, ["a.json", "c.json"])
+        const result = await listBackupsForTask(tmp, ["a.json", "c.json"])
         expect(result).toHaveLength(2)
-        expect(result).toContain(a)
-        expect(result).toContain(c)
+        const paths = result.map(e => e.bakPath)
+        expect(paths).toContain(a)
+        expect(paths).toContain(c)
     })
 
     it("returns full paths", async () => {
         const bak = path.join(tmp, "data.json.20260812-120000.bak.json")
         fs.writeFileSync(bak, "{}", "utf8")
 
-        const result = await listBackupsForFile(tmp, ["data.json"])
-        expect(result[0]).toBe(bak)
-        expect(path.isAbsolute(result[0])).toBe(true)
+        const result = await listBackupsForTask(tmp, ["data.json"])
+        expect(result[0].bakPath).toBe(bak)
+        expect(path.isAbsolute(result[0].bakPath)).toBe(true)
     })
 
     it("skips non-bak files", async () => {
         fs.writeFileSync(path.join(tmp, "data.json"), "{}", "utf8")
         fs.writeFileSync(path.join(tmp, "readme.txt"), "hello", "utf8")
 
-        const result = await listBackupsForFile(tmp, ["data.json"])
+        const result = await listBackupsForTask(tmp, ["data.json"])
         expect(result).toEqual([])
     })
 })
@@ -328,6 +331,30 @@ describe("listBackups", () => {
 
         const result = await listBackups(tmp)
         expect(result).toEqual([])
+    })
+
+    it("scopes to a single task when taskId is provided", async () => {
+        const d1 = path.join(tmp, "task-1")
+        const d2 = path.join(tmp, "task-2")
+        fs.mkdirSync(d1, {recursive: true})
+        fs.mkdirSync(d2, {recursive: true})
+        fs.writeFileSync(path.join(d1, "data.json.20260812-120000.bak.json"), "{}", "utf8")
+        fs.writeFileSync(path.join(d2, "data.json.20260812-130000.bak.json"), "{}", "utf8")
+
+        const result = await listBackups(tmp, {taskId: "task-1"})
+        expect(result).toHaveLength(1)
+        expect(result[0].taskId).toBe("task-1")
+    })
+
+    it("filters by basenames", async () => {
+        const taskDir = path.join(tmp, "task-a")
+        fs.mkdirSync(taskDir, {recursive: true})
+        fs.writeFileSync(path.join(taskDir, "history_item.json.20260812-140000.bak.json"), "{}", "utf8")
+        fs.writeFileSync(path.join(taskDir, "ui_messages.json.20260812-150000.bak.json"), "{}", "utf8")
+
+        const result = await listBackups(tmp, {basenames: ["history_item.json"]})
+        expect(result).toHaveLength(1)
+        expect(result[0].baseName).toBe("history_item.json")
     })
 })
 

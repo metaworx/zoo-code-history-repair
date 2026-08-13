@@ -2,14 +2,17 @@ import fs from "node:fs"
 import path from "node:path"
 import type {RepairOptions} from "../types.js"
 import {
-    DEFAULT_INDEX_BASENAME,
-    DEFAULT_INDEX_NAME,
     HISTORY_ITEM_NAME,
     listTaskDirs,
     resolveIndexPath,
     resolveTasksDir
 } from "./paths.js"
-import {backupTimestamp, JsonFileTransaction, readJsonFile} from "./file.js"
+import {
+    backupTimestamp,
+    JsonFileTransaction,
+    mapTypeToFileName,
+    readJsonFile
+} from "./file.js"
 import {resolveRoot} from "./cliContext.js"
 import {validateHistoryItem} from "./validate/historyItem.js"
 import {safeWriteJson} from "./io/safeWriteJson.js"
@@ -479,7 +482,7 @@ export class IndexTransaction extends JsonFileTransaction {
         backedUp.add(id)
         if (options.dryRun) return
 
-        const backupPath = path.join(this.tasksDir, id, `${DEFAULT_INDEX_BASENAME}.${backupTimestamp}.bak.json`)
+        const backupPath = path.join(this.tasksDir, id, `${mapTypeToFileName("_index.task")}.${backupTimestamp}.bak.json`)
         const data = {...entry, _removedReason: reason, _removedAt: Date.now()}
         try {
             await safeWriteJson(backupPath, data, {keepBackup: true})

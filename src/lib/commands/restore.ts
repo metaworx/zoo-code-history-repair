@@ -1,9 +1,20 @@
 import path from "node:path"
 import {resolveTasksDir} from "../paths.js"
-import {getVersionBanner, resolveRoot} from "../cliContext.js"
-import {c, colorize} from "../format.js"
-import {deleteBackups, listBackups, restoreFromBackups} from "../restore.js"
+import {
+    getVersionBanner,
+    resolveRoot
+} from "../cliContext.js"
+import {
+    c,
+    colorize
+} from "../format.js"
 import type {BackupEntry} from "../restore.js"
+import {
+    deleteBackups,
+    listBackupsForType,
+    restoreFromBackups
+} from "../restore.js"
+import {BackupType} from "../file.js";
 
 export const name = "restore"
 export const summary = "List, restore, or delete task backup files"
@@ -21,6 +32,7 @@ By default runs in dry-run mode. Use --force to actually write.`
 export const options = [
     ["--delete", "Delete backup files instead of restoring", false],
     ["--force", "Actually write changes (default: dry-run)", false],
+    ["--type <t>", "Backup type: history_item (restore/delete default), ui_messages, _index.task, all (list default)"],
 ] as const
 
 const dryRunDeleteMsg = colorize("\n!! Dry-run — nothing deleted. Use --force to actually delete. !!", c.red)
@@ -29,7 +41,7 @@ const dryRunRestoreMsg = colorize("\n!!Dry-run — nothing written. Use --force 
 export async function action(
     taskId: string | undefined,
     timestamp: string | undefined,
-    cmdOpts: {delete?: boolean; force?: boolean},
+    cmdOpts: { delete?: boolean; force?: boolean; type?: BackupType },
 ): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
@@ -46,6 +58,7 @@ export async function action(
             taskId,
             timestamp,
             dryRun: !cmdOpts.force,
+            type: cmdOpts.type,
         })
 
         if (result.deleted.length === 0) {
@@ -64,7 +77,7 @@ export async function action(
     // Restore mode — or list mode when no args
     if (!taskId && !timestamp) {
         // List mode
-        const entries = await listBackups(tasksDir)
+        const entries = await listBackupsForType(tasksDir, cmdOpts.type ?? "all")
         if (entries.length === 0) {
             console.log("No backup files found.")
             return
@@ -101,6 +114,7 @@ export async function action(
         taskId,
         timestamp,
         dryRun: !cmdOpts.force,
+        type: cmdOpts.type,
     })
 
     if (result.restored.length === 0 && result.skipped.length === 0) {

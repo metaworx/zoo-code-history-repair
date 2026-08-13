@@ -1,36 +1,71 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import {listBackups, parseTimestamp, BackupEntry} from "./file.js"
+import {
+    BackupEntry,
+    backupTimestamp,
+    BackupType,
+    consolidateBackups,
+    listBackups,
+    mapTypeToFileName,
+    mapTypeToFileNames,
+    parseTimestamp,
+    readJsonFile,
+    saveFile,
+} from "./file.js"
+import {IndexTransaction} from "./IndexTransaction.js"
+import {HISTORY_ITEM_NAME} from "./paths.js"
 
-export {BackupEntry, listBackups, parseTimestamp}
-
-export interface ListBackupsResult {
-    entries: BackupEntry[]
+export {
+    BackupEntry,
+    parseTimestamp
 }
+
+const DEFAULT_TYPE: BackupType = "history_item"
 
 export interface RestoreOptions {
     taskId?: string
     timestamp?: string
     dryRun?: boolean
+    type?: BackupType
+    mergeIntoIndex?: boolean
 }
 
 export interface DeleteOptions {
     taskId?: string
     timestamp?: string
     dryRun?: boolean
+    type?: BackupType
+}
+
+/**
+ * List backups of a single type across the task tree. The basename filter is
+ * pushed down into file.ts's listBackups so the scan can skip non-matching
+ * files early.
+ */
+export async function listBackupsForType(
+    tasksDir: string,
+    type: BackupType = DEFAULT_TYPE,
+): Promise<BackupEntry[]> {
+    return listBackups(tasksDir, {basenames: mapTypeToFileNames(type)})
 }
 
 export async function restoreFromBackups(
     tasksDir: string,
     opts: RestoreOptions,
-): Promise<{restored: BackupEntry[]; skipped: string[]}> {
-    const all = await listBackups(tasksDir)
-    const filtered = filterEntries(all, opts)
+): Promise<{ restored: BackupEntry[]; skipped: string[] }> {
+    const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
+    const filtered = (await listBackups(tasksDir, {taskId: opts.taskId, basenames}))
+        .filter(e => !opts.timestamp || e.timestamp === opts.timestamp)
+
     const restored: BackupEntry[] = []
     const skipped: string[] = []
 
-    // Group by taskId, deduplicate: pick newest timestamp per task when no timestamp specified
-    const toRestore = deduplicateByNewest(filtered, opts)
+    // Idempotency: skip any (taskId, baseName) group whose current target
+    // already matches one of its backups. Safety backups created by a prior
+    // restore carry a newer timestamp than their source, so matching must be
+    // checked across the whole group rather than just the newest entry.
+    const candidates = await filterAlreadyMatching(filtered, skipped)
+    const toRestore = deduplicateByNewest(candidates, opts)
 
     for (const entry of toRestore) {
         try {
@@ -40,22 +75,41 @@ export async function restoreFromBackups(
             continue
         }
 
-        // Idempotency: skip if current file already matches backup content
-        try {
-            await fs.access(entry.basePath)
-            const currentContent = await fs.readFile(entry.basePath)
-            const backupContent = await fs.readFile(entry.bakPath)
-            if (currentContent.equals(backupContent)) {
-                skipped.push(`${entry.basePath} (already matches backup)`)
+        const isIndex = entry.baseName === mapTypeToFileName("_index.task")
+        const taskDir = path.dirname(entry.bakPath)
+        const targetPath = isIndex
+            ? path.join(taskDir, HISTORY_ITEM_NAME)
+            : entry.basePath
+
+        let entryData: Record<string, unknown> | null = null
+        if (isIndex) {
+            const raw = await readJsonFile(entry.bakPath) as Record<string, unknown> | null
+            if (raw === null) {
+                skipped.push(`${entry.bakPath} (invalid JSON)`)
                 continue
             }
-        } catch {
-            // base file doesn't exist — proceed with restore
+            entryData = stripBackupMetadata(raw)
         }
 
         if (!opts.dryRun) {
-            await fs.copyFile(entry.bakPath, entry.basePath)
+            // Safety backup of the current file before overwriting any history_item.json
+            if (path.basename(targetPath) === HISTORY_ITEM_NAME) {
+                await safetyBackup(targetPath)
+            }
+
+            if (isIndex) {
+                const data = entryData as Record<string, unknown>
+                await saveFile(targetPath, data, {stringify: true})
+                if (opts.mergeIntoIndex !== false) {
+                    const tx = new IndexTransaction(false)
+                    const entryId = (data.id as string | undefined) ?? entry.taskId
+                    await tx.replaceId(entryId, data, true, false)
+                }
+            } else {
+                await fs.copyFile(entry.bakPath, targetPath)
+            }
         }
+
         restored.push(entry)
     }
 
@@ -65,9 +119,11 @@ export async function restoreFromBackups(
 export async function deleteBackups(
     tasksDir: string,
     opts: DeleteOptions,
-): Promise<{deleted: string[]; skipped: string[]}> {
-    const all = await listBackups(tasksDir)
-    const filtered = filterEntries(all, {taskId: opts.taskId, timestamp: opts.timestamp})
+): Promise<{ deleted: string[]; skipped: string[] }> {
+    const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
+    const filtered = (await listBackups(tasksDir, {taskId: opts.taskId, basenames}))
+        .filter(e => !opts.timestamp || e.timestamp === opts.timestamp)
+
     const deleted: string[] = []
     const skipped: string[] = []
 
@@ -88,20 +144,88 @@ export async function deleteBackups(
     return {deleted, skipped}
 }
 
-function filterEntries(
+/**
+ * Strip the index-repair backup metadata fields before restoring an entry to
+ * `history_item.json` / the global index. Per spec v4 §6.2 these fields are
+ * only meaningful inside the `.bak.json` file itself.
+ */
+function stripBackupMetadata(entry: Record<string, unknown>): Record<string, unknown> {
+    const copy = {...entry}
+    delete copy._removedReason
+    delete copy._removedAt
+    return copy
+}
+
+/**
+ * Create a safety backup of the current target file before overwriting it.
+ * Copies the current content to `{target}.{backupTimestamp}.bak.json`, then
+ * runs Block 0 consolidation so duplicates are deduplicated via content hash.
+ */
+async function safetyBackup(targetPath: string): Promise<void> {
+    const safetyPath = `${targetPath}.${backupTimestamp}.bak.json`
+    try {
+        await fs.copyFile(targetPath, safetyPath)
+    } catch {
+        return // target does not exist — nothing to back up
+    }
+    await consolidateBackups(targetPath, safetyPath)
+}
+
+/**
+ * Drop entries whose (taskId, baseName) group is already restored — i.e. the
+ * current target file matches one of the group's backups. Keeps restores
+ * idempotent even after safety backups (newer timestamp, pre-restore content)
+ * are created.
+ */
+async function filterAlreadyMatching(
     entries: BackupEntry[],
-    opts: {taskId?: string; timestamp?: string},
-): BackupEntry[] {
-    let result = entries
-
-    if (opts.taskId) {
-        result = result.filter(e => e.taskId === opts.taskId)
+    skipped: string[],
+): Promise<BackupEntry[]> {
+    const groups = new Map<string, BackupEntry[]>()
+    for (const entry of entries) {
+        const key = `${entry.taskId}\u0000${entry.baseName}`
+        const group = groups.get(key) ?? []
+        group.push(entry)
+        groups.set(key, group)
     }
-    if (opts.timestamp) {
-        result = result.filter(e => e.timestamp === opts.timestamp)
+
+    const candidates: BackupEntry[] = []
+    for (const group of groups.values()) {
+        const first = group[0]
+        const targetPath = first.baseName === mapTypeToFileName("_index.task")
+            ? path.join(path.dirname(first.bakPath), HISTORY_ITEM_NAME)
+            : first.basePath
+
+        let current: Buffer | null = null
+        try {
+            current = await fs.readFile(targetPath)
+        } catch {
+            // target missing — nothing matches, restore proceeds
+        }
+
+        let matched = false
+        if (current) {
+            for (const entry of group) {
+                try {
+                    const backup = await fs.readFile(entry.bakPath)
+                    if (backup.equals(current)) {
+                        matched = true
+                        break
+                    }
+                } catch {
+                    // missing backup — not a match
+                }
+            }
+        }
+
+        if (matched) {
+            skipped.push(`${targetPath} (already matches backup)`)
+        } else {
+            candidates.push(...group)
+        }
     }
 
-    return result
+    return candidates
 }
 
 /**

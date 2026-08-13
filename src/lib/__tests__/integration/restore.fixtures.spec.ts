@@ -4,8 +4,27 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import {deleteBackups, listBackups, restoreFromBackups} from "../../restore.js";
-import {copyFixtureTasks, createTempDir, read, touch} from "../testHelpers.js";
+import {vi} from "vitest";
+import {
+    deleteBackups,
+    listBackupsForType,
+    restoreFromBackups
+} from "../../restore.js";
+import {
+    copyFixtureTasks,
+    createTempDir,
+    read,
+    touch
+} from "../testHelpers.js";
+
+const mockReplaceId = vi.hoisted(() => vi.fn(async () => null));
+vi.mock("../../IndexTransaction.js", () => ({
+    IndexTransaction: class {
+        async replaceId(...args: unknown[]): Promise<null> {
+            return mockReplaceId(...args);
+        }
+    },
+}));
 
 describe("restore against fixtures (integration)", () => {
     let tmpRoot: string;
@@ -13,7 +32,7 @@ describe("restore against fixtures (integration)", () => {
     let cleanup: () => void;
 
     function stripBakFiles(dir: string): void {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
             const p = path.join(dir, entry.name);
             if (entry.isDirectory()) {
                 stripBakFiles(p);
@@ -30,40 +49,51 @@ describe("restore against fixtures (integration)", () => {
         cleanup = td.cleanup;
         copyFixtureTasks(tasksDir);
         stripBakFiles(tasksDir);
+        mockReplaceId.mockClear();
     });
 
     afterEach(() => {
         cleanup();
     });
 
-    describe("listBackups", () => {
-        it("finds .bak.json files across fixture tasks", async () => {
-            // Create a backup in one task
+    describe("listBackupsForType", () => {
+        it("finds history_item backups by default", async () => {
             const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             touch(
                 path.join(d, "history_item.json.20260808-054500.bak.json"),
                 "backup content",
             );
 
-            const entries = await listBackups(tasksDir);
-            expect(entries.length).toBe(1);
+            const entries = await listBackupsForType(tasksDir);
+            expect(entries).toHaveLength(1);
             expect(entries[0].taskId).toBe("019f726a-0f50-711c-929e-9546e5100546");
             expect(entries[0].timestamp).toBe("20260808-054500");
             expect(entries[0].baseName).toBe("history_item.json");
         });
 
         it("returns empty when no backups exist", async () => {
-            expect(await listBackups(tasksDir)).toEqual([]);
+            expect(await listBackupsForType(tasksDir)).toEqual([]);
         });
 
-        it("finds multiple backups across tasks", async () => {
+        it("returns only _index.task entries when type is _index.task", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "a");
+            touch(path.join(d, "ui_messages.json.20260808-054500.bak.json"), "b");
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), "c");
+
+            const entries = await listBackupsForType(tasksDir, "_index.task");
+            expect(entries).toHaveLength(1);
+            expect(entries[0].baseName).toBe("_index.task");
+        });
+
+        it("returns everything when type is all", async () => {
             const d1 = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
             const d2 = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
             touch(path.join(d1, "history_item.json.20260808-054500.bak.json"), "a");
             touch(path.join(d1, "ui_messages.json.20260807-120000.bak.json"), "b");
-            touch(path.join(d2, "_index.json.20260808-054500.bak.json"), "c");
+            touch(path.join(d2, "_index.task.20260808-054500.bak.json"), "c");
 
-            expect((await listBackups(tasksDir)).length).toBe(3);
+            expect((await listBackupsForType(tasksDir, "all")).length).toBe(3);
         });
     });
 
@@ -106,20 +136,26 @@ describe("restore against fixtures (integration)", () => {
             expect(read(path.join(d, "history_item.json"))).toBe(orig);
         });
 
-        it("does NOT create safety backup before overwriting", async () => {
+        it("history_item restore creates a safety backup before overwriting", async () => {
             const d = path.join(tasksDir, "019fdcba-5173-74cd-a9c3-9663d7917aa2");
+            const original = read(path.join(d, "history_item.json"));
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
             await restoreFromBackups(tasksDir, {
                 taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2",
             });
 
-            // No extra safety backup — only the original .bak.json remains
-            const files = fs.readdirSync(d);
-            const bakFiles = files.filter((f) =>
+            expect(read(path.join(d, "history_item.json"))).toBe("restored");
+
+            const bakFiles = fs.readdirSync(d).filter((f) =>
                 /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f),
             );
-            expect(bakFiles).toEqual(["history_item.json.20260808-054500.bak.json"]);
+            // Original source backup + safety backup of the prior content
+            expect(bakFiles).toHaveLength(2);
+            expect(bakFiles).toContain("history_item.json.20260808-054500.bak.json");
+
+            const safety = bakFiles.find((f) => f !== "history_item.json.20260808-054500.bak.json");
+            expect(read(path.join(d, safety!))).toBe(original);
         });
 
         it("restore is idempotent — second run is no-op", async () => {
@@ -141,9 +177,9 @@ describe("restore against fixtures (integration)", () => {
             expect(r2.skipped).toHaveLength(1);
             expect(r2.skipped[0]).toContain("already matches backup");
 
-            // Backup count should NOT have grown
+            // Backup count should NOT have grown (source + safety backup)
             const bakFiles = fs.readdirSync(d).filter((f) => /\.bak\.json$/.test(f));
-            expect(bakFiles).toHaveLength(1);
+            expect(bakFiles).toHaveLength(2);
         });
 
         it("backup count does not grow on repeated restores", async () => {
@@ -151,13 +187,94 @@ describe("restore against fixtures (integration)", () => {
             touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored");
 
             // Run restore 3 times
-            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
-            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
-            await restoreFromBackups(tasksDir, { taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2" });
+            await restoreFromBackups(tasksDir, {taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2"});
+            await restoreFromBackups(tasksDir, {taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2"});
+            await restoreFromBackups(tasksDir, {taskId: "019fdcba-5173-74cd-a9c3-9663d7917aa2"});
 
-            // Should only have the original backup, no proliferation
+            // Only the original source backup + one safety backup
             const bakFiles = fs.readdirSync(d).filter((f) => /\.bak\.json$/.test(f));
-            expect(bakFiles).toHaveLength(1);
+            expect(bakFiles).toHaveLength(2);
+        });
+
+        it("_index.task backup restores to history_item.json (not _index.json)", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const entry = {
+                id: "019f726a-0f50-711c-929e-9546e5100546",
+                ts: 100,
+                task: "restored from _index",
+                _removedReason: "no_history_item",
+                _removedAt: 1234567890,
+            };
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), JSON.stringify(entry));
+
+            const result = await restoreFromBackups(tasksDir, {
+                taskId: "019f726a-0f50-711c-929e-9546e5100546",
+                type: "_index.task",
+                mergeIntoIndex: false,
+            });
+            expect(result.restored).toHaveLength(1);
+
+            const hi = JSON.parse(read(path.join(d, "history_item.json")));
+            expect(hi.task).toBe("restored from _index");
+            expect(hi).not.toHaveProperty("_removedReason");
+            expect(hi).not.toHaveProperty("_removedAt");
+            expect(fs.existsSync(path.join(d, "_index.json"))).toBe(false);
+        });
+
+        it("_index.task restore creates a safety backup of the prior history_item.json", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const original = read(path.join(d, "history_item.json"));
+            const entry = {
+                id: "019f726a-0f50-711c-929e-9546e5100546",
+                ts: 100,
+                task: "restored from _index",
+            };
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), JSON.stringify(entry));
+
+            await restoreFromBackups(tasksDir, {
+                taskId: "019f726a-0f50-711c-929e-9546e5100546",
+                type: "_index.task",
+                mergeIntoIndex: false,
+            });
+
+            const safetyFiles = fs.readdirSync(d).filter((f) =>
+                /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f),
+            );
+            expect(safetyFiles).toHaveLength(1);
+            expect(read(path.join(d, safetyFiles[0]))).toBe(original);
+        });
+
+        it("_index.task restore merges entry into global index via replaceId", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            const entry = {
+                id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+                ts: 100,
+                task: "restored from _index",
+                _removedReason: "both_corrupt",
+                _removedAt: 1234567890,
+            };
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), JSON.stringify(entry));
+
+            await restoreFromBackups(tasksDir, {
+                taskId: "019f726a-0f50-711c-929e-9546e5100546",
+                type: "_index.task",
+            });
+
+            expect(mockReplaceId).toHaveBeenCalledTimes(1);
+            expect(mockReplaceId).toHaveBeenCalledWith(
+                "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+                expect.objectContaining({task: "restored from _index"}),
+                true,
+                false,
+            );
+
+            const entryArg = mockReplaceId.mock.calls[0][1] as Record<string, unknown>;
+            expect(entryArg).not.toHaveProperty("_removedReason");
+            expect(entryArg).not.toHaveProperty("_removedAt");
+
+            const hi = JSON.parse(read(path.join(d, "history_item.json")));
+            expect(hi).not.toHaveProperty("_removedReason");
+            expect(hi).not.toHaveProperty("_removedAt");
         });
     });
 
@@ -169,10 +286,29 @@ describe("restore against fixtures (integration)", () => {
 
             const result = await deleteBackups(tasksDir, {
                 taskId: "019f726a-0f50-711c-929e-9546e5100546",
+                type: "all",
             });
             expect(result.deleted).toHaveLength(2);
             expect(
                 fs.existsSync(path.join(d, "history_item.json.20260808-054500.bak.json")),
+            ).toBe(false);
+        });
+
+        it("deletes only the requested type", async () => {
+            const d = path.join(tasksDir, "019f726a-0f50-711c-929e-9546e5100546");
+            touch(path.join(d, "history_item.json.20260808-054500.bak.json"), "x");
+            touch(path.join(d, "_index.task.20260808-054500.bak.json"), "y");
+
+            const result = await deleteBackups(tasksDir, {
+                taskId: "019f726a-0f50-711c-929e-9546e5100546",
+                type: "_index.task",
+            });
+            expect(result.deleted).toHaveLength(1);
+            expect(
+                fs.existsSync(path.join(d, "history_item.json.20260808-054500.bak.json")),
+            ).toBe(true);
+            expect(
+                fs.existsSync(path.join(d, "_index.task.20260808-054500.bak.json")),
             ).toBe(false);
         });
 

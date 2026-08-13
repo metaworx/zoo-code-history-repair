@@ -1,7 +1,12 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {deleteBackups, listBackups, parseTimestamp, restoreFromBackups} from "../restore.js"
+import {
+    deleteBackups,
+    listBackupsForType,
+    parseTimestamp,
+    restoreFromBackups
+} from "../restore.js"
 
 describe("parseTimestamp", () => {
     it("parses valid YYYYMMDD-HHmmss", () => {
@@ -22,7 +27,7 @@ describe("parseTimestamp", () => {
     })
 })
 
-describe("listBackups", () => {
+describe("listBackupsForType", () => {
     let root: string
     let tasksDir: string
 
@@ -48,14 +53,14 @@ describe("listBackups", () => {
 
     it("returns empty when no backups exist", async () => {
         makeTaskDir("task-abc")
-        expect(await listBackups(tasksDir)).toEqual([])
+        expect(await listBackupsForType(tasksDir)).toEqual([])
     })
 
     it("returns empty for task dirs without .bak.json files", async () => {
         const d = makeTaskDir("task-abc")
         touch(path.join(d, "history_item.json"))
         touch(path.join(d, "ui_messages.json"))
-        expect(await listBackups(tasksDir)).toEqual([])
+        expect(await listBackupsForType(tasksDir)).toEqual([])
     })
 
     it("finds single backup file", async () => {
@@ -64,7 +69,7 @@ describe("listBackups", () => {
         const bakName = "history_item.json.20260808-054500.bak.json"
         touch(path.join(d, bakName))
 
-        const entries = await listBackups(tasksDir)
+        const entries = await listBackupsForType(tasksDir)
         expect(entries).toHaveLength(1)
         expect(entries[0]).toMatchObject({
             taskId: "task-abc",
@@ -83,7 +88,7 @@ describe("listBackups", () => {
         touch(path.join(d1, "ui_messages.json.20260807-120000.bak.json"))
         touch(path.join(d2, "_index.json.20260808-054500.bak.json"))
 
-        const entries = await listBackups(tasksDir)
+        const entries = await listBackupsForType(tasksDir, "all")
         expect(entries).toHaveLength(3)
     })
 
@@ -94,7 +99,7 @@ describe("listBackups", () => {
         touch(path.join(d, "history_item.json.20260808-054500.bak.json"))
         touch(path.join(d, "history_item.json.20260808-054500.bak.json.extra"))
 
-        const entries = await listBackups(tasksDir)
+        const entries = await listBackupsForType(tasksDir)
         expect(entries).toHaveLength(1)
     })
 })
@@ -169,7 +174,7 @@ describe("restoreFromBackups", () => {
         expect(readFile(path.join(d2, "history_item.json"))).toBe("restored-d")
     })
 
-    it("does NOT create safety backup before overwriting", async () => {
+    it("creates a safety backup before overwriting", async () => {
         const d = makeTaskDir("task-abc")
         writeFile(path.join(d, "history_item.json"), "original-content")
         writeFile(path.join(d, "history_item.json.20260808-054500.bak.json"), "restored-content")
@@ -182,7 +187,12 @@ describe("restoreFromBackups", () => {
         const bakFiles = files.filter(f =>
             /^history_item\.json\.\d{8}-\d{6}\.bak\.json$/.test(f),
         )
-        expect(bakFiles).toEqual(["history_item.json.20260808-054500.bak.json"])
+        // Source backup + safety backup holding the prior content
+        expect(bakFiles).toHaveLength(2)
+        expect(bakFiles).toContain("history_item.json.20260808-054500.bak.json")
+
+        const safety = bakFiles.find(f => f !== "history_item.json.20260808-054500.bak.json")
+        expect(readFile(path.join(d, safety!))).toBe("original-content")
     })
 
     it("restore is idempotent — second run is no-op", async () => {
@@ -202,7 +212,7 @@ describe("restoreFromBackups", () => {
         expect(readFile(path.join(d, "history_item.json"))).toBe("restored-content")
 
         const bakFiles = fs.readdirSync(d).filter(f => /\.bak\.json$/.test(f))
-        expect(bakFiles).toHaveLength(1)
+        expect(bakFiles).toHaveLength(2)
     })
 
     it("restore-all idempotent — second run is no-op for already-matching files", async () => {
@@ -291,7 +301,7 @@ describe("deleteBackups", () => {
         touch(path.join(d, "history_item.json.20260808-054500.bak.json"))
         touch(path.join(d, "ui_messages.json.20260807-120000.bak.json"))
 
-        const result = await deleteBackups(tasksDir, {taskId: "task-abc"})
+        const result = await deleteBackups(tasksDir, {taskId: "task-abc", type: "all"})
         expect(result.deleted).toHaveLength(2)
         expect(fs.existsSync(path.join(d, "history_item.json.20260808-054500.bak.json"))).toBe(false)
         expect(fs.existsSync(path.join(d, "ui_messages.json.20260807-120000.bak.json"))).toBe(false)
@@ -318,7 +328,7 @@ describe("deleteBackups", () => {
         touch(path.join(d2, "_index.json.20260808-054500.bak.json"))
         touch(path.join(d1, "history_item.json.20260807-120000.bak.json"))
 
-        const result = await deleteBackups(tasksDir, {timestamp: "20260808-054500"})
+        const result = await deleteBackups(tasksDir, {timestamp: "20260808-054500", type: "all"})
         expect(result.deleted).toHaveLength(2)
         expect(fs.existsSync(path.join(d1, "history_item.json.20260807-120000.bak.json"))).toBe(true)
     })

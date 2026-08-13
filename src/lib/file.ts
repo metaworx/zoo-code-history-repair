@@ -3,8 +3,46 @@ import {Dirent} from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import {safeWriteJson} from "./io/safeWriteJson.js"
-import {getValidatorByFile, ValidationResult, ValidatorFn} from "./validation.js"
-import {resolveTasksDir, listTaskDirs} from "./paths.js";
+import {
+    getValidatorByFile,
+    ValidationResult,
+    ValidatorFn
+} from "./validation.js"
+import {
+    API_HISTORY_NAME,
+    DEFAULT_INDEX_NAME,
+    HISTORY_ITEM_NAME,
+    listTaskDirs,
+    resolveTasksDir,
+    TASK_METADATA_NAME,
+    UI_MESSAGES_NAME
+} from "./paths.js";
+
+export type FileType = "_index" | "api_conversation_history" | "history_item" | "task_metadata" | "ui_messages"
+export type BackupType = FileType | "_index.task" | "all"
+
+/** On-disk filename each FileType maps to. */
+export const TYPE_FILENAME: Record<FileType | Exclude<BackupType, "all">, string> = {
+    _index: DEFAULT_INDEX_NAME,
+    api_conversation_history: API_HISTORY_NAME,
+    history_item: HISTORY_ITEM_NAME,
+    task_metadata: TASK_METADATA_NAME,
+    ui_messages: UI_MESSAGES_NAME,
+    "_index.task": DEFAULT_INDEX_NAME.replace(/\.json$/, ".task")
+}
+
+/**
+ * The baseName a type's .bak.json files carry. For _index the `.json` suffix
+ * is replaced by `.task`, marking a per-task index-entry backup (which
+ * restores to history_item.json) as distinct from the global `_index.json`.
+ */
+export function mapTypeToFileName(type: FileType | Exclude<BackupType, "all">): string {
+    return TYPE_FILENAME[type]
+}
+
+export function mapTypeToFileNames(type: FileType | BackupType): string[] | undefined {
+    return type === "all" ? undefined : [mapTypeToFileName(type)]
+}
 
 export interface FileSnapshot {
     mtimeMs: number
@@ -12,6 +50,7 @@ export interface FileSnapshot {
     size: number
     inode: number
 }
+
 
 function formatTimestamp(ms: boolean = false): string {
     const d = new Date()
@@ -135,7 +174,7 @@ export async function saveFile(filePath: string, data: unknown, options: SaveFil
     return statSnapshot(filePath)
 }
 
-const TIMESTAMP_RE = /\.(\d{8}-\d{6})\.bak\.json$/
+const TIMESTAMP_RE = /^(.+?)\.(\d{8}-\d{6})\.bak\.json$/
 
 export function parseTimestamp(ts: string): Date | null {
     const m = ts.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/)
@@ -158,33 +197,35 @@ export interface BackupEntry {
     basePath: string
 }
 
-export async function listBackups(tasksDir: string): Promise<BackupEntry[]> {
-    const entries: BackupEntry[] = []
-    const taskDirs = listTaskDirs(tasksDir)
+export interface BackupScanEntry {
+    bakPath: string
+    baseName: string
+    timestamp: string
+}
 
+export interface ListBackupsOptions {
+    taskId?: string
+    basenames?: string[]
+}
+
+export async function listBackups(
+    tasksDir: string,
+    opts: ListBackupsOptions = {},
+): Promise<BackupEntry[]> {
+    const taskDirs = opts.taskId
+        ? [path.join(tasksDir, opts.taskId)]
+        : listTaskDirs(tasksDir)
+
+    const entries: BackupEntry[] = []
     for (const taskDir of taskDirs) {
         const taskId = path.basename(taskDir)
-        let dirEntries: Dirent[]
-        try {
-            dirEntries = await fs.readdir(taskDir, {withFileTypes: true})
-        } catch {
-            continue
-        }
-
-        for (const de of dirEntries) {
-            if (!de.isFile()) continue
-            const m = de.name.match(TIMESTAMP_RE)
-            if (!m) continue
-
-            const timestamp = m[1]
-            const baseName = de.name.slice(0, de.name.indexOf(`.${timestamp}.bak.json`))
-
+        for (const scan of await listBackupsForTask(taskDir, opts.basenames)) {
             entries.push({
                 taskId,
-                timestamp,
-                bakPath: path.join(taskDir, de.name),
-                baseName,
-                basePath: path.join(taskDir, baseName),
+                timestamp: scan.timestamp,
+                bakPath: scan.bakPath,
+                baseName: scan.baseName,
+                basePath: path.join(taskDir, scan.baseName),
             })
         }
     }
@@ -193,17 +234,20 @@ export async function listBackups(tasksDir: string): Promise<BackupEntry[]> {
 }
 
 /**
- * List backup files in a directory matching the `{basename}.{YYYYMMDD-HHmmss}.bak.json` pattern,
- * filtered to entries whose basename (before the timestamp) is in `basenames[]`.
- * Returns full paths.
+ * Scan a single task directory for `{basename}.{YYYYMMDD-HHmmss}.bak.json`
+ * backups, optionally filtered to the given basenames. Returns the parsed
+ * basename and timestamp alongside each full path.
  */
-export async function listBackupsForFile(dir: string, basenames: string[]): Promise<string[]> {
-    const result: string[] = []
+export async function listBackupsForTask(
+    dir: string,
+    basenames?: string[],
+): Promise<BackupScanEntry[]> {
+    const entries: BackupScanEntry[] = []
     let dirEntries: Dirent[]
     try {
         dirEntries = await fs.readdir(dir, {withFileTypes: true})
     } catch {
-        return result
+        return entries
     }
 
     for (const de of dirEntries) {
@@ -211,15 +255,19 @@ export async function listBackupsForFile(dir: string, basenames: string[]): Prom
         const m = de.name.match(TIMESTAMP_RE)
         if (!m) continue
 
-        const timestamp = m[1]
-        const baseName = de.name.slice(0, de.name.indexOf(`.${timestamp}.bak.json`))
+        const baseName = m[1]
+        const timestamp = m[2]
 
-        if (basenames.includes(baseName)) {
-            result.push(path.join(dir, de.name))
-        }
+        if (basenames && !basenames.includes(baseName)) continue
+
+        entries.push({
+            bakPath: path.join(dir, de.name),
+            baseName,
+            timestamp,
+        })
     }
 
-    return result
+    return entries
 }
 
 export interface BackupConsolidationResult {
@@ -251,7 +299,7 @@ export async function consolidateBackups(
     const targetBasename = path.basename(target)
     const basenames = [targetBasename, ...(additionalBasenames ?? [])]
 
-    const backups = await listBackupsForFile(dir, basenames)
+    const backups = (await listBackupsForTask(dir, basenames)).map(b => b.bakPath)
     const targetHash = await contentHash(target)
     const removed: string[] = []
 

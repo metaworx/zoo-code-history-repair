@@ -1,7 +1,14 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi
+} from "vitest"
 import {IndexTransaction} from "../IndexTransaction.js"
 
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
@@ -15,14 +22,15 @@ vi.mock("../cliContext.js", () => ({
     resolveRoot: mockResolveRoot,
 }))
 
-vi.mock("../paths.js", () => ({
-    resolveTasksDir: mockResolveTasksDir,
-    resolveIndexPath: mockResolveIndexPath,
-    listTaskDirs: mockListTaskDirs,
-    HISTORY_ITEM_NAME: "history_item.json",
-    DEFAULT_INDEX_BASENAME: "_index",
-    DEFAULT_INDEX_NAME: "_index.json",
-}))
+vi.mock("../paths.js", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../paths.js")>()
+    return {
+        ...actual,
+        resolveTasksDir: mockResolveTasksDir,
+        resolveIndexPath: mockResolveIndexPath,
+        listTaskDirs: mockListTaskDirs,
+    }
+})
 
 vi.mock("../file.js", async () => {
     const actual = await vi.importActual("../file.js")
@@ -307,7 +315,7 @@ describe("IndexTransaction", () => {
             expect(items).toHaveLength(0)
             expect(backedUpToDisk).toBe(1)
 
-            const bakPath = path.join(tasksDir, taskId, "_index.20260812-120000.bak.json")
+            const bakPath = path.join(tasksDir, taskId, "_index.task.20260812-120000.bak.json")
             const bak = JSON.parse(fs.readFileSync(bakPath, "utf8"))
             expect(bak._removedReason).toBe("stale_entry")
         })
@@ -331,7 +339,7 @@ describe("IndexTransaction", () => {
             expect(items).toHaveLength(0)
             expect(backedUpToDisk).toBe(1)
 
-            const bakPath = path.join(tasksDir, taskId, "_index.20260812-120000.bak.json")
+            const bakPath = path.join(tasksDir, taskId, "_index.task.20260812-120000.bak.json")
             const bak = JSON.parse(fs.readFileSync(bakPath, "utf8"))
             expect(bak._removedReason).toBe("no_history_item")
         })
