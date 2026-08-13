@@ -1,11 +1,12 @@
 import path from "node:path"
 import type {HistoryItem} from "../types.js"
-import {API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
-import {JsonFileTransaction} from "./file.js";
+import {API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME,} from "./paths.js"
+import {JsonFileTransaction, listBackupsForTask} from "./file.js";
 import {inspectTaskDir, isPlaceholderTaskName} from "./validation.js";
 import {readPartialJsonArray} from "./io/readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
+import {resolveReferences, type ReferenceSource} from "./resolveReferences.js"
 import {computeTaskSize} from "./size.js"
 import {estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost,} from "./estimateTokens.js"
 
@@ -15,6 +16,8 @@ export interface RepairResult {
     taskRepaired: boolean
     sizeRepaired: boolean
     tokensRepaired: boolean
+    refsRepaired: boolean
+    refsRecoverySources?: Array<ReferenceSource>
     tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
     unrepairable: boolean
@@ -34,6 +37,11 @@ export function formatRepairParts(r: RepairResult): string[] {
     if (r.tokensRepaired) {
         const src = r.tokensRecoverySource ?? "?"
         parts.push(`tokens(${src}→hi)`)
+    }
+    if (r.refsRepaired) {
+        for (const src of r.refsRecoverySources ?? []) {
+            parts.push(`refs(${src}→hi)`)
+        }
     }
     return parts
 }
@@ -62,6 +70,10 @@ export interface RepairTaskOptions {
         cacheReads?: number;
         cacheWrites?: number
     }>
+    /** Full index (id → entry) for cross-task reference-field recovery. */
+    fullIndex?: Map<string, Record<string, unknown>>
+    /** Known task ids for filtering reference-field recovery candidates. */
+    taskIds?: Set<string>
 }
 
 export async function repairTaskDir(
@@ -75,6 +87,7 @@ export async function repairTaskDir(
         taskRepaired: false,
         sizeRepaired: false,
         tokensRepaired: false,
+        refsRepaired: false,
         apiTruncated: false,
         unrepairable: false,
         errors: [],
@@ -222,6 +235,30 @@ export async function repairTaskDir(
                 if (historyItem.cacheWrites === undefined || historyItem.cacheWrites === null) {
                     historyItem.cacheWrites = 0
                 }
+            }
+        }
+
+        // --- 3b. Repair reference fields ---
+        if (options.fullIndex) {
+            const taskIds = options.taskIds ?? new Set(options.fullIndex.keys())
+            const backups: string[] = []
+            const tasksDir = path.dirname(taskDir)
+            for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
+                backups.push(b.bakPath)
+            }
+            for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
+                backups.push(b.bakPath)
+            }
+            const resolution = resolveReferences(historyItem, {
+                fullIndex: options.fullIndex,
+                taskIds,
+                ach: apiHistory,
+                backups,
+            })
+            if (resolution.changed) {
+                result.refsRepaired = true
+                result.refsRecoverySources = [...new Set(resolution.recovered.map(r => r.source))]
+                modified = true
             }
         }
 

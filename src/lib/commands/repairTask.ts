@@ -50,6 +50,8 @@ export async function action(taskId: string, cmdOpts: {
         tokensOut?: number;
         totalCost?: number
     }>
+    const fullIndex = await idx.getFullIndex()
+    const taskIds = await idx.getKnownTaskIds()
 
     const r = await repairTaskDir(taskDir, {
         dryRun: !cmdOpts.force,
@@ -57,6 +59,8 @@ export async function action(taskId: string, cmdOpts: {
         forceUim: cmdOpts.forceUim,
         fixedInputToken: cmdOpts.fixedInputToken,
         indexItems,
+        fullIndex,
+        taskIds,
     })
 
     console.log(getVersionBanner())

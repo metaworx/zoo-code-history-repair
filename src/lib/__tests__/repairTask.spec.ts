@@ -203,4 +203,29 @@ describe("repairTaskDir", () => {
         expect(result.apiTruncated).toBe(true)
         expect(result.sizeRepaired).toBe(true)
     })
+
+    it("recovers a corrupted parentTaskId from a backup file", async () => {
+        writeJson("api_conversation_history.json", [
+            {role: "user", content: [{type: "text", text: "<user_message>Child task</user_message>"}], ts: 100},
+        ])
+        writeJson("history_item.json", {id: "child-id", task: "Child task", size: 100, ts: 1, parentTaskId: "scrambled-text"})
+        writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
+        writeJson("task_metadata.json", {})
+
+        // A removed-index-entry backup still carries the parent-child relationship.
+        fs.writeFileSync(
+            path.join(taskDir, "history_item.json.20260813-000000.bak.json"),
+            JSON.stringify({id: "parent-id", childIds: ["child-id"]}),
+            "utf8",
+        )
+
+        const fullIndex = new Map([["child-id", {id: "child-id", parentTaskId: "scrambled-text"}]])
+        const taskIds = new Set(["child-id", "parent-id"])
+
+        const result = await repairTaskDir(taskDir, {backup: false, fullIndex, taskIds})
+
+        expect(result.refsRepaired).toBe(true)
+        const hi = readJson("history_item.json") as Record<string, unknown>
+        expect(hi.parentTaskId).toBe("parent-id")
+    })
 })

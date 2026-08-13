@@ -110,6 +110,16 @@ export class IndexTransaction extends JsonFileTransaction {
         return map
     }
 
+    /** All known task ids: index entries plus on-disk task directories. */
+    async getKnownTaskIds(): Promise<Set<string>> {
+        await this.getEntries()
+        const ids = new Set<string>(Object.keys(this.index))
+        for (const dir of listTaskDirs(this.tasksDir)) {
+            ids.add(path.basename(dir))
+        }
+        return ids
+    }
+
     /**
      * Remove a single entry by ID.
      * @param id        The entry ID to remove.

@@ -38,6 +38,11 @@ export async function repairAllCorrupted(
     const indexItems = scan.indexItems
     const oldIndexIds = new Set(indexItems.map(i => i.id))
 
+    // Reference-field recovery context, sourced from the index transaction.
+    const idx = new IndexTransaction(false)
+    const fullIndex = await idx.getFullIndex()
+    const taskIds = await idx.getKnownTaskIds()
+
     const results: RepairResult[] = []
     let repaired = 0
     let failed = 0
@@ -50,6 +55,8 @@ export async function repairAllCorrupted(
             backup: options.backup !== false,
             fixedInputToken: options.fixedInputToken,
             indexItems,
+            fullIndex,
+            taskIds,
         })
 
         results.push(r)
@@ -71,7 +78,6 @@ export async function repairAllCorrupted(
     let indexAdded: string[] = []
     let indexRemoved: string[] = []
 
-    const idx = new IndexTransaction(false)
     const rebuildResult = await idx.repair(undefined, {
         dryRun: options.dryRun,
         backup: options.backup !== false,

@@ -79,7 +79,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     // ── Phase 5: final rebuild — assert zero errors (converged) ──
     await rebuildIndexAction({force: true, backup: true})
     const c5 = await measureCounters()
-    expect(c5.errorsIdx, "final rebuild must yield an error-free index").toBe(0)
+    expect(c5.errorsDisk + c5.errorsIdx, "final rebuild must leave zero errors on disk and in index").toBe(0)
     expect(c5.corruptIdx, "final rebuild must leave no corrupt index entries").toBe(0)
 
     // ── Phase 6: final rebuild again — assert no change (idempotent) ──

@@ -51,9 +51,13 @@ vi.mock("../../file.js", () => ({
 }))
 
 const mockIdxGetEntries = vi.hoisted(() => vi.fn(() => []))
+const mockIdxGetFullIndex = vi.hoisted(() => vi.fn(() => new Map()))
+const mockIdxGetKnownTaskIds = vi.hoisted(() => vi.fn(() => new Set()))
 vi.mock("../../IndexTransaction.js", () => ({
     IndexTransaction: vi.fn(function (this: any, _readOnly?: boolean) {
         this.getEntries = mockIdxGetEntries
+        this.getFullIndex = mockIdxGetFullIndex
+        this.getKnownTaskIds = mockIdxGetKnownTaskIds
         this.replaceId = vi.fn()
         return this
     }),
@@ -143,6 +147,8 @@ describe("repairTask command", () => {
         mockIdxGetEntries.mockReturnValue([
             {id: "t1", tokensIn: 500, tokensOut: 300},
         ])
+        mockIdxGetFullIndex.mockReturnValue(new Map([["t1", {id: "t1", tokensIn: 500, tokensOut: 300}]]))
+        mockIdxGetKnownTaskIds.mockReturnValue(new Set())
         mockRepairTaskDir.mockReturnValue({
             taskId: "t1", uiRepaired: false, taskRepaired: false,
             sizeRepaired: false, tokensRepaired: false,
@@ -157,6 +163,8 @@ describe("repairTask command", () => {
             forceUim: true,
             fixedInputToken: 2000,
             indexItems: [{id: "t1", tokensIn: 500, tokensOut: 300}],
+            fullIndex: new Map([["t1", {id: "t1", tokensIn: 500, tokensOut: 300}]]),
+            taskIds: new Set(),
         })
     })
 
