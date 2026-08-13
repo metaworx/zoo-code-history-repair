@@ -4,9 +4,9 @@ import path from "node:path"
 import {
     deleteBackups,
     listBackupsForType,
-    parseTimestamp,
     restoreFromBackups
 } from "../restore.js"
+import {parseTimestamp,} from "../file.js"
 
 describe("parseTimestamp", () => {
     it("parses valid YYYYMMDD-HHmmss", () => {

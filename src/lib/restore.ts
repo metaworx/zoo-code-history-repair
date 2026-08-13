@@ -1,9 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import {
-    BackupEntry,
     backupTimestamp,
-    BackupType,
     consolidateBackups,
     listBackups,
     mapTypeToFileName,
@@ -12,13 +10,12 @@ import {
     readJsonFile,
     saveFile,
 } from "./file.js"
+import type {
+    BackupEntry,
+    BackupType
+} from "./file.js"
 import {IndexTransaction} from "./IndexTransaction.js"
 import {HISTORY_ITEM_NAME} from "./paths.js"
-
-export {
-    BackupEntry,
-    parseTimestamp
-}
 
 const DEFAULT_TYPE: BackupType = "history_item"
 

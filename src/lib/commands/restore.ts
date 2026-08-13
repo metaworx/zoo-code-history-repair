@@ -8,7 +8,7 @@ import {
     c,
     colorize
 } from "../format.js"
-import type {BackupEntry} from "../restore.js"
+import type {BackupEntry} from "../file.js"
 import {
     deleteBackups,
     listBackupsForType,
