@@ -1,4 +1,11 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeEach,
+    afterEach
+} from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
@@ -51,7 +58,8 @@ describe("repairAll command", () => {
     let consoleLogSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
         mockResolveRoot.mockReturnValue("/fake/root")
         mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
     })
@@ -188,6 +196,7 @@ describe("repairAll command", () => {
             dryRun: false,
             backup: false,
             fixedInputToken: 1000,
+            forceRebuildHi: undefined,
         })
     })
 })

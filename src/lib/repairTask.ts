@@ -19,6 +19,9 @@ import {readPartialJsonArray} from "./io/readJson.js"
 import {rebuildUiMessages} from "./rebuildUiMessages.js"
 import {extractTaskFromApiHistory} from "./rebuildTaskField.js"
 import {
+    recoverFields,
+    readBackupEntries,
+    type FieldSource,
     type ReferenceSource,
     resolveReferences
 } from "./resolveReferences.js"
@@ -41,6 +44,11 @@ export interface RepairResult {
     interruptedRepaired: boolean
     tokensRecoverySource?: "index" | "estimate" | "user_override"
     apiTruncated: boolean
+    /** True when history_item.json was rebuilt from scratch (L1 --force-rebuild-hi). */
+    hiRebuilt: boolean
+    /** True when missing/zero fields were recovered from backups or defaults (L2/L3). */
+    fieldsRepaired: boolean
+    fieldRecoverySources?: Array<FieldSource>
     unrepairable: boolean
     errors: string[]
     touchedFiles: string[]
@@ -67,6 +75,12 @@ export function formatRepairParts(r: RepairResult): string[] {
             parts.push(`refs(${src}→hi)`)
         }
     }
+    if (r.fieldsRepaired) {
+        for (const src of r.fieldRecoverySources ?? []) {
+            parts.push(`fields(${src}→hi)`)
+        }
+    }
+    if (r.hiRebuilt) parts.push("hi(rebuild→hi)")
     return parts
 }
 
@@ -80,6 +94,29 @@ function lastUnansweredToolUseId(apiHistory: unknown[]): string | null {
     const lastBlock = blocks[blocks.length - 1]
     if (!lastBlock || lastBlock.type !== "tool_use") return null
     return typeof lastBlock.id === "string" ? lastBlock.id : null
+}
+
+/**
+ * Derive a history_item `ts` for a rebuild: first numeric `ts` in the ACH,
+ * else the first numeric `ts` in backup entry metadata. Returns null when no
+ * source carries a timestamp.
+ */
+function deriveHistoryItemTs(
+    apiHistory: unknown[],
+    backupEntries: Array<Record<string, unknown>>,
+): number | null {
+    if (Array.isArray(apiHistory)) {
+        for (const turn of apiHistory) {
+            if (turn && typeof turn === "object") {
+                const ts = (turn as Record<string, unknown>).ts
+                if (typeof ts === "number") return ts
+            }
+        }
+    }
+    for (const e of backupEntries) {
+        if (typeof e.ts === "number") return e.ts
+    }
+    return null
 }
 
 /**
@@ -110,6 +147,8 @@ export interface RepairTaskOptions {
     fullIndex?: Map<string, Record<string, unknown>>
     /** Known task ids for filtering reference-field recovery candidates. */
     taskIds?: Set<string>
+    /** Rebuild a missing history_item.json from ACH + backups (L1). */
+    forceRebuildHi?: boolean
 }
 
 export async function repairTaskDir(
@@ -126,6 +165,8 @@ export async function repairTaskDir(
         refsRepaired: false,
         interruptedRepaired: false,
         apiTruncated: false,
+        hiRebuilt: false,
+        fieldsRepaired: false,
         unrepairable: false,
         errors: [],
         touchedFiles: [],
@@ -195,23 +236,27 @@ export async function repairTaskDir(
         }
     }
 
+    // Backup sources shared by reference-field recovery and field recovery (L1/L2/L3).
+    const tasksDir = path.dirname(taskDir)
+    const taskBackupPaths: string[] = []
+    for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
+        taskBackupPaths.push(b.bakPath)
+    }
+    const indexBackupPaths: string[] = []
+    for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
+        indexBackupPaths.push(b.bakPath)
+    }
+    const allBackupPaths = [...taskBackupPaths, ...indexBackupPaths]
+
     // --- 1. Repair reference fields (before UI rebuild, so newTask taskIds resolve) ---
     let hiModified = false
     if (historyItem && options.fullIndex) {
         const taskIds = options.taskIds ?? new Set(options.fullIndex.keys())
-        const backups: string[] = []
-        const tasksDir = path.dirname(taskDir)
-        for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
-            backups.push(b.bakPath)
-        }
-        for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
-            backups.push(b.bakPath)
-        }
         const resolution = resolveReferences(historyItem, {
             fullIndex: options.fullIndex,
             taskIds,
             ach: apiHistory,
-            backups,
+            backups: allBackupPaths,
         })
         if (resolution.changed) {
             result.refsRepaired = true
@@ -331,6 +376,18 @@ export async function repairTaskDir(
             }
         }
 
+        // --- 3b. Backup-source field recovery with defaults (L2/L3/L9) ---
+        const fieldRecovery = recoverFields(historyItem, {
+            indexEntry: options.indexItems?.find(e => e.id === taskId),
+            taskBackups: readBackupEntries(taskBackupPaths),
+            indexBackups: readBackupEntries(indexBackupPaths).filter(e => e.id === taskId),
+        })
+        if (fieldRecovery.changed) {
+            result.fieldsRepaired = true
+            result.fieldRecoverySources = [...new Set(fieldRecovery.recovered.map(r => r.source))]
+            modified = true
+        }
+
         // --- 4. Recompute size (after all modifications) ---
         await uiTx.load(false)
         const uiMessages = uiTx.getData() as unknown[] | null
@@ -353,6 +410,45 @@ export async function repairTaskDir(
             if (bak) result.backups.push(bak)
         }
         if (modified && !result.touchedFiles.includes(HISTORY_ITEM_NAME)) {
+            result.touchedFiles.push(HISTORY_ITEM_NAME)
+        }
+    } else if (options.forceRebuildHi) {
+        // L1: rebuild a minimum-viable history_item.json from ACH + backups.
+        const extractedTask = extractTaskFromApiHistory(apiHistory)
+        if (!extractedTask) {
+            result.unrepairable = true
+            result.errors.push(`missing ${HISTORY_ITEM_NAME} and no task extractable from ${API_HISTORY_NAME} — cannot rebuild`)
+            result.hint = `This task cannot be repaired. Remove it with: zoo-code-history-repair delete ${taskId} --force`
+            return result
+        }
+
+        const rebuilt: HistoryItem = {id: taskId, task: extractedTask}
+        const ts = deriveHistoryItemTs(apiHistory, readBackupEntries(allBackupPaths))
+        if (ts !== null) rebuilt.ts = ts
+
+        const fieldRecovery = recoverFields(rebuilt, {
+            indexEntry: options.indexItems?.find(e => e.id === taskId),
+            taskBackups: readBackupEntries(taskBackupPaths),
+            indexBackups: readBackupEntries(indexBackupPaths).filter(e => e.id === taskId),
+        })
+        if (fieldRecovery.changed) {
+            result.fieldsRepaired = true
+            result.fieldRecoverySources = [...new Set(fieldRecovery.recovered.map(r => r.source))]
+        }
+
+        // Recompute size (after rebuild).
+        await uiTx.load(false)
+        const uiMessages = uiTx.getData() as unknown[] | null
+        rebuilt.size = computeTaskSize(uiMessages ?? [], apiHistory, rebuilt, taskMetadata ?? {})
+
+        result.hiRebuilt = true
+
+        if (!options.dryRun) {
+            hiTx.setData(rebuilt)
+            const bak = await hiTx.save(true, options.backup !== false)
+            if (bak) result.backups.push(bak)
+        }
+        if (!result.touchedFiles.includes(HISTORY_ITEM_NAME)) {
             result.touchedFiles.push(HISTORY_ITEM_NAME)
         }
     } else {

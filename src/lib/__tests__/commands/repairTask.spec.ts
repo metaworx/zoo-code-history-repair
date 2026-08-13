@@ -1,4 +1,11 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeEach,
+    afterEach
+} from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
@@ -162,6 +169,7 @@ describe("repairTask command", () => {
             backup: false,
             forceUim: true,
             fixedInputToken: 2000,
+            forceRebuildHi: undefined,
             indexItems: [{id: "t1", tokensIn: 500, tokensOut: 300}],
             fullIndex: new Map([["t1", {id: "t1", tokensIn: 500, tokensOut: 300}]]),
             taskIds: new Set(),

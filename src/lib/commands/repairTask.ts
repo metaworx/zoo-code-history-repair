@@ -1,10 +1,24 @@
 import path from "node:path"
-import {HISTORY_ITEM_NAME, resolveTasksDir, UI_MESSAGES_NAME} from "../paths.js"
+import {
+    HISTORY_ITEM_NAME,
+    resolveTasksDir,
+    UI_MESSAGES_NAME
+} from "../paths.js"
 import {JsonFileTransaction} from "../file.js";
 import {IndexTransaction} from "../IndexTransaction.js"
-import {formatRepairParts, repairTaskDir} from "../repairTask.js"
-import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
-import {c, colorize} from "../format.js"
+import {
+    formatRepairParts,
+    repairTaskDir
+} from "../repairTask.js"
+import {
+    ABBREV_HELP,
+    getVersionBanner,
+    resolveRoot
+} from "../cliContext.js"
+import {
+    c,
+    colorize
+} from "../format.js"
 
 export const name = "repair-task"
 export const summary = "Repair a single task (default: dry-run, use --force to write)"
@@ -29,6 +43,7 @@ export const options = [
     ["--no-backup", "Do not create timestamped backup files"],
     ["--force-uim", `Force ${UI_MESSAGES_NAME} rebuild even when not corrupt`, false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
+    ["--force-rebuild-hi", `Rebuild a missing ${HISTORY_ITEM_NAME} from ACH + backups`, false],
 ] as const
 
 const dryRunMsg = colorize("\n!! Dry-run — nothing written. Use --force to apply changes. !!", c.red)
@@ -37,7 +52,8 @@ export async function action(taskId: string, cmdOpts: {
     force?: boolean;
     backup?: boolean;
     forceUim?: boolean;
-    fixedInputToken?: number
+    fixedInputToken?: number;
+    forceRebuildHi?: boolean;
 }): Promise<void> {
     const root = resolveRoot()
     const tasksDir = resolveTasksDir(root)
@@ -58,6 +74,7 @@ export async function action(taskId: string, cmdOpts: {
         backup: cmdOpts.backup !== false,
         forceUim: cmdOpts.forceUim,
         fixedInputToken: cmdOpts.fixedInputToken,
+        forceRebuildHi: cmdOpts.forceRebuildHi,
         indexItems,
         fullIndex,
         taskIds,

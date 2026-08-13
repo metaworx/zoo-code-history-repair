@@ -270,4 +270,108 @@ describe("repairTaskDir", () => {
         const hi = readJson("history_item.json") as Record<string, unknown>
         expect(hi.parentTaskId).toBe("parent-id")
     })
+
+    it("recovers missing scalar/number fields from a history_item backup (L2/L3)", async () => {
+        writeJson("api_conversation_history.json", [
+            {role: "user", content: [{type: "text", text: "<user_message>Recover fields</user_message>"}], ts: 100},
+        ])
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 100, ts: 1})
+        writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
+        writeJson("task_metadata.json", {})
+
+        fs.writeFileSync(
+            path.join(taskDir, "history_item.json.20260813-000000.bak.json"),
+            JSON.stringify({id: "task-abc", mode: "plan", workspace: "/ws", apiConfigName: "deepseek", number: 4}),
+            "utf8",
+        )
+
+        const result = await repairTaskDir(taskDir, {backup: false})
+        expect(result.fieldsRepaired).toBe(true)
+
+        const hi = readJson("history_item.json") as Record<string, unknown>
+        expect(hi.mode).toBe("plan")
+        expect(hi.workspace).toBe("/ws")
+        expect(hi.apiConfigName).toBe("deepseek")
+        expect(hi.number).toBe(4)
+    })
+
+    it("applies scalar defaults when no backup source carries values (L3)", async () => {
+        writeJson("api_conversation_history.json", [
+            {role: "user", content: [{type: "text", text: "<user_message>Defaults task</user_message>"}], ts: 100},
+        ])
+        writeJson("history_item.json", {id: "task-abc", task: "Real task", size: 100, ts: 1})
+        writeJson("ui_messages.json", [{type: "say", say: "text", text: "hi"}])
+        writeJson("task_metadata.json", {})
+
+        const result = await repairTaskDir(taskDir, {backup: false})
+        expect(result.fieldsRepaired).toBe(true)
+
+        const hi = readJson("history_item.json") as Record<string, unknown>
+        expect(hi.mode).toBe("unknown")
+        expect(hi.workspace).toBe(os.homedir())
+        expect(hi.apiConfigName).toBe("unknown")
+        expect(hi.number).toBe(1)
+    })
+
+    it("rebuilds a missing history_item.json with --force-rebuild-hi (L1)", async () => {
+        writeJson("api_conversation_history.json", [
+            {role: "user", content: [{type: "text", text: "<user_message>Rebuild me</user_message>"}], ts: 123456},
+        ])
+        writeJson("ui_messages.json", [])
+        writeJson("task_metadata.json", {})
+        // history_item.json intentionally absent
+
+        const result = await repairTaskDir(taskDir, {forceRebuildHi: true, backup: false})
+        expect(result.hiRebuilt).toBe(true)
+        expect(result.unrepairable).toBe(false)
+        expect(result.errors).toEqual([])
+
+        const hi = readJson("history_item.json") as Record<string, unknown>
+        expect(hi.id).toBe("task-abc")
+        expect(hi.task).toBe("Rebuild me")
+        expect(hi.ts).toBe(123456)
+        expect(hi.mode).toBe("unknown")
+        expect(hi.workspace).toBe(os.homedir())
+        expect(hi.apiConfigName).toBe("unknown")
+        expect(hi.number).toBe(1)
+        expect(typeof hi.size).toBe("number")
+        expect(hi.size).toBeGreaterThan(0)
+    })
+
+    it("--force-rebuild-hi recovers numeric fields from a backup", async () => {
+        writeJson("api_conversation_history.json", [
+            {
+                role: "user",
+                content: [{type: "text", text: "<user_message>Rebuild with backup</user_message>"}],
+                ts: 100
+            },
+        ])
+        writeJson("ui_messages.json", [])
+        writeJson("task_metadata.json", {})
+        fs.writeFileSync(
+            path.join(taskDir, "history_item.json.20260813-000000.bak.json"),
+            JSON.stringify({id: "task-abc", tokensIn: 321, tokensOut: 123, totalCost: 0.002, number: 9}),
+            "utf8",
+        )
+
+        const result = await repairTaskDir(taskDir, {forceRebuildHi: true, backup: false})
+        const hi = readJson("history_item.json") as Record<string, unknown>
+        expect(hi.tokensIn).toBe(321)
+        expect(hi.tokensOut).toBe(123)
+        expect(hi.totalCost).toBe(0.002)
+        expect(hi.number).toBe(9)
+        expect(result.fieldsRepaired).toBe(true)
+    })
+
+    it("--force-rebuild-hi without an extractable task stays unrepairable", async () => {
+        writeJson("api_conversation_history.json", [
+            {role: "user", content: [{type: "text", text: "no user_message tag"}], ts: 100},
+        ])
+        writeJson("ui_messages.json", [])
+        writeJson("task_metadata.json", {})
+
+        const result = await repairTaskDir(taskDir, {forceRebuildHi: true, backup: false})
+        expect(result.unrepairable).toBe(true)
+        expect(result.errors).toContain("missing history_item.json and no task extractable from api_conversation_history.json — cannot rebuild")
+    })
 })

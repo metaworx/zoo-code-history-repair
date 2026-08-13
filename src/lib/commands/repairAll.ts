@@ -1,8 +1,19 @@
 import {formatRepairParts} from "../repairTask.js"
 import {repairAllCorrupted} from "../repairAll.js"
-import {DEFAULT_INDEX_NAME, resolveTasksDir, UI_MESSAGES_NAME} from "../paths.js"
-import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
-import {c, colorize} from "../format.js"
+import {
+    DEFAULT_INDEX_NAME,
+    resolveTasksDir,
+    UI_MESSAGES_NAME
+} from "../paths.js"
+import {
+    ABBREV_HELP,
+    getVersionBanner,
+    resolveRoot
+} from "../cliContext.js"
+import {
+    c,
+    colorize
+} from "../format.js"
 import {alignSummary} from "../scanOutput.js"
 
 export const name = "repair-all"
@@ -25,6 +36,7 @@ export const options = [
     ["--verbose", "Show all processed tasks including skipped", false],
     ["--fixed-input-token <n>", "Use n as tokensIn (0 = keep zeros, omit = estimate)", parseInt],
     ["--verify-ui-sync", `Verify ${UI_MESSAGES_NAME} sync with ACH reconstruction`, false],
+    ["--force-rebuild-hi", "Rebuild missing history_item.json from ACH + backups", false],
 ] as const
 
 const dryRunMsg = colorize("\nDry-run — nothing written. Use --force to apply changes.", c.red)
@@ -35,6 +47,7 @@ export async function action(cmdOpts: {
     verbose?: boolean;
     fixedInputToken?: number;
     verifyUiSync?: boolean;
+    forceRebuildHi?: boolean;
 }): Promise<void> {
     const root = resolveRoot()
     const ra = await repairAllCorrupted(root, {
@@ -42,6 +55,7 @@ export async function action(cmdOpts: {
         backup: cmdOpts.backup !== false,
         fixedInputToken: cmdOpts.fixedInputToken,
         verifyUiSync: cmdOpts.verifyUiSync,
+        forceRebuildHi: cmdOpts.forceRebuildHi,
     })
 
     console.log(getVersionBanner())

@@ -1,7 +1,11 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {reconcileStatus, resolveReferences} from "../resolveReferences.js"
+import {
+    reconcileStatus,
+    recoverFields,
+    resolveReferences
+} from "../resolveReferences.js"
 import type {ReferenceContext} from "../resolveReferences.js"
 
 const GRAND = "aaaaaaaa-1111-4111-8111-111111111111"
@@ -19,7 +23,14 @@ function childEntry(): Record<string, unknown> {
 
 /** ACH containing a single known task UUID (the child) in free text. */
 function achWith(childId: string): unknown[] {
-    return [{role: "user", content: [{type: "tool_result", tool_use_id: "t1", content: [{type: "text", text: `subtask ${childId} completed`}]}]}]
+    return [{
+        role: "user",
+        content: [{
+            type: "tool_result",
+            tool_use_id: "t1",
+            content: [{type: "text", text: `subtask ${childId} completed`}]
+        }]
+    }]
 }
 
 describe("resolveReferences", () => {
@@ -200,5 +211,147 @@ describe("reconcileStatus", () => {
         const entry: Record<string, unknown> = {id: CHILD, status: "completed", parentTaskId: PARENT}
         expect(reconcileStatus(entry)).toBe(false)
         expect(entry.status).toBe("completed")
+    })
+})
+
+describe("recoverFields", () => {
+    it("recovers numeric fields from the index entry", () => {
+        const entry: Record<string, unknown> = {
+            id: CHILD,
+            tokensIn: 0,
+            tokensOut: 0,
+            totalCost: 0,
+            cacheReads: 0,
+            cacheWrites: 0,
+            number: 0,
+        }
+        const res = recoverFields(entry, {
+            indexEntry: {
+                id: CHILD,
+                tokensIn: 500,
+                tokensOut: 300,
+                totalCost: 0.001,
+                cacheReads: 480,
+                cacheWrites: 10,
+                number: 3,
+            },
+        })
+
+        expect(entry.tokensIn).toBe(500)
+        expect(entry.tokensOut).toBe(300)
+        expect(entry.totalCost).toBe(0.001)
+        expect(entry.cacheReads).toBe(480)
+        expect(entry.cacheWrites).toBe(10)
+        expect(entry.number).toBe(3)
+        expect(res.recovered).toContainEqual({field: "tokensIn", source: "index"})
+        expect(res.recovered).toContainEqual({field: "number", source: "index"})
+    })
+
+    it("recovers numeric fields from task backups when the index lacks values", () => {
+        const entry: Record<string, unknown> = {id: CHILD, tokensIn: 0, tokensOut: 0, number: 0}
+        const res = recoverFields(entry, {
+            taskBackups: [{id: CHILD, tokensIn: 750, tokensOut: 400, number: 5}],
+        })
+
+        expect(entry.tokensIn).toBe(750)
+        expect(entry.tokensOut).toBe(400)
+        expect(entry.number).toBe(5)
+        expect(res.recovered).toContainEqual({field: "tokensIn", source: "backup"})
+    })
+
+    it("takes the highest non-zero value across sources", () => {
+        const entry: Record<string, unknown> = {id: CHILD, tokensIn: 0}
+        const res = recoverFields(entry, {
+            indexEntry: {id: CHILD, tokensIn: 100},
+            taskBackups: [{id: CHILD, tokensIn: 900}],
+            indexBackups: [{id: CHILD, tokensIn: 400}],
+        })
+
+        expect(entry.tokensIn).toBe(900)
+        expect(res.recovered).toContainEqual({field: "tokensIn", source: "backup"})
+    })
+
+    it("prefers the index value for numeric fields when it is the highest", () => {
+        const entry: Record<string, unknown> = {id: CHILD, tokensIn: 0}
+        const res = recoverFields(entry, {
+            indexEntry: {id: CHILD, tokensIn: 900},
+            taskBackups: [{id: CHILD, tokensIn: 100}],
+        })
+
+        expect(entry.tokensIn).toBe(900)
+        expect(res.recovered).toContainEqual({field: "tokensIn", source: "index"})
+    })
+
+    it("defaults number to 1 when no source provides a positive number", () => {
+        const entry: Record<string, unknown> = {id: CHILD, number: 0}
+        const res = recoverFields(entry, {taskBackups: [{id: CHILD, number: 0}]})
+
+        expect(entry.number).toBe(1)
+        expect(res.recovered).toContainEqual({field: "number", source: "default"})
+    })
+
+    it("recovers scalar strings from the index entry (first non-empty)", () => {
+        const entry: Record<string, unknown> = {id: CHILD, mode: "", workspace: "", apiConfigName: ""}
+        const res = recoverFields(entry, {
+            indexEntry: {id: CHILD, mode: "plan", workspace: "/ws", apiConfigName: "deepseek"},
+        })
+
+        expect(entry.mode).toBe("plan")
+        expect(entry.workspace).toBe("/ws")
+        expect(entry.apiConfigName).toBe("deepseek")
+        expect(res.recovered).toContainEqual({field: "mode", source: "index"})
+    })
+
+    it("recovers scalar strings from backups when the index lacks them", () => {
+        const entry: Record<string, unknown> = {id: CHILD}
+        const res = recoverFields(entry, {
+            taskBackups: [{id: CHILD, mode: "code", workspace: "/backup-ws", apiConfigName: "openai"}],
+        })
+
+        expect(entry.mode).toBe("code")
+        expect(entry.workspace).toBe("/backup-ws")
+        expect(entry.apiConfigName).toBe("openai")
+        expect(res.recovered).toContainEqual({field: "workspace", source: "backup"})
+    })
+
+    it("applies scalar defaults when no source has a non-empty value", () => {
+        const entry: Record<string, unknown> = {id: CHILD}
+        const res = recoverFields(entry, {})
+
+        expect(entry.mode).toBe("unknown")
+        expect(entry.workspace).toBe(os.homedir())
+        expect(entry.apiConfigName).toBe("unknown")
+        expect(res.recovered).toContainEqual({field: "mode", source: "default"})
+        expect(res.recovered).toContainEqual({field: "workspace", source: "default"})
+        expect(res.recovered).toContainEqual({field: "apiConfigName", source: "default"})
+    })
+
+    it("leaves already-set fields untouched", () => {
+        const entry: Record<string, unknown> = {
+            id: CHILD,
+            tokensIn: 42,
+            mode: "existing",
+            workspace: "/existing",
+            apiConfigName: "existing",
+            number: 7,
+        }
+        const res = recoverFields(entry, {
+            indexEntry: {
+                id: CHILD,
+                tokensIn: 999,
+                mode: "other",
+                workspace: "/other",
+                apiConfigName: "other",
+                number: 9
+            },
+        })
+
+        expect(entry.tokensIn).toBe(42)
+        expect(entry.mode).toBe("existing")
+        expect(entry.workspace).toBe("/existing")
+        expect(entry.apiConfigName).toBe("existing")
+        expect(entry.number).toBe(7)
+        expect(res.changed).toBe(false)
+        expect(res.recovered).toEqual([])
     })
 })

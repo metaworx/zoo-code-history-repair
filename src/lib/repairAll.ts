@@ -8,6 +8,7 @@ import type {RepairResult} from "./repairTask.js"
 export interface RepairAllOptions extends RepairOptions {
     fixedInputToken?: number
     verifyUiSync?: boolean
+    forceRebuildHi?: boolean
 }
 
 export interface RepairAllResult {
@@ -54,6 +55,7 @@ export async function repairAllCorrupted(
             dryRun: options.dryRun,
             backup: options.backup !== false,
             fixedInputToken: options.fixedInputToken,
+            forceRebuildHi: options.forceRebuildHi,
             indexItems,
             fullIndex,
             taskIds,
@@ -64,7 +66,7 @@ export async function repairAllCorrupted(
         if (r.unrepairable) {
             unrepairable++
         } else {
-            const fixed = [r.uiRepaired, r.taskRepaired, r.sizeRepaired, r.tokensRepaired].filter(Boolean).length
+            const fixed = [r.uiRepaired, r.taskRepaired, r.sizeRepaired, r.tokensRepaired, r.hiRebuilt].filter(Boolean).length
             if (fixed > 0) {
                 repaired++
             } else {

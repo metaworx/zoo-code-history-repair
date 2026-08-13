@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import os from "node:os"
 
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
 const UUID_FULL_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -89,32 +90,41 @@ function achCandidateUuids(ctx: ReferenceContext, self: string): string[] {
     return out
 }
 
+/** Parse one backup file into a flattened array of entry objects (skips unreadable files). */
+function readEntriesFromFile(p: string): Array<Record<string, unknown>> {
+    let raw: string
+    try {
+        raw = fs.readFileSync(p, "utf8")
+    } catch {
+        return []
+    }
+    let data: unknown
+    try {
+        data = JSON.parse(raw)
+    } catch {
+        return []
+    }
+    const entries = Array.isArray(data)
+        ? data
+        : data && typeof data === "object"
+            ? (Array.isArray((data as Record<string, unknown>).entries)
+                ? (data as Record<string, unknown>).entries as unknown[]
+                : [data])
+            : []
+    const out: Array<Record<string, unknown>> = []
+    for (const e of entries) {
+        if (e && typeof e === "object" && !Array.isArray(e)) {
+            out.push(e as Record<string, unknown>)
+        }
+    }
+    return out
+}
+
 /** Parse backup files into a merged id → entry map for cross-reference lookups. */
 function parseBackupEntries(paths: string[] | undefined): Map<string, Record<string, unknown>> {
     const map = new Map<string, Record<string, unknown>>()
     for (const p of paths ?? []) {
-        let raw: string
-        try {
-            raw = fs.readFileSync(p, "utf8")
-        } catch {
-            continue
-        }
-        let data: unknown
-        try {
-            data = JSON.parse(raw)
-        } catch {
-            continue
-        }
-        const entries = Array.isArray(data)
-            ? data
-            : data && typeof data === "object"
-                ? (Array.isArray((data as Record<string, unknown>).entries)
-                    ? (data as Record<string, unknown>).entries as unknown[]
-                    : [data])
-                : []
-        for (const e of entries) {
-            if (!e || typeof e !== "object" || Array.isArray(e)) continue
-            const rec = e as Record<string, unknown>
+        for (const rec of readEntriesFromFile(p)) {
             if (typeof rec.id === "string" && !map.has(rec.id)) map.set(rec.id, rec)
         }
     }
@@ -311,6 +321,139 @@ export function resolveReferences(
     }
 
     if (reconcileStatus(entry)) changed = true
+
+    return {entry, changed, recovered}
+}
+
+/** Source a recovered history-item field came from. */
+export type FieldSource = "index" | "backup" | "default"
+
+export interface FieldRecovery {
+    field: string
+    source: FieldSource
+}
+
+export interface FieldRecoveryContext {
+    /** Live index entry for this task (priority source 1). */
+    indexEntry?: Record<string, unknown> | null
+    /** Task-level backup entries (`history_item.json.*` / `_index.task.*`), priority source 2. */
+    taskBackups?: Array<Record<string, unknown>>
+    /** Root `_index.json.*` backup entries for this task, priority source 3. */
+    indexBackups?: Array<Record<string, unknown>>
+}
+
+export interface FieldRecoveryResult {
+    entry: Record<string, unknown>
+    changed: boolean
+    recovered: FieldRecovery[]
+}
+
+const NUMERIC_FIELDS = ["tokensIn", "tokensOut", "totalCost", "cacheReads", "cacheWrites", "number"] as const
+const SCALAR_FIELDS = ["mode", "workspace", "apiConfigName"] as const
+
+const DEFAULT_SCALARS: Record<(typeof SCALAR_FIELDS)[number], () => string> = {
+    mode: () => "unknown",
+    workspace: () => os.homedir(),
+    apiConfigName: () => "unknown",
+}
+
+/**
+ * Read backup files into a flattened, order-preserving array of entries.
+ * Accepts a bare entry object, an array of entries, or an `{entries: [...]}`
+ * wrapper. Unreadable/unparseable files are skipped.
+ */
+export function readBackupEntries(paths: string[] | undefined): Array<Record<string, unknown>> {
+    const out: Array<Record<string, unknown>> = []
+    for (const p of paths ?? []) {
+        out.push(...readEntriesFromFile(p))
+    }
+    return out
+}
+
+function positiveNumber(v: unknown): number | null {
+    return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null
+}
+
+function nonEmptyString(v: unknown): string | null {
+    return typeof v === "string" && v.trim() !== "" ? v : null
+}
+
+/**
+ * Recover missing/zero history-item fields from backup sources with defaults.
+ *
+ * Priority order: live index entry → task backups → root `_index.json` backups
+ * → defaults.
+ *
+ * - Numeric fields (`tokensIn`, `tokensOut`, `totalCost`, `cacheReads`,
+ *   `cacheWrites`, `number`): highest non-zero value across sources (L2).
+ *   `number` falls back to `1` when no source provides a positive value (L3).
+ * - Scalar strings (`mode`, `workspace`, `apiConfigName`): first non-empty value
+ *   across sources, else the configured default — `mode:"unknown"`,
+ *   `workspace:os.homedir()`, `apiConfigName:"unknown"` (L3/L9).
+ *
+ * The entry is mutated in place; `changed` reports whether anything moved and
+ * `recovered` lists each field and the source it was recovered from.
+ */
+export function recoverFields(
+    entry: Record<string, unknown>,
+    ctx: FieldRecoveryContext,
+): FieldRecoveryResult {
+    const recovered: FieldRecovery[] = []
+    let changed = false
+
+    const candidates: Array<{ source: FieldSource; entry: Record<string, unknown> }> = []
+    if (ctx.indexEntry) candidates.push({source: "index", entry: ctx.indexEntry})
+    for (const e of ctx.taskBackups ?? []) candidates.push({source: "backup", entry: e})
+    for (const e of ctx.indexBackups ?? []) candidates.push({source: "backup", entry: e})
+
+    for (const field of NUMERIC_FIELDS) {
+        if (positiveNumber(entry[field]) !== null) continue
+
+        let best: number | null = null
+        let bestSource: FieldSource = "backup"
+        for (const {source, entry: srcEntry} of candidates) {
+            const v = positiveNumber(srcEntry[field])
+            if (v !== null && (best === null || v > best)) {
+                best = v
+                bestSource = source
+            }
+        }
+
+        if (best !== null) {
+            entry[field] = best
+            recovered.push({field, source: bestSource})
+            changed = true
+        } else if (field === "number") {
+            entry[field] = 1
+            recovered.push({field, source: "default"})
+            changed = true
+        }
+    }
+
+    for (const field of SCALAR_FIELDS) {
+        if (nonEmptyString(entry[field]) !== null) continue
+
+        let found: string | null = null
+        let foundSource: FieldSource = "backup"
+        for (const {source, entry: srcEntry} of candidates) {
+            const v = nonEmptyString(srcEntry[field])
+            if (v !== null) {
+                found = v
+                foundSource = source
+                break
+            }
+        }
+
+        if (found !== null) {
+            entry[field] = found
+            recovered.push({field, source: foundSource})
+            changed = true
+        } else {
+            entry[field] = DEFAULT_SCALARS[field]()
+            recovered.push({field, source: "default"})
+            changed = true
+        }
+    }
 
     return {entry, changed, recovered}
 }
