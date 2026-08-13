@@ -10,6 +10,7 @@ import {
     vi
 } from "vitest"
 import {IndexTransaction} from "../IndexTransaction.js"
+import {createTempDir, makeTaskDir, touch, writeJson} from "./testHelpers.js"
 
 const mockResolveRoot = vi.hoisted(() => vi.fn(() => "/fake/root"))
 const mockResolveTasksDir = vi.hoisted(() => vi.fn((r: string) => path.join(r, "tasks")))
@@ -559,6 +560,185 @@ describe("IndexTransaction", () => {
 
             expect(warnings).toHaveLength(1)
             expect(warnings[0]).toContain("orphan: 1 disk, 1 index")
+        })
+    })
+
+    describe("repair fixture edge cases (Block 5)", () => {
+        const TASK_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        const MISSING_ID = "cccccccc-dddd-4eee-8fff-000000000000"
+        const BAK_NAME = "_index.task.20260812-120000.bak.json"
+
+        let td: ReturnType<typeof createTempDir>
+        let tasksDir: string
+
+        beforeEach(() => {
+            td = createTempDir("zoo-idx-fixture-")
+            tasksDir = td.tasksDir
+
+            mockResolveRoot.mockReturnValue(td.root)
+            mockResolveTasksDir.mockReturnValue(tasksDir)
+            mockResolveIndexPath.mockReturnValue(path.join(tasksDir, "_index.json"))
+            mockListTaskDirs.mockReturnValue([])
+            mockReadJsonFile.mockReturnValue(null)
+
+            writeJson(path.join(tasksDir, "_index.json"), [])
+        })
+
+        afterEach(() => {
+            td.cleanup()
+        })
+
+        it("index-clean-disk-corrupt keeps the clean index entry", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = perfectEntry({id: TASK_ID, task: "Task #1", tokensIn: 0, tokensOut: 0, totalCost: 0, ts: 200})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Clean index task", ts: 100})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: true})
+
+            expect(items).toHaveLength(1)
+            expect(items[0].task).toBe("Clean index task")
+            expect(backedUpToDisk).toBe(0)
+            expect(warnings[0]).toContain("corrupt: 1 disk, 0 index")
+            expect(warnings[0]).toContain("warnings: 3 disk, 0 index")
+        })
+
+        it("dangling-parent nullifies parentTaskId and keeps entry with backup", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = perfectEntry({id: TASK_ID, task: "Child task", ts: 200, parentTaskId: MISSING_ID})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Child task", ts: 100, parentTaskId: MISSING_ID})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(1)
+            expect(items[0].id).toBe(TASK_ID)
+            expect(items[0].parentTaskId).toBeUndefined()
+            expect(backedUpToDisk).toBe(1)
+
+            const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
+            expect(bak._removedReason).toBe("dangling_ref")
+        })
+
+        it("dangling-awaiting marks interrupted and clears awaitingChildId + delegatedToId", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = perfectEntry({id: TASK_ID, task: "Parent task", ts: 200, awaitingChildId: MISSING_ID, delegatedToId: MISSING_ID})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Parent task", ts: 100, awaitingChildId: MISSING_ID, delegatedToId: MISSING_ID})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(1)
+            expect(items[0].status).toBe("interrupted")
+            expect(items[0].awaitingChildId).toBeUndefined()
+            expect(items[0].delegatedToId).toBeUndefined()
+            expect(backedUpToDisk).toBe(1)
+
+            const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
+            expect(bak._removedReason).toBe("dangling_awaiting_child")
+        })
+
+        it("folder-orphan adds disk task to the index", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = perfectEntry({id: TASK_ID, task: "Disk only task", ts: 100})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: true})
+
+            expect(items).toHaveLength(1)
+            expect(items[0].id).toBe(TASK_ID)
+            expect(items[0].task).toBe("Disk only task")
+            expect(backedUpToDisk).toBe(0)
+            expect(warnings[0]).toContain("orphan: 1 disk, 0 index")
+        })
+
+        it("stale-entry removes index entry with stale_entry backup", async () => {
+            // no task dir on disk
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, ts: 100})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(0)
+            expect(backedUpToDisk).toBe(1)
+            expect(warnings[0]).toContain("orphan: 0 disk, 1 index")
+
+            const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
+            expect(bak._removedReason).toBe("stale_entry")
+        })
+
+        it("both-corrupt-different-fields backs up and removes both", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = perfectEntry({id: TASK_ID, task: "Real task", ts: 200, tokensIn: 0, tokensOut: 0, totalCost: 0})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Task #1", ts: 100})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(0)
+            expect(backedUpToDisk).toBe(1)
+            expect(warnings[0]).toContain("corrupt: 0 disk, 1 index")
+            expect(warnings[0]).toContain("warnings: 3 disk, 0 index")
+
+            const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
+            expect(bak._removedReason).toBe("both_corrupt")
+        })
+
+        it("disk-missing-hi removes index entry with no_history_item backup", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID) // dir exists but no history_item.json
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(null)
+
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, ts: 100})])
+
+            const idx = new IndexTransaction(false)
+            const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(0)
+            expect(backedUpToDisk).toBe(1)
+
+            const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
+            expect(bak._removedReason).toBe("no_history_item")
+        })
+
+        it("edge-case-empty-index writes an empty entries array", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const diskEntry = imperfectErrorEntry({id: TASK_ID, ts: 200})
+            touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            writeJson(path.join(tasksDir, "_index.json"), [imperfectErrorEntry({id: TASK_ID, ts: 100})])
+
+            const idx = new IndexTransaction(false)
+            const {items, written, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+            expect(items).toHaveLength(0)
+            expect(written).toBe(true)
+            expect(backedUpToDisk).toBe(1)
+            expect(warnings[0]).toContain("corrupt: 1 disk, 1 index")
+
+            const indexOnDisk = JSON.parse(fs.readFileSync(path.join(tasksDir, "_index.json"), "utf8"))
+            expect(indexOnDisk.entries).toEqual([])
         })
     })
 })

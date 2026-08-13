@@ -19,6 +19,7 @@ import repairAll from './fullPipeline.repairAll.js'
 import repairTask from './fullPipeline.repairTask.js'
 import deleteTask from './fullPipeline.delete.js'
 import rebuildIndex from './fullPipeline.rebuildIndex.js'
+import convergence from './fullPipeline.convergence.js'
 
 const mockSetRoot = vi.hoisted(() => vi.fn());
 const mockGetVersionBanner = vi.hoisted(() => vi.fn(() => "Zoo Code History Repair, v0.0.0-test\n"));
@@ -68,5 +69,6 @@ describe("full pipeline (integration)", () => {
     it("repair-task → index update (preserves all index entries after targeted repair)", () => repairTask(tasksDir, consoleLogSpy)());
     it("delete unrepairable task removes it from list-corrupt and is idempotent", () => deleteTask(tasksDir, consoleLogSpy)());
     it("rebuild-index removes index_orphans and adds folder_orphans from disk", () => rebuildIndex(tasksDir, consoleLogSpy, tmpRoot)());
+    it("rebuildIndex→repairTask→rebuildIndex→repairAll→rebuildIndex converges and is idempotent", () => convergence(tmpRoot, tasksDir, consoleLogSpy)(), 30000);
 
 });
