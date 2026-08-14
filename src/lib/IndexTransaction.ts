@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import type {RepairOptions} from "../types.js"
+import type {HistoryItem, RepairOptions} from "../types.js"
 import {
     HISTORY_ITEM_NAME,
     listTaskDirs,
@@ -16,6 +16,7 @@ import {
 import {resolveRoot} from "./cliContext.js"
 import {validateHistoryItem} from "./validate/historyItem.js"
 import {safeWriteJson} from "./io/safeWriteJson.js"
+import {inspectTaskDir} from "./validation.js"
 
 interface RepairStats {
     orphansDisk: number
@@ -183,6 +184,7 @@ export class IndexTransaction extends JsonFileTransaction {
         replacedFromDisk: number
         backedUpToDisk: number
         written: boolean
+        uiSyncMismatches: string[]
     }> {
         // Ensure the current index is loaded before merging
         await this.getEntries()
@@ -230,6 +232,10 @@ export class IndexTransaction extends JsonFileTransaction {
 
         this.index = newIndex
 
+        const uiSyncMismatches = options.verifyUiSync
+            ? await this._verifyUiSync(newIndex)
+            : []
+
         const summary = this._formatSummary(stats)
         const warnings = summary ? [summary] : []
 
@@ -244,6 +250,7 @@ export class IndexTransaction extends JsonFileTransaction {
             replacedFromDisk: stats.replacedFromDisk,
             backedUpToDisk: backedUp.size,
             written: !options.dryRun,
+            uiSyncMismatches,
         }
     }
 
@@ -499,6 +506,25 @@ export class IndexTransaction extends JsonFileTransaction {
         } catch {
             // Backup failure is non-fatal; the repair continues
         }
+    }
+
+    /**
+     * Cross-check ui_messages.json against the ACH-derived reconstruction for
+     * each entry in the rebuilt index (parity with scan --verify-ui-sync).
+     * Returns the task IDs whose ui_messages.json differs from the reconstruction.
+     */
+    private async _verifyUiSync(index: Record<string, Record<string, unknown>>): Promise<string[]> {
+        const mismatches: string[] = []
+        for (const [id, entry] of Object.entries(index)) {
+            const corruption = await inspectTaskDir(id, path.join(this.tasksDir, id), entry as HistoryItem, {
+                verifyUiSync: true,
+                showWarnings: true,
+            })
+            if (corruption.reasons.some(r => r.reason === "ui_sync_mismatch")) {
+                mismatches.push(id)
+            }
+        }
+        return mismatches
     }
 
     /** Render the single-line warning summary from the accumulated stats. */

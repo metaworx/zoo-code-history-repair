@@ -25,6 +25,7 @@ vi.mock("../../paths.js", () => ({
     DEFAULT_INDEX_BASENAME: "_index",
     DEFAULT_INDEX_NAME: "_index.json",
     HISTORY_ITEM_NAME: "history_item.json",
+    UI_MESSAGES_NAME: "ui_messages.json",
 }))
 
 vi.mock("../../IndexTransaction.js", () => ({
@@ -100,6 +101,42 @@ describe("rebuildIndex command", () => {
         expect(mockRepair).toHaveBeenCalledWith(undefined, {
             dryRun: true,
             backup: false,
+            verifyUiSync: false,
         })
+    })
+
+    it("passes verifyUiSync option to repair", async () => {
+        mockRepair.mockReturnValue({items: [], written: false, uiSyncMismatches: []})
+
+        await action({force: false, verifyUiSync: true})
+
+        expect(mockRepair).toHaveBeenCalledWith(undefined, {
+            dryRun: true,
+            backup: true,
+            verifyUiSync: true,
+        })
+    })
+
+    it("prints UI-sync mismatch report when present", async () => {
+        mockRepair.mockReturnValue({
+            items: [{id: "a"}],
+            written: false,
+            uiSyncMismatches: ["aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"],
+        })
+
+        await action({verifyUiSync: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("UI-sync mismatch")
+        expect(output).toContain("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    })
+
+    it("prints no-mismatch confirmation when verifyUiSync enabled", async () => {
+        mockRepair.mockReturnValue({items: [], written: false, uiSyncMismatches: []})
+
+        await action({verifyUiSync: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("UI-sync verified")
     })
 })

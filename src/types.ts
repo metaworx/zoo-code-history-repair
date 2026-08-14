@@ -72,4 +72,6 @@ export interface RepairOptions {
     storageRoot?: string
     dryRun?: boolean
     backup?: boolean
+    /** When true, cross-check ui_messages.json against ACH-derived reconstruction. */
+    verifyUiSync?: boolean
 }

@@ -10,14 +10,17 @@ export const summary = "Validate task storage files against schema rules"
 export const description = `Validate Zoo Code task storage files against comprehensive schema rules.
 By default validates the entire storage root. Pass a file argument to validate a specific file,
 or a task UUID to validate that task's directory.
-Errors are shown by default; use --warnings to also show warnings.`
+Errors and warnings are shown by default; use --no-warnings to hide warnings.`
 
 export const options = [
     ["--json", "Output machine-parseable JSON", false],
-    ["--warnings", "Also show warning-level issues", false],
+    ["--no-warnings", "Suppress warning-level issues", true],
 ] as const
 
-export async function action(target: string | undefined, cmdOpts: { json?: boolean; warnings?: boolean }): Promise<void> {
+export async function action(target: string | undefined, cmdOpts: {
+    json?: boolean;
+    warnings?: boolean
+}): Promise<void> {
     let results: ValidateResult[] = []
 
     // Resolve UUID targets to task directories
@@ -62,7 +65,7 @@ export async function action(target: string | undefined, cmdOpts: { json?: boole
             for (const issue of errors) {
                 console.log(`  ERROR: ${issue.field ? issue.field + ": " : ""}${issue.message}`)
             }
-            if (cmdOpts.warnings) {
+            if (cmdOpts.warnings !== false) {
                 for (const issue of warnings) {
                     console.log(`  WARNING: ${issue.field ? issue.field + ": " : ""}${issue.message}`)
                 }

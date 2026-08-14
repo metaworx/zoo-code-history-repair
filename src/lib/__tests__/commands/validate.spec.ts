@@ -60,7 +60,7 @@ describe("validate command", async () => {
         expect(exitSpy).not.toHaveBeenCalled()
     })
 
-    it("with errors: prints errors and exits 1", async () => {
+    it("with errors: prints errors and warnings by default and exits 1", async () => {
         mockValidatePath.mockReturnValue([
             {
                 file: "bad.json", result: {
@@ -83,13 +83,14 @@ describe("validate command", async () => {
         expect(output).toContain("ERROR:")
         expect(output).toContain("missing id field")
         expect(output).toContain("invalid timestamp")
-        // warnings suppressed without --warnings flag
-        expect(output).not.toContain("size is zero")
+        // warnings shown by default
+        expect(output).toContain("WARNING:")
+        expect(output).toContain("size is zero")
         expect(output).toContain("1 files checked, 0 valid, 2 errors, 1 warnings")
         expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
-    it("--warnings flag: shows warnings alongside errors", async () => {
+    it("warnings-only file: shows warnings by default", async () => {
         mockValidatePath.mockReturnValue([
             {
                 file: "f.json", result: {
@@ -104,12 +105,36 @@ describe("validate command", async () => {
             },
         ])
 
-        await action(undefined, {warnings: true})
+        await action(undefined, {})
 
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("WARNING:")
         expect(output).toContain("task is placeholder")
         expect(output).toContain("size mismatch")
+        expect(exitSpy).not.toHaveBeenCalled()
+    })
+
+    it("--no-warnings: suppresses warning-level issues", async () => {
+        mockValidatePath.mockReturnValue([
+            {
+                file: "f.json", result: {
+                    valid: true,
+                    errorCount: 0,
+                    warningCount: 2,
+                    issues: [
+                        {severity: "warning", field: "task", message: "task is placeholder"},
+                        {severity: "warning", field: "size", message: "size mismatch"},
+                    ],
+                }
+            },
+        ])
+
+        await action(undefined, {warnings: false})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).not.toContain("WARNING:")
+        expect(output).not.toContain("task is placeholder")
+        expect(output).not.toContain("size mismatch")
         expect(exitSpy).not.toHaveBeenCalled()
     })
 

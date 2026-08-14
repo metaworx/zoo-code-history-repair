@@ -207,6 +207,46 @@ describe("IndexTransaction", () => {
             expect(task2).toBeDefined()
             expect(task2!.task).toBe("Replace me")
         })
+
+        it("verifyUiSync cross-check returns mismatching task ids", async () => {
+            const taskId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+            const dir = path.join(tasksDir, taskId)
+            fs.mkdirSync(dir)
+
+            const diskEntry = perfectEntry({id: taskId, task: "Real task", ts: 200})
+            fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            fs.writeFileSync(path.join(dir, "ui_messages.json"), JSON.stringify([
+                {ts: 100, type: "say", say: "text", text: "Mismatch", partial: false},
+            ]))
+            fs.writeFileSync(path.join(dir, "api_conversation_history.json"), JSON.stringify([
+                {role: "user", content: [{type: "text", text: "Hello"}], ts: 100},
+            ]))
+
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            const idx = new IndexTransaction(false)
+            const {items, uiSyncMismatches} = await idx.repair(undefined, {dryRun: true, verifyUiSync: true})
+
+            expect(items).toHaveLength(1)
+            expect(uiSyncMismatches).toContain(taskId)
+        })
+
+        it("verifyUiSync disabled returns no mismatches", async () => {
+            const taskId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+            const dir = path.join(tasksDir, taskId)
+            fs.mkdirSync(dir)
+
+            const diskEntry = perfectEntry({id: taskId, task: "Real task", ts: 200})
+            fs.writeFileSync(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
+            mockListTaskDirs.mockReturnValue([dir])
+            mockReadJsonFile.mockReturnValue(diskEntry)
+
+            const idx = new IndexTransaction(false)
+            const {uiSyncMismatches} = await idx.repair(undefined, {dryRun: true})
+
+            expect(uiSyncMismatches).toEqual([])
+        })
     })
 
     describe("repair decision matrix (unit)", () => {
@@ -590,12 +630,23 @@ describe("IndexTransaction", () => {
 
         it("index-clean-disk-corrupt keeps the clean index entry", async () => {
             const dir = makeTaskDir(tasksDir, TASK_ID)
-            const diskEntry = perfectEntry({id: TASK_ID, task: "Task #1", tokensIn: 0, tokensOut: 0, totalCost: 0, ts: 200})
+            const diskEntry = perfectEntry({
+                id: TASK_ID,
+                task: "Task #1",
+                tokensIn: 0,
+                tokensOut: 0,
+                totalCost: 0,
+                ts: 200
+            })
             touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
             mockListTaskDirs.mockReturnValue([dir])
             mockReadJsonFile.mockReturnValue(diskEntry)
 
-            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Clean index task", ts: 100})])
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({
+                id: TASK_ID,
+                task: "Clean index task",
+                ts: 100
+            })])
 
             const idx = new IndexTransaction(false)
             const {items, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: true})
@@ -614,7 +665,12 @@ describe("IndexTransaction", () => {
             mockListTaskDirs.mockReturnValue([dir])
             mockReadJsonFile.mockReturnValue(diskEntry)
 
-            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Child task", ts: 100, parentTaskId: MISSING_ID})])
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({
+                id: TASK_ID,
+                task: "Child task",
+                ts: 100,
+                parentTaskId: MISSING_ID
+            })])
 
             const idx = new IndexTransaction(false)
             const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
@@ -630,12 +686,24 @@ describe("IndexTransaction", () => {
 
         it("dangling-awaiting marks interrupted and clears awaitingChildId + delegatedToId", async () => {
             const dir = makeTaskDir(tasksDir, TASK_ID)
-            const diskEntry = perfectEntry({id: TASK_ID, task: "Parent task", ts: 200, awaitingChildId: MISSING_ID, delegatedToId: MISSING_ID})
+            const diskEntry = perfectEntry({
+                id: TASK_ID,
+                task: "Parent task",
+                ts: 200,
+                awaitingChildId: MISSING_ID,
+                delegatedToId: MISSING_ID
+            })
             touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
             mockListTaskDirs.mockReturnValue([dir])
             mockReadJsonFile.mockReturnValue(diskEntry)
 
-            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({id: TASK_ID, task: "Parent task", ts: 100, awaitingChildId: MISSING_ID, delegatedToId: MISSING_ID})])
+            writeJson(path.join(tasksDir, "_index.json"), [perfectEntry({
+                id: TASK_ID,
+                task: "Parent task",
+                ts: 100,
+                awaitingChildId: MISSING_ID,
+                delegatedToId: MISSING_ID
+            })])
 
             const idx = new IndexTransaction(false)
             const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
@@ -684,7 +752,14 @@ describe("IndexTransaction", () => {
 
         it("both-corrupt-different-fields backs up and removes both", async () => {
             const dir = makeTaskDir(tasksDir, TASK_ID)
-            const diskEntry = perfectEntry({id: TASK_ID, task: "Real task", ts: 200, tokensIn: 0, tokensOut: 0, totalCost: 0})
+            const diskEntry = perfectEntry({
+                id: TASK_ID,
+                task: "Real task",
+                ts: 200,
+                tokensIn: 0,
+                tokensOut: 0,
+                totalCost: 0
+            })
             touch(path.join(dir, "history_item.json"), JSON.stringify(diskEntry))
             mockListTaskDirs.mockReturnValue([dir])
             mockReadJsonFile.mockReturnValue(diskEntry)
@@ -730,7 +805,10 @@ describe("IndexTransaction", () => {
             writeJson(path.join(tasksDir, "_index.json"), [imperfectErrorEntry({id: TASK_ID, ts: 100})])
 
             const idx = new IndexTransaction(false)
-            const {items, written, backedUpToDisk, warnings} = await idx.repair(undefined, {dryRun: false, backup: false})
+            const {items, written, backedUpToDisk, warnings} = await idx.repair(undefined, {
+                dryRun: false,
+                backup: false
+            })
 
             expect(items).toHaveLength(0)
             expect(written).toBe(true)
