@@ -1,3 +1,8 @@
+/**
+ * @file src/lib/__tests__/commands/rebuildIndex.spec.ts
+ *
+ * Tests for the rebuild-index command.
+ */
 import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
@@ -35,6 +40,10 @@ vi.mock("../../IndexTransaction.js", () => ({
 vi.mock("../../format.js", () => ({
     c: {red: "red"},
     colorize: vi.fn((s: string) => s),
+}))
+
+vi.mock("../../file.js", () => ({
+    backupTimestamp: "20260814-000000",
 }))
 
 import {action} from "../../commands/rebuildIndex.js"
@@ -78,6 +87,18 @@ describe("rebuildIndex command", () => {
         const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
         expect(output).toContain("Rebuilt index with 1 items")
         expect(output).not.toContain("Dry-run")
+    })
+
+    it("force with backup: prints backup path derived from backupTimestamp (M1)", async () => {
+        mockRepair.mockReturnValue({
+            items: [{id: "x"}],
+            written: true,
+        })
+
+        await action({force: true, backup: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("Backup:  /fake/root/tasks/_index.json.20260814-000000.bak.json")
     })
 
     it("force: prints output even for empty index", async () => {

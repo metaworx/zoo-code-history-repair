@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/__tests__/IndexTransaction.spec.ts
+ *
+ * Tests for IndexTransaction: merge decision matrix, reference cleanup,
+ * childIds reconciliation, and _index.task backup deduplication.
+ */
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -446,6 +452,7 @@ describe("IndexTransaction", () => {
 
             expect(items).toHaveLength(1)
             expect(items[0].parentTaskId).toBeUndefined()
+            expect(items[0].status).toBe("completed")
         })
 
         it("childIds reconciliation", async () => {
@@ -748,6 +755,36 @@ describe("IndexTransaction", () => {
 
             const bak = JSON.parse(fs.readFileSync(path.join(tasksDir, TASK_ID, BAK_NAME), "utf8"))
             expect(bak._removedReason).toBe("stale_entry")
+        })
+
+        it("deduplicates identical _index.task backups (N1)", async () => {
+            const dir = makeTaskDir(tasksDir, TASK_ID)
+            const entry = perfectEntry({id: TASK_ID, ts: 100})
+
+            const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1700000000000)
+            try {
+                // Pre-existing backup with identical content (modulo volatile `ts`).
+                touch(
+                    path.join(dir, "_index.task.20260812-110000.bak.json"),
+                    JSON.stringify({...entry, _removedReason: "no_history_item", _removedAt: 1700000000000}),
+                )
+
+                writeJson(path.join(tasksDir, "_index.json"), [entry])
+                mockListTaskDirs.mockReturnValue([dir])
+                mockReadJsonFile.mockReturnValue(null)
+
+                const idx = new IndexTransaction(false)
+                const {items, backedUpToDisk} = await idx.repair(undefined, {dryRun: false, backup: false})
+
+                expect(items).toHaveLength(0)
+                expect(backedUpToDisk).toBe(1)
+
+                // The duplicate (newer) backup is removed; the original survives.
+                expect(fs.existsSync(path.join(dir, "_index.task.20260812-120000.bak.json"))).toBe(false)
+                expect(fs.existsSync(path.join(dir, "_index.task.20260812-110000.bak.json"))).toBe(true)
+            } finally {
+                nowSpy.mockRestore()
+            }
         })
 
         it("both-corrupt-different-fields backs up and removes both", async () => {

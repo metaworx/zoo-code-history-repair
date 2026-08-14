@@ -1,3 +1,10 @@
+/**
+ * @file src/lib/IndexTransaction.ts
+ *
+ * IndexTransaction — load, repair, and save the global _index.json, merging
+ * per-task history_item.json entries with index entries and cleaning
+ * cross-references.
+ */
 import fs from "node:fs"
 import path from "node:path"
 import type {HistoryItem, RepairOptions} from "../types.js"
@@ -9,6 +16,7 @@ import {
 } from "./paths.js"
 import {
     backupTimestamp,
+    consolidateBackups,
     JsonFileTransaction,
     mapTypeToFileName,
     readJsonFile
@@ -438,9 +446,9 @@ export class IndexTransaction extends JsonFileTransaction {
      * Clear a single dangling reference. For `childIds` the specific ID is
      * filtered out of the array; for scalar reference fields the field is unset.
      *
-     * Both `completed` and `interrupted` statuses require a parentTaskId, so
-     * when a dangling parentTaskId is dropped the status would become invalid —
-     * clear it as well to keep the entry self-consistent.
+     * The entry's status is left untouched: status no longer depends on
+     * `parentTaskId` (RefRepair v1.1), so nullifying a dangling ref must not
+     * clear it.
      */
     private _nullifyRef(entry: Record<string, unknown>, field: string, refId: string): void {
         if (field === "childIds") {
@@ -450,9 +458,6 @@ export class IndexTransaction extends JsonFileTransaction {
             }
         } else {
             entry[field] = undefined
-            if (field === "parentTaskId" && (entry.status === "completed" || entry.status === "interrupted")) {
-                entry.status = undefined
-            }
         }
     }
 
@@ -499,10 +504,14 @@ export class IndexTransaction extends JsonFileTransaction {
         backedUp.add(id)
         if (options.dryRun) return
 
-        const backupPath = path.join(this.tasksDir, id, `${mapTypeToFileName("_index.task")}.${backupTimestamp}.bak.json`)
+        const baseName = mapTypeToFileName("_index.task")
+        const backupPath = path.join(this.tasksDir, id, `${baseName}.${backupTimestamp}.bak.json`)
         const data = {...entry, _removedReason: reason, _removedAt: Date.now()}
         try {
             await safeWriteJson(backupPath, data, {keepBackup: true})
+            // N1: deduplicate identical index-entry backups with the same
+            // content-hash consolidation FileTransaction uses.
+            await consolidateBackups(path.join(this.tasksDir, id, baseName), backupPath)
         } catch {
             // Backup failure is non-fatal; the repair continues
         }

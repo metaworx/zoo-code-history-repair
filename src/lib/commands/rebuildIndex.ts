@@ -1,4 +1,10 @@
+/**
+ * @file src/lib/commands/rebuildIndex.ts
+ *
+ * rebuild-index command — rebuild _index.json from each task's history_item.json.
+ */
 import {IndexTransaction} from "../IndexTransaction.js"
+import {backupTimestamp} from "../file.js"
 import {
     DEFAULT_INDEX_NAME,
     HISTORY_ITEM_NAME,
@@ -41,7 +47,7 @@ export async function action(cmdOpts: { force?: boolean; backup?: boolean; verif
         console.log(dryRunMsg)
     } else {
         console.log(`Written: ${resolveTasksDir(root)}/${DEFAULT_INDEX_NAME}`)
-        if (cmdOpts.backup !== false) console.log(`Backup:  ${resolveTasksDir(root)}/${DEFAULT_INDEX_NAME}.${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15)}.bak.json`)
+        if (cmdOpts.backup !== false) console.log(`Backup:  ${resolveTasksDir(root)}/${DEFAULT_INDEX_NAME}.${backupTimestamp}.bak.json`)
     }
 
     if (uiSyncMismatches.length > 0) {
