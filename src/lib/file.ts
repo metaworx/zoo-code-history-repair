@@ -1,3 +1,10 @@
+/**
+ * @file src/lib/file.ts
+ *
+ * File I/O primitives: FileTransaction / JsonFileTransaction, backups,
+ * consolidation, and snapshot-based concurrent-modification detection.
+ */
+
 import crypto from "node:crypto"
 import {Dirent} from "node:fs"
 import fs from "node:fs/promises"
@@ -542,14 +549,28 @@ export function resolveTarget(target: string | undefined, root: string): string 
 
 export class JsonFileTransaction extends FileTransaction {
 
+    /** True when the most recent read found the file present but JSON-invalid. */
+    private parseFailed: boolean = false
+
     protected async _read(): Promise<any> {
         const raw = await super._read()
-        if (raw == null || !raw.trim()) return null
+        this.parseFailed = false
+        if (raw == null) return null
+        if (!raw.trim()) {
+            this.parseFailed = true
+            return null
+        }
         try {
             return JSON.parse(raw)
         } catch {
+            this.parseFailed = true
             return null
         }
+    }
+
+    /** Whether the most recent read failed to parse the file as JSON. */
+    hadParseError(): boolean {
+        return this.parseFailed
     }
 
     /**

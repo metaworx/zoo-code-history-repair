@@ -1,6 +1,13 @@
+/**
+ * @file src/lib/scan.ts
+ *
+ * Storage scanning: cross-reference _index.json against task directories and
+ * report corruption (including invalid_json and missing_task_dir).
+ */
+
 import path from "node:path"
-import type {HistoryItem, ScanResult, TaskCorruption} from "../types.js"
-import {listTaskDirs, resolveIndexPath, resolveTasksDir,} from "./paths.js"
+import type {CorruptionReason, HistoryItem, ScanResult, TaskCorruption} from "../types.js"
+import {DEFAULT_INDEX_NAME, listTaskDirs, resolveIndexPath, resolveTasksDir} from "./paths.js"
 import {IndexTransaction} from "./IndexTransaction.js"
 import {setRoot} from "./cliContext.js"
 import {inspectTaskDir} from "./validation.js"
@@ -8,6 +15,24 @@ import type {InspectOptions} from "./validation.js"
 
 export interface ScanOptions extends InspectOptions {
     showWarnings?: boolean
+}
+
+const REFERENCE_FIELDS = ["parentTaskId", "rootTaskId", "delegatedToId", "awaitingChildId", "completedByChildId"] as const
+
+/** Task IDs an index entry references via its cross-reference fields. */
+function referencedTaskIds(item: HistoryItem): string[] {
+    const refs: string[] = []
+    for (const field of REFERENCE_FIELDS) {
+        const v = item[field]
+        if (typeof v === "string" && v.length > 0) refs.push(v)
+    }
+    const childIds = item.childIds
+    if (Array.isArray(childIds)) {
+        for (const c of childIds) {
+            if (typeof c === "string" && c.length > 0) refs.push(c)
+        }
+    }
+    return refs
 }
 
 export async function scanStorage(storageRoot: string, options: ScanOptions = {}): Promise<ScanResult> {
@@ -22,6 +47,7 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
     const byId = new Map(indexItems.map((i) => [i.id, i]))
 
     const corruptions: TaskCorruption[] = []
+    const byTaskId = new Map<string, TaskCorruption>()
 
     // folders on disk
     for (const dir of dirs) {
@@ -31,14 +57,17 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
             showWarnings: options.showWarnings,
         })
         if (!byId.has(taskId)) c.reasons.push({reason: "folder_orphan", source: "hi"})
-        if (c.reasons.length) corruptions.push(c)
+        if (c.reasons.length) {
+            corruptions.push(c)
+            byTaskId.set(taskId, c)
+        }
     }
 
     // index entries without folders
     const dirIds = new Set(dirs.map((d) => path.basename(d)))
     for (const item of indexItems) {
         if (!dirIds.has(item.id)) {
-            const reasons: Array<{ reason: import("../types.js").CorruptionReason; source: string }> = [
+            const reasons: Array<{ reason: CorruptionReason; source: string }> = [
                 {reason: "index_orphan", source: "idx"},
             ]
             let idxErrCount = 1 // index_orphan
@@ -46,15 +75,52 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
                 reasons.push({reason: "zero_size", source: "idx"});
                 idxErrCount++
             }
-            corruptions.push({
+            const c: TaskCorruption = {
                 taskId: item.id,
                 reasons,
                 indexItem: item,
                 diskItem: null,
                 errorCount: idxErrCount,
                 warningCount: 0,
-            })
+            }
+            corruptions.push(c)
+            byTaskId.set(item.id, c)
         }
+    }
+
+    // missing_task_dir: an index entry references a task whose directory is missing
+    for (const item of indexItems) {
+        const hasMissingRef = referencedTaskIds(item).some((refId) => !dirIds.has(refId))
+        if (!hasMissingRef) continue
+        const existing = byTaskId.get(item.id)
+        if (existing) {
+            existing.reasons.push({reason: "missing_task_dir", source: "idx"})
+            existing.errorCount++
+        } else {
+            const c: TaskCorruption = {
+                taskId: item.id,
+                dir: path.join(tasksDir, item.id),
+                reasons: [{reason: "missing_task_dir", source: "idx"}],
+                indexItem: item,
+                diskItem: null,
+                errorCount: 1,
+                warningCount: 0,
+            }
+            corruptions.push(c)
+            byTaskId.set(item.id, c)
+        }
+    }
+
+    // invalid_json: the index file itself failed to parse
+    if (idx.hadParseError()) {
+        corruptions.push({
+            taskId: DEFAULT_INDEX_NAME,
+            reasons: [{reason: "invalid_json", source: "idx"}],
+            indexItem: null,
+            diskItem: null,
+            errorCount: 1,
+            warningCount: 0,
+        })
     }
 
     let totalErrorCount = 0

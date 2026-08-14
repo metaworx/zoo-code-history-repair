@@ -46,8 +46,8 @@ Corruption reasons detected by scan:
   2. zero_size              — size field is 0 or null/missing (on disk or in index)
   3. missing_task_text      — disk task field is empty or whitespace-only
   4. missing_history_item   — ${HISTORY_ITEM_NAME} is missing or unreadable
-  5. invalid_json           — (not yet produced) a JSON file is syntactically invalid or truncated
-  6. missing_task_dir       — (not yet produced) an index entry has no corresponding task directory
+  5. invalid_json           — a JSON file is syntactically invalid or truncated
+  6. missing_task_dir       — an index entry references a task whose directory does not exist
   7. empty_ui_messages      — ${UI_MESSAGES_NAME} exists but contains an empty array
   8. empty_api_history      — ${API_HISTORY_NAME} exists but contains an empty array
   9. index_orphan           — entry in ${DEFAULT_INDEX_NAME} has no task directory on disk

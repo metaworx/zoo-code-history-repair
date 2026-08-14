@@ -91,9 +91,13 @@
                 {
                     "reason": "interrupted_task",
                     "source": "ach"
+                },
+                {
+                    "reason": "missing_task_dir",
+                    "source": "idx"
                 }
             ],
-            "recoverability": "50%",
+            "recoverability": "33%",
             "fields": {
                 "tokensIn": {
                     "source": "none",
@@ -187,9 +191,13 @@
                 {
                     "reason": "interrupted_task",
                     "source": "ach"
+                },
+                {
+                    "reason": "missing_task_dir",
+                    "source": "idx"
                 }
             ],
-            "recoverability": "67%",
+            "recoverability": "50%",
             "fields": {
                 "tokensIn": {
                     "source": "index",

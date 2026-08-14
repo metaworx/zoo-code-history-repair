@@ -1,4 +1,6 @@
 /**
+ * @file src/lib/__tests__/integration/fullPipeline.repairAll.ts
+ *
  * Integration test: full repair pipeline (scan → repair → validate → idempotency).
  *
  * Exercises the complete cycle using CLI commands (for output parsing) and library
@@ -37,8 +39,8 @@ import {
 /** Expected corruption reasons per task (from scan.fixtures.spec.ts). */
 const CORRUPT_REASONS: Record<string, string[]> = {
     "019ede5a-9327-70cc-9c54-2d227182e4d1": ["missing_history_item", "folder_orphan"],
-    "019f0f12-02f9-70df-a35e-2b110efe4107": ["placeholder_task_name", "interrupted_task"],
-    "019fb786-503a-76ca-8708-fee1243c878d": ["placeholder_task_name", "zero_tokens", "interrupted_task"],
+    "019f0f12-02f9-70df-a35e-2b110efe4107": ["placeholder_task_name", "interrupted_task", "missing_task_dir"],
+    "019fb786-503a-76ca-8708-fee1243c878d": ["placeholder_task_name", "zero_tokens", "interrupted_task", "missing_task_dir"],
     "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": ["placeholder_task_name", "zero_size", "zero_tokens", "empty_ui_messages", "interrupted_task"],
     "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": ["zero_tokens", "zero_size", "interrupted_task"],
     "019fddaa-5136-7106-abef-adac81fd56a3": ["zero_tokens"],
@@ -58,7 +60,6 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 0: Snapshot initial state ──
     const indexBefore = JSON.parse(fs.readFileSync(indexPath, "utf8"));
-    const entryCountBefore = indexBefore.entries.length;
 
     // Snapshot hashes for all corrupt tasks' key files
     const hashesBefore = new Map<string, Map<string, string | null>>();

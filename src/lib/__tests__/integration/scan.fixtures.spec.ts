@@ -1,4 +1,6 @@
 /**
+ * @file src/lib/__tests__/integration/scan.fixtures.spec.ts
+ *
  * Integration tests: scan against real(istic) scrambled fixture data.
  * Read-only — works directly on tests/fixtures/, no temp copy needed.
  */
@@ -19,11 +21,13 @@ const EXPECTED: Record<string, string[]> = {
     "019f0f12-02f9-70df-a35e-2b110efe4107": [
         "placeholder_task_name",
         "interrupted_task",
+        "missing_task_dir",
     ],
     "019fb786-503a-76ca-8708-fee1243c878d": [
         "placeholder_task_name",
         "zero_tokens",
         "interrupted_task",
+        "missing_task_dir",
     ],
     "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": [
         "placeholder_task_name",
@@ -148,8 +152,8 @@ describe("scan output helpers against fixtures (integration)", async () => {
     it("recoverabilityScore matches expected values", async () => {
         const EXPECTED_SCORES: Record<string, string> = {
             "019ede5a-9327-70cc-9c54-2d227182e4d1": "0%",
-            "019f0f12-02f9-70df-a35e-2b110efe4107": "50%",
-            "019fb786-503a-76ca-8708-fee1243c878d": "67%",
+            "019f0f12-02f9-70df-a35e-2b110efe4107": "33%",
+            "019fb786-503a-76ca-8708-fee1243c878d": "50%",
             "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": "70%",
             "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": "50%",
             "019fddaa-5136-7106-abef-adac81fd56a3": "50%",

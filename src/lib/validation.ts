@@ -1,3 +1,10 @@
+/**
+ * @file src/lib/validation.ts
+ *
+ * Corruption detection: validator-driven inspectTaskDir plus the issue-to-
+ * CorruptionReason translation layer with per-file source annotation.
+ */
+
 import path from "node:path"
 import fs from "node:fs/promises"
 import type {CorruptionReason, HistoryItem, TaskCorruption} from "../types.js"
@@ -90,23 +97,25 @@ function fileSource(filePath: string): string {
     if (base === HISTORY_ITEM_NAME) return "hi"
     if (base === API_HISTORY_NAME) return "ach"
     if (base === UI_MESSAGES_NAME) return "uim"
+    if (base === TASK_METADATA_NAME) return "tmd"
     return base
 }
 
 async function validateAndMap(filePath: string, fileName: string): Promise<{
     data: unknown
-    reasons: Array<{reason: CorruptionReason, source: string}>
+    reasons: Array<{ reason: CorruptionReason, source: string }>
     errors: number
     warnings: number
 }> {
     const tx = new JsonFileTransaction(filePath)
     await tx.load(false)
+    const parseFailed = tx.hadParseError()
     const result = await tx.validate()
     const data = tx.getData()
     const codes = new Set(result.issues.map(i => i.code))
     let errors = 0
     let warnings = 0
-    const reasons: Array<{reason: CorruptionReason, source: string}> = []
+    const reasons: Array<{ reason: CorruptionReason, source: string }> = []
 
     for (const issue of result.issues) {
         if (issue.severity === "error") errors++
@@ -116,11 +125,13 @@ async function validateAndMap(filePath: string, fileName: string): Promise<{
     // zero_tokens requires all three zero-field codes present
     const hasAllZeroTokens = codes.has("ZERO_TOKENS_IN") && codes.has("ZERO_TOKENS_OUT") && codes.has("ZERO_TOTAL_COST")
 
-    const showWarnings = true // caller filters
-
     for (const issue of result.issues) {
         if (issue.code === "NOT_FOUND") {
-            if (fileName === HISTORY_ITEM_NAME) reasons.push({reason: "missing_history_item", source: "hi"})
+            if (parseFailed) {
+                reasons.push({reason: "invalid_json", source: fileSource(filePath)})
+            } else if (fileName === HISTORY_ITEM_NAME) {
+                reasons.push({reason: "missing_history_item", source: "hi"})
+            }
             continue
         }
         // Skip individual zero-token codes; only report if all three present
@@ -175,6 +186,14 @@ export async function inspectTaskDir(
     // Merge results
     errorCount += hiResult.errors + apiResult.errors + uiResult.errors
     warningCount += hiResult.warnings + apiResult.warnings + uiResult.warnings
+
+    // task_metadata.json is optional; only its JSON parse failure is corruption.
+    const tmTx = new JsonFileTransaction(path.join(dir, TASK_METADATA_NAME))
+    await tmTx.load(false)
+    if (tmTx.hadParseError()) {
+        add("invalid_json", fileSource(path.join(dir, TASK_METADATA_NAME)))
+        errorCount++
+    }
 
     for (const r of [hiResult, apiResult, uiResult]) {
         for (const {reason, source} of r.reasons) {

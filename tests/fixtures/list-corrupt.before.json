@@ -17,7 +17,7 @@
         },
         {
             "taskId": "019f0f12-02f9-70df-a35e-2b110efe4107",
-            "recoverability": "50%",
+            "recoverability": "33%",
             "reasons": [
                 {
                     "reason": "placeholder_task_name",
@@ -26,12 +26,16 @@
                 {
                     "reason": "interrupted_task",
                     "source": "ach"
+                },
+                {
+                    "reason": "missing_task_dir",
+                    "source": "idx"
                 }
             ]
         },
         {
             "taskId": "019fb786-503a-76ca-8708-fee1243c878d",
-            "recoverability": "67%",
+            "recoverability": "50%",
             "reasons": [
                 {
                     "reason": "placeholder_task_name",
@@ -44,6 +48,10 @@
                 {
                     "reason": "interrupted_task",
                     "source": "ach"
+                },
+                {
+                    "reason": "missing_task_dir",
+                    "source": "idx"
                 }
             ]
         },

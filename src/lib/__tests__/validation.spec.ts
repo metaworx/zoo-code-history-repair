@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/__tests__/validation.spec.ts
+ *
+ * Unit tests for inspectTaskDir corruption detection.
+ */
+
 import {inspectTaskDir, isPlaceholderTaskName,} from "../validation.js"
 import type {HistoryItem} from "../../types.js"
 import fs from "node:fs"
@@ -114,6 +120,50 @@ describe("inspectTaskDir", () => {
 
         const result = await inspectTaskDir("abc", tmp, null)
         expect(result.reasons).toEqual([])
+    })
+
+    describe("invalid_json", () => {
+        const healthy = {
+            id: "abc",
+            task: "Real task",
+            size: 100,
+            ts: 1,
+            number: 1,
+            tokensIn: 10,
+            tokensOut: 10,
+            totalCost: 0.01,
+            workspace: "/ws",
+            mode: "code",
+            apiConfigName: "default",
+        }
+
+        it("flags history_item.json that fails to parse", async () => {
+            fs.writeFileSync(path.join(tmp, "history_item.json"), "{ not valid json", "utf8")
+            const result = await inspectTaskDir("abc", tmp, null)
+            expect(result.reasons).toContainEqual({reason: "invalid_json", source: "hi"})
+            expect(result.reasons).not.toContainEqual({reason: "missing_history_item", source: "hi"})
+        })
+
+        it("flags ui_messages.json that fails to parse", async () => {
+            writeJson("history_item.json", healthy)
+            fs.writeFileSync(path.join(tmp, "ui_messages.json"), "[1, 2,", "utf8")
+            const result = await inspectTaskDir("abc", tmp, null)
+            expect(result.reasons).toContainEqual({reason: "invalid_json", source: "uim"})
+        })
+
+        it("flags api_conversation_history.json that fails to parse", async () => {
+            writeJson("history_item.json", healthy)
+            fs.writeFileSync(path.join(tmp, "api_conversation_history.json"), "[{", "utf8")
+            const result = await inspectTaskDir("abc", tmp, null)
+            expect(result.reasons).toContainEqual({reason: "invalid_json", source: "ach"})
+        })
+
+        it("flags task_metadata.json that fails to parse", async () => {
+            writeJson("history_item.json", healthy)
+            fs.writeFileSync(path.join(tmp, "task_metadata.json"), "{ broken", "utf8")
+            const result = await inspectTaskDir("abc", tmp, null)
+            expect(result.reasons).toContainEqual({reason: "invalid_json", source: "tmd"})
+        })
     })
 
     describe("missing_task_text", () => {
