@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# FCIAS phpunit wrapper — auto-detects ddev vs direct execution.
+#
+# Usage: ./.aiassistant/tools/phpunit [phpunit args...]
+#   ./.aiassistant/tools/phpunit tests/Unit/
+#   ./.aiassistant/tools/phpunit tests/Integration/ --filter Migration
+#
+# Filters PHP deprecation warnings by default.
+# Pass --show-deprecations to see them.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FCIAS_MOUNT="/var/www/html/custom_apps/file_checksum_search"
+PHPUNIT_BIN="vendor/bin/phpunit"
+PHPUNIT_CONFIG="tests/phpunit.xml"
+
+SHOW_DEPRECATIONS=false
+PHPUNIT_ARGS=()
+
+for arg in "$@"; do
+	if [[ "$arg" == "--show-deprecations" ]]; then
+		SHOW_DEPRECATIONS=true
+	else
+		PHPUNIT_ARGS+=( "$arg" )
+	fi
+done
+
+if command -v ddev &>/dev/null; then
+	# Prepend FCIAS mount to relative path arguments
+	ARGS=()
+	for arg in "${PHPUNIT_ARGS[@]}"; do
+		if [[ "$arg" == tests/* ]] || [[ "$arg" == vendor/* ]]; then
+			ARGS+=( "$FCIAS_MOUNT/$arg" )
+		else
+			ARGS+=( "$arg" )
+		fi
+	done
+
+	cd "$HOME/projects/helioscloud" 2>/dev/null || cd "$PROJECT_DIR"
+
+	if $SHOW_DEPRECATIONS; then
+		exec ddev exec php "$FCIAS_MOUNT/$PHPUNIT_BIN" -c "$FCIAS_MOUNT/$PHPUNIT_CONFIG" "${ARGS[@]}"
+	else
+		ddev exec php "$FCIAS_MOUNT/$PHPUNIT_BIN" -c "$FCIAS_MOUNT/$PHPUNIT_CONFIG" "${ARGS[@]}" 2>&1 | grep -v "^PHP Deprecated:"
+	fi
+else
+	cd "$PROJECT_DIR"
+
+	if $SHOW_DEPRECATIONS; then
+		exec php "$PHPUNIT_BIN" -c "$PHPUNIT_CONFIG" "${PHPUNIT_ARGS[@]}"
+	else
+		php "$PHPUNIT_BIN" -c "$PHPUNIT_CONFIG" "${PHPUNIT_ARGS[@]}" 2>&1 | grep -v "^PHP Deprecated:"
+	fi
+fi

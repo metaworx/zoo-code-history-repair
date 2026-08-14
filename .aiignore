@@ -1,0 +1,6 @@
+# Secrets and sensitive data
+.env*.secrets
+*.key
+*.pem
+secrets/
+config/secrets/
