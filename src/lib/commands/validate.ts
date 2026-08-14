@@ -42,11 +42,13 @@ export async function action(
 	if (cmdOpts.json) {
 		const out: Record<string, unknown> = {}
 		for (const r of results) {
+			const issues =
+				cmdOpts.warnings === false ? r.result.issues.filter((i) => i.severity === "error") : r.result.issues
 			out[r.file] = {
 				valid: r.result.valid,
 				errorCount: r.result.errorCount,
-				warningCount: r.result.warningCount,
-				issues: r.result.issues,
+				warningCount: cmdOpts.warnings === false ? 0 : r.result.warningCount,
+				issues,
 			}
 		}
 		console.log(JSON.stringify(out))
@@ -59,7 +61,7 @@ export async function action(
 			const errors = r.result.issues.filter((i) => i.severity === "error")
 			const warnings = r.result.issues.filter((i) => i.severity === "warning")
 			totalErrors += errors.length
-			totalWarnings += warnings.length
+			if (cmdOpts.warnings !== false) totalWarnings += warnings.length
 
 			if (errors.length === 0 && warnings.length === 0) continue
 

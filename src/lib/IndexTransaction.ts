@@ -198,6 +198,7 @@ export class IndexTransaction extends JsonFileTransaction {
 		backedUpToDisk: number
 		written: boolean
 		uiSyncMismatches: string[]
+		backupPath: string | null
 	}> {
 		// Ensure the current index is loaded before merging
 		await this.getEntries()
@@ -250,9 +251,10 @@ export class IndexTransaction extends JsonFileTransaction {
 		const summary = this._formatSummary(stats)
 		const warnings = summary ? [summary] : []
 
+		let backupPath: string | null = null
 		if (!options.dryRun) {
 			this.setData({ entries: Object.values(newIndex) }, false)
-			await this.save(false, options.backup !== false)
+			backupPath = await this.save(false, options.backup !== false)
 		}
 
 		return {
@@ -262,6 +264,7 @@ export class IndexTransaction extends JsonFileTransaction {
 			backedUpToDisk: backedUp.size,
 			written: !options.dryRun,
 			uiSyncMismatches,
+			backupPath,
 		}
 	}
 

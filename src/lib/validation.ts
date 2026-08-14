@@ -36,6 +36,8 @@ export interface InspectOptions {
 	verifyUiSync?: boolean
 	/** When false, warning-level validation issues are not mapped to corruption reasons. Default true. */
 	showWarnings?: boolean
+	/** Known task ids (directories) used to surface `missing_task_dir` for referenced-but-missing tasks. */
+	knownTaskIds?: Set<string>
 }
 
 export interface ValidationIssue {
@@ -148,6 +150,30 @@ async function validateAndMap(
 	return { data, reasons, errors, warnings }
 }
 
+const REFERENCE_FIELDS = [
+	"parentTaskId",
+	"rootTaskId",
+	"delegatedToId",
+	"awaitingChildId",
+	"completedByChildId",
+] as const
+
+/** Task IDs an index entry references via its cross-reference fields. */
+export function referencedTaskIds(item: HistoryItem): string[] {
+	const refs: string[] = []
+	for (const field of REFERENCE_FIELDS) {
+		const v = item[field]
+		if (typeof v === "string" && v.length > 0) refs.push(v)
+	}
+	const childIds = item.childIds
+	if (Array.isArray(childIds)) {
+		for (const c of childIds) {
+			if (typeof c === "string" && c.length > 0) refs.push(c)
+		}
+	}
+	return refs
+}
+
 export async function inspectTaskDir(
 	taskId: string,
 	dir: string,
@@ -248,6 +274,15 @@ export async function inspectTaskDir(
 		if (indexItem.size === 0 || indexItem.size == null) {
 			add("zero_size", "idx")
 			errorCount++
+		}
+		if (options.knownTaskIds) {
+			for (const refId of referencedTaskIds(indexItem)) {
+				if (!options.knownTaskIds.has(refId)) {
+					add("missing_task_dir", "idx")
+					errorCount++
+					break
+				}
+			}
 		}
 	}
 

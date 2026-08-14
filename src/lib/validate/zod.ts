@@ -1,4 +1,4 @@
-import { ZodError, ZodIssue } from "zod"
+import type { ZodError, ZodIssue } from "zod"
 import type { ValidationIssue, ValidationResult } from "../validation.js"
 
 /**

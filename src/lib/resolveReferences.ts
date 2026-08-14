@@ -4,7 +4,7 @@
  * Reference-field and backup-source field recovery for corrupted history items.
  */
 
-import fs from "node:fs"
+import fs from "node:fs/promises"
 import os from "node:os"
 
 import { UUID_FULL_PATTERN, UUID_PATTERN } from "./constants.js"
@@ -97,10 +97,10 @@ function achCandidateUuids(ctx: ReferenceContext, self: string): string[] {
 }
 
 /** Parse one backup file into a flattened array of entry objects (skips unreadable files). */
-function readEntriesFromFile(p: string): Array<Record<string, unknown>> {
+async function readEntriesFromFile(p: string): Promise<Array<Record<string, unknown>>> {
 	let raw: string
 	try {
-		raw = fs.readFileSync(p, "utf8")
+		raw = await fs.readFile(p, "utf8")
 	} catch {
 		return []
 	}
@@ -127,10 +127,10 @@ function readEntriesFromFile(p: string): Array<Record<string, unknown>> {
 }
 
 /** Parse backup files into a merged id → entry map for cross-reference lookups. */
-function parseBackupEntries(paths: string[] | undefined): Map<string, Record<string, unknown>> {
+async function parseBackupEntries(paths: string[] | undefined): Promise<Map<string, Record<string, unknown>>> {
 	const map = new Map<string, Record<string, unknown>>()
 	for (const p of paths ?? []) {
-		for (const rec of readEntriesFromFile(p)) {
+		for (const rec of await readEntriesFromFile(p)) {
 			if (typeof rec.id === "string" && !map.has(rec.id)) map.set(rec.id, rec)
 		}
 	}
@@ -184,14 +184,17 @@ export function reconcileStatus(entry: Record<string, unknown>): boolean {
  * The entry is mutated in place; `changed` reports whether anything moved and
  * `recovered` lists every field that received a value from a recovery source.
  */
-export function resolveReferences(entry: Record<string, unknown>, ctx: ReferenceContext): ReferenceResolution {
+export async function resolveReferences(
+	entry: Record<string, unknown>,
+	ctx: ReferenceContext,
+): Promise<ReferenceResolution> {
 	const self = typeof entry.id === "string" ? entry.id : ""
 	const recovered: ReferenceRecovery[] = []
 	let changed = false
 
 	const backupEntries =
 		ctx.backups && ctx.backups.length > 0
-			? parseBackupEntries(ctx.backups)
+			? await parseBackupEntries(ctx.backups)
 			: new Map<string, Record<string, unknown>>()
 	const achCandidates = achCandidateUuids(ctx, self)
 	const lookupParent = (id: string): Record<string, unknown> | undefined =>
@@ -367,10 +370,10 @@ const DEFAULT_SCALARS: Record<(typeof SCALAR_FIELDS)[number], () => string> = {
  * Accepts a bare entry object, an array of entries, or an `{entries: [...]}`
  * wrapper. Unreadable/unparseable files are skipped.
  */
-export function readBackupEntries(paths: string[] | undefined): Array<Record<string, unknown>> {
+export async function readBackupEntries(paths: string[] | undefined): Promise<Array<Record<string, unknown>>> {
 	const out: Array<Record<string, unknown>> = []
 	for (const p of paths ?? []) {
-		out.push(...readEntriesFromFile(p))
+		out.push(...(await readEntriesFromFile(p)))
 	}
 	return out
 }

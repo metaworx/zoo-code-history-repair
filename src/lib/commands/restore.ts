@@ -5,7 +5,7 @@ import { c, colorize } from "../format.js"
 import type { DiffResult } from "../restore.js"
 import type { BackupEntry } from "../file.js"
 import { deleteBackups, diffBackup, listBackupsForType, restoreFromBackups } from "../restore.js"
-import { BackupType } from "../file.js"
+import type { BackupType } from "../file.js"
 
 export const name = "restore"
 export const summary = "List, restore, or delete task backup files"

@@ -47,7 +47,7 @@ export function formatRepairParts(r: RepairResult): string[] {
 	if (r.taskRepaired) parts.push("task(ach→hi)")
 	if (r.sizeRepaired) parts.push("size(calc→hi)")
 	if (r.tokensRepaired) {
-		const src = r.tokensRecoverySource ?? "?"
+		const src = r.tokensRecoverySource ?? "unknown"
 		parts.push(`tokens(${src}→hi)`)
 	}
 	if (r.interruptedRepaired) {
@@ -222,7 +222,7 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 	let hiModified = false
 	if (historyItem && options.fullIndex) {
 		const taskIds = options.taskIds ?? new Set(options.fullIndex.keys())
-		const resolution = resolveReferences(historyItem, {
+		const resolution = await resolveReferences(historyItem, {
 			fullIndex: options.fullIndex,
 			taskIds,
 			ach: apiHistory,
@@ -294,8 +294,8 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 		// --- 3b. Backup-source field recovery with defaults (L2/L3/L9) ---
 		const fieldRecovery = recoverFields(historyItem, {
 			indexEntry: options.indexItems?.find((e) => e.id === taskId),
-			taskBackups: readBackupEntries(taskBackupPaths),
-			indexBackups: readBackupEntries(indexBackupPaths).filter((e) => e.id === taskId),
+			taskBackups: await readBackupEntries(taskBackupPaths),
+			indexBackups: (await readBackupEntries(indexBackupPaths)).filter((e) => e.id === taskId),
 		})
 		if (fieldRecovery.changed) {
 			result.fieldsRepaired = true
@@ -335,13 +335,13 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 		}
 
 		const rebuilt: HistoryItem = { id: taskId, task: extractedTask }
-		const ts = deriveHistoryItemTs(apiHistory, readBackupEntries(allBackupPaths))
+		const ts = deriveHistoryItemTs(apiHistory, await readBackupEntries(allBackupPaths))
 		if (ts !== null) rebuilt.ts = ts
 
 		const fieldRecovery = recoverFields(rebuilt, {
 			indexEntry: options.indexItems?.find((e) => e.id === taskId),
-			taskBackups: readBackupEntries(taskBackupPaths),
-			indexBackups: readBackupEntries(indexBackupPaths).filter((e) => e.id === taskId),
+			taskBackups: await readBackupEntries(taskBackupPaths),
+			indexBackups: (await readBackupEntries(indexBackupPaths)).filter((e) => e.id === taskId),
 		})
 		if (fieldRecovery.changed) {
 			result.fieldsRepaired = true

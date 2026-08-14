@@ -34,81 +34,81 @@ function achWith(childId: string): unknown[] {
 }
 
 describe("resolveReferences", () => {
-	it("recovers completedByChildId from own ACH", () => {
+	it("recovers completedByChildId from own ACH", async () => {
 		const entry: Record<string, unknown> = { id: PARENT, completedByChildId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
 
 		expect(res.changed).toBe(true)
 		expect(entry.completedByChildId).toBe(CHILD)
 		expect(res.recovered).toContainEqual({ field: "completedByChildId", source: "ach" })
 	})
 
-	it("recovers childIds from own ACH", () => {
+	it("recovers childIds from own ACH", async () => {
 		const entry: Record<string, unknown> = { id: PARENT, childIds: ["not-a-uuid"] }
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
 
 		expect(res.changed).toBe(true)
 		expect(entry.childIds).toEqual([CHILD])
 		expect(res.recovered).toContainEqual({ field: "childIds", source: "ach" })
 	})
 
-	it("recovers childIds from cross-task index when ACH has no candidates", () => {
+	it("recovers childIds from cross-task index when ACH has no candidates", async () => {
 		const entry: Record<string, unknown> = { id: PARENT, childIds: ["not-a-uuid"] }
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], null))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.childIds).toEqual([CHILD])
 		expect(res.recovered).toContainEqual({ field: "childIds", source: "index" })
 	})
 
-	it("recovers delegatedToId from own ACH", () => {
+	it("recovers delegatedToId from own ACH", async () => {
 		const entry: Record<string, unknown> = { id: PARENT, delegatedToId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], achWith(CHILD)))
 
 		expect(res.changed).toBe(true)
 		expect(entry.delegatedToId).toBe(CHILD)
 		expect(res.recovered).toContainEqual({ field: "delegatedToId", source: "ach" })
 	})
 
-	it("recovers parentTaskId from cross-task index", () => {
+	it("recovers parentTaskId from cross-task index", async () => {
 		const parentEntry: Record<string, unknown> = { id: PARENT, childIds: [CHILD] }
 		const entry: Record<string, unknown> = { id: CHILD, parentTaskId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry, parentEntry], null))
+		const res = await resolveReferences(entry, ctxFor([entry, parentEntry], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.parentTaskId).toBe(PARENT)
 		expect(res.recovered).toContainEqual({ field: "parentTaskId", source: "index" })
 	})
 
-	it("recovers rootTaskId by walking the recovered parent chain", () => {
+	it("recovers rootTaskId by walking the recovered parent chain", async () => {
 		const grandEntry: Record<string, unknown> = { id: GRAND }
 		const parentEntry: Record<string, unknown> = { id: PARENT, parentTaskId: GRAND, childIds: [CHILD] }
 		const entry: Record<string, unknown> = { id: CHILD, parentTaskId: PARENT, rootTaskId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry, parentEntry, grandEntry], null))
+		const res = await resolveReferences(entry, ctxFor([entry, parentEntry, grandEntry], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.rootTaskId).toBe(GRAND)
 		expect(res.recovered).toContainEqual({ field: "rootTaskId", source: "index" })
 	})
 
-	it("unsets rootTaskId when no parent chain exists", () => {
+	it("unsets rootTaskId when no parent chain exists", async () => {
 		const entry: Record<string, unknown> = { id: CHILD, rootTaskId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry], null))
+		const res = await resolveReferences(entry, ctxFor([entry], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.rootTaskId).toBeUndefined()
 	})
 
-	it("unsets awaitingChildId when corrupted", () => {
+	it("unsets awaitingChildId when corrupted", async () => {
 		const entry: Record<string, unknown> = { id: PARENT, status: "active", awaitingChildId: "scrambled-text" }
-		const res = resolveReferences(entry, ctxFor([entry], null))
+		const res = await resolveReferences(entry, ctxFor([entry], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.awaitingChildId).toBeUndefined()
 		expect(res.recovered).toEqual([])
 	})
 
-	it("leaves valid references untouched", () => {
+	it("leaves valid references untouched", async () => {
 		const entry: Record<string, unknown> = {
 			id: PARENT,
 			status: "delegated",
@@ -118,21 +118,21 @@ describe("resolveReferences", () => {
 			completedByChildId: CHILD,
 			completionResultSummary: "done",
 		}
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], null))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], null))
 
 		expect(res.changed).toBe(false)
 		expect(res.recovered).toEqual([])
 		expect(entry.status).toBe("delegated")
 	})
 
-	it("recovers parentTaskId from a backup file", () => {
+	it("recovers parentTaskId from a backup file", async () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-resolve-refs-"))
 		const backupPath = path.join(dir, "history_item.json.20260813-000000.bak.json")
 		fs.writeFileSync(backupPath, JSON.stringify({ id: PARENT, childIds: [CHILD] }), "utf8")
 
 		try {
 			const entry: Record<string, unknown> = { id: CHILD, parentTaskId: "scrambled-text" }
-			const res = resolveReferences(entry, {
+			const res = await resolveReferences(entry, {
 				fullIndex: new Map([[CHILD, entry]]),
 				taskIds: new Set([CHILD]),
 				ach: null,
@@ -147,7 +147,7 @@ describe("resolveReferences", () => {
 		}
 	})
 
-	it("reconciles a delegated task with a corrupt awaitingChildId to interrupted", () => {
+	it("reconciles a delegated task with a corrupt awaitingChildId to interrupted", async () => {
 		const entry: Record<string, unknown> = {
 			id: PARENT,
 			status: "delegated",
@@ -157,7 +157,7 @@ describe("resolveReferences", () => {
 			completedByChildId: CHILD,
 			completionResultSummary: "done",
 		}
-		const res = resolveReferences(entry, ctxFor([entry, childEntry()], null))
+		const res = await resolveReferences(entry, ctxFor([entry, childEntry()], null))
 
 		expect(res.changed).toBe(true)
 		expect(entry.status).toBe("interrupted")

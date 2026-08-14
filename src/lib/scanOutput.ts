@@ -237,8 +237,8 @@ export async function perFieldRecoverability(
 	// --- 2. Backup-source field recovery (recoverFields — Block 2 L2/L3) ---
 	const fieldRecovery = recoverFields(entry, {
 		indexEntry: c.indexItem ?? undefined,
-		taskBackups: readBackupEntries(taskBackupPaths),
-		indexBackups: readBackupEntries(indexBackupPaths).filter((e) => e.id === taskId),
+		taskBackups: await readBackupEntries(taskBackupPaths),
+		indexBackups: (await readBackupEntries(indexBackupPaths)).filter((e) => e.id === taskId),
 	})
 	for (const r of fieldRecovery.recovered) {
 		recovered.set(r.field, { source: r.source, confidence: r.source === "default" ? "low" : "high" })
@@ -257,12 +257,14 @@ export async function perFieldRecoverability(
 	// --- 4. Reference-field recovery (resolveReferences — Block 2) ---
 	let refsRecovered: Array<{ field: string; source: ReferenceSource }> = []
 	if (c.diskItem && fullIndex) {
-		refsRecovered = resolveReferences(entry, {
-			fullIndex,
-			taskIds: new Set(fullIndex.keys()),
-			ach,
-			backups: [...taskBackupPaths, ...indexBackupPaths],
-		}).recovered
+		refsRecovered = (
+			await resolveReferences(entry, {
+				fullIndex,
+				taskIds: new Set(fullIndex.keys()),
+				ach,
+				backups: [...taskBackupPaths, ...indexBackupPaths],
+			})
+		).recovered
 	}
 
 	// --- Assemble the per-field report ---

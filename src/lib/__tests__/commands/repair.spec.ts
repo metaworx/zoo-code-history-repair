@@ -145,7 +145,11 @@ describe("repair command", () => {
 		})
 
 		it("force: prints written + backup path", async () => {
-			mockRepair.mockReturnValue({ items: [{ id: "x" }], written: true })
+			mockRepair.mockReturnValue({
+				items: [{ id: "x" }],
+				written: true,
+				backupPath: "/fake/root/tasks/_index.json.20260814-000000.bak.json",
+			})
 
 			await action(undefined, { index: true, force: true, backup: true })
 

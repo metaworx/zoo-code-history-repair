@@ -160,6 +160,27 @@ describe("validate command", async () => {
 		expect(parsed["f.json"].issues).toHaveLength(1)
 	})
 
+	it("JSON mode + --no-warnings: omits warning issues", async () => {
+		mockValidatePath.mockReturnValue([
+			{
+				file: "f.json",
+				result: {
+					valid: true,
+					errorCount: 0,
+					warningCount: 1,
+					issues: [{ severity: "warning", field: "task", message: "task is placeholder" }],
+				},
+			},
+		])
+
+		await action(undefined, { json: true, warnings: false })
+
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("")
+		const parsed = JSON.parse(output)
+		expect(parsed["f.json"].issues).toHaveLength(0)
+		expect(parsed["f.json"].warningCount).toBe(0)
+	})
+
 	it("error from validatePath: prints error and exits 1", async () => {
 		mockValidatePath.mockImplementation(() => {
 			throw new Error("path not found")

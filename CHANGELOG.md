@@ -15,6 +15,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Extracted shared recovery primitives** — new [`src/lib/constants.ts`](src/lib/constants.ts) (UUID patterns plus
   `_removedReason`/`_removedAt` backup-metadata fields); `recoverTokens()` and `collectBackupPaths()` now replace the
   hand-copied token-repair and backup-path logic duplicated between `repairTask` and `scanOutput`.
+- **Minor consistency cleanup** — type-only imports, single-quote normalization, and a `cappedExitCode()` helper
+  replacing four `Math.min(…, 255)` exit-code caps.
+
+### Fixed
+
+- **Real backup path printout** — `repair --index` now prints the backup path actually returned by `save()` instead of
+  the module-level `backupTimestamp` constant.
+- **`missing_task_dir` in `inspectTaskDir`** — now surfaced by the validator path, not only `scanStorage`.
+- **`repair --all --verify-ui-sync`** — now propagated to the final index rebuild for parity with `repair --index`.
+- **`validate --no-warnings` in `--json` mode** — warnings are now suppressed in JSON output and summary counts.
+- **Async backup reads** — `resolveReferences` backup parsing now uses `fs/promises` instead of `readFileSync`.
 
 ## [0.8.0] — 2026-08-14
 

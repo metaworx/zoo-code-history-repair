@@ -5,7 +5,7 @@
  */
 import path from "node:path"
 import { IndexTransaction } from "../IndexTransaction.js"
-import { backupTimestamp, JsonFileTransaction } from "../file.js"
+import { JsonFileTransaction } from "../file.js"
 import { DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, resolveTasksDir, UI_MESSAGES_NAME } from "../paths.js"
 import { ABBREV_HELP, getVersionBanner, resolveRoot } from "../cliContext.js"
 import { c, colorize } from "../format.js"
@@ -66,6 +66,7 @@ async function repairIndexMode(cmdOpts: RepairCmdOptions): Promise<void> {
 	const {
 		items,
 		written,
+		backupPath,
 		uiSyncMismatches = [],
 	} = await idx.repair(undefined, {
 		dryRun: !cmdOpts.force,
@@ -79,8 +80,7 @@ async function repairIndexMode(cmdOpts: RepairCmdOptions): Promise<void> {
 		console.log(dryRunIndexMsg)
 	} else {
 		console.log(`Written: ${resolveTasksDir(root)}/${DEFAULT_INDEX_NAME}`)
-		if (cmdOpts.backup !== false)
-			console.log(`Backup:  ${resolveTasksDir(root)}/${DEFAULT_INDEX_NAME}.${backupTimestamp}.bak.json`)
+		if (cmdOpts.backup !== false && backupPath) console.log(`Backup:  ${backupPath}`)
 	}
 
 	if (uiSyncMismatches.length > 0) {

@@ -7,7 +7,6 @@ import type { RepairResult } from "./repairTask.js"
 
 export interface RepairAllOptions extends RepairOptions {
 	fixedInputToken?: number
-	verifyUiSync?: boolean
 	forceRebuildHi?: boolean
 }
 
@@ -85,6 +84,7 @@ export async function repairAllCorrupted(
 	const rebuildResult = await idx.repair(undefined, {
 		dryRun: options.dryRun,
 		backup: options.backup !== false,
+		verifyUiSync: options.verifyUiSync,
 	})
 
 	if (rebuildResult.items.length > 0) {

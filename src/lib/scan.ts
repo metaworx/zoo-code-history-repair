@@ -10,35 +10,11 @@ import type { CorruptionReason, HistoryItem, ScanResult, TaskCorruption } from "
 import { DEFAULT_INDEX_NAME, listTaskDirs, resolveIndexPath, resolveTasksDir } from "./paths.js"
 import { IndexTransaction } from "./IndexTransaction.js"
 import { setRoot } from "./cliContext.js"
-import { inspectTaskDir } from "./validation.js"
+import { inspectTaskDir, referencedTaskIds } from "./validation.js"
 import type { InspectOptions } from "./validation.js"
 
 export interface ScanOptions extends InspectOptions {
 	showWarnings?: boolean
-}
-
-const REFERENCE_FIELDS = [
-	"parentTaskId",
-	"rootTaskId",
-	"delegatedToId",
-	"awaitingChildId",
-	"completedByChildId",
-] as const
-
-/** Task IDs an index entry references via its cross-reference fields. */
-function referencedTaskIds(item: HistoryItem): string[] {
-	const refs: string[] = []
-	for (const field of REFERENCE_FIELDS) {
-		const v = item[field]
-		if (typeof v === "string" && v.length > 0) refs.push(v)
-	}
-	const childIds = item.childIds
-	if (Array.isArray(childIds)) {
-		for (const c of childIds) {
-			if (typeof c === "string" && c.length > 0) refs.push(c)
-		}
-	}
-	return refs
 }
 
 export async function scanStorage(storageRoot: string, options: ScanOptions = {}): Promise<ScanResult> {
@@ -50,6 +26,7 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
 	const indexItems = (await idx.getEntries()) as HistoryItem[]
 
 	const dirs = listTaskDirs(tasksDir)
+	const dirIds = new Set(dirs.map((d) => path.basename(d)))
 	const byId = new Map(indexItems.map((i) => [i.id, i]))
 
 	const corruptions: TaskCorruption[] = []
@@ -61,6 +38,7 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
 		const c = await inspectTaskDir(taskId, dir, byId.get(taskId) ?? null, {
 			verifyUiSync: options.verifyUiSync,
 			showWarnings: options.showWarnings,
+			knownTaskIds: dirIds,
 		})
 		if (!byId.has(taskId)) c.reasons.push({ reason: "folder_orphan", source: "hi" })
 		if (c.reasons.length) {
@@ -70,7 +48,6 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
 	}
 
 	// index entries without folders
-	const dirIds = new Set(dirs.map((d) => path.basename(d)))
 	for (const item of indexItems) {
 		if (!dirIds.has(item.id)) {
 			const reasons: Array<{ reason: CorruptionReason; source: string }> = [
@@ -94,26 +71,15 @@ export async function scanStorage(storageRoot: string, options: ScanOptions = {}
 		}
 	}
 
-	// missing_task_dir: an index entry references a task whose directory is missing
+	// missing_task_dir for index-orphan entries referencing a missing directory.
+	// Entries with a directory surface this via inspectTaskDir (knownTaskIds).
 	for (const item of indexItems) {
-		const hasMissingRef = referencedTaskIds(item).some((refId) => !dirIds.has(refId))
-		if (!hasMissingRef) continue
+		if (dirIds.has(item.id)) continue
+		if (!referencedTaskIds(item).some((refId) => !dirIds.has(refId))) continue
 		const existing = byTaskId.get(item.id)
 		if (existing) {
 			existing.reasons.push({ reason: "missing_task_dir", source: "idx" })
 			existing.errorCount++
-		} else {
-			const c: TaskCorruption = {
-				taskId: item.id,
-				dir: path.join(tasksDir, item.id),
-				reasons: [{ reason: "missing_task_dir", source: "idx" }],
-				indexItem: item,
-				diskItem: null,
-				errorCount: 1,
-				warningCount: 0,
-			}
-			corruptions.push(c)
-			byTaskId.set(item.id, c)
 		}
 	}
 
