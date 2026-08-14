@@ -95,7 +95,7 @@ const UUID_FIELDS = new Set([
 	"completedByChildId",
 	"awaitingChildId",
 ])
-const ENUM_FIELDS = new Set(["mode", "role", "type", "status"])
+const ENUM_FIELDS = new Set(["mode", "role", "type", "status", "say", "ask", "name", "autoApprovalDecision"])
 const UUID_ARRAY_FIELDS = new Set(["childIds"])
 const PATH_FIELDS = new Set(["workspace"])
 const PROVIDER_FIELDS = new Set(["apiConfigName"])

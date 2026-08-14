@@ -1,6 +1,6 @@
 {
 	"name": "zoo-code-history-repair",
-	"version": "0.8.3",
+	"version": "0.8.4",
 	"description": "Scan and repair Zoo Code / Roo-style task history indexes and corrupted task metadata",
 	"type": "module",
 	"bin": {

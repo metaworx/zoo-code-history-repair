@@ -20,6 +20,9 @@ import { expect, vi } from "vitest"
 /** Absolute path to the fixture tasks directory. */
 export const FIXTURE_DIR = path.resolve("tests/fixtures/tasks")
 
+/** Absolute path to the ground-truth (scrambled) fixture directory. */
+export const GROUND_TRUTH_DIR = path.resolve("tests/fixtures/ground_truth")
+
 export const HASHES_FILE = path.resolve("tests/fixtures/hashes.json")
 export const FIXTURE_SCAN_BEFORE_FILE = path.resolve("tests/fixtures/scan.before.json")
 export const FIXTURE_SCAN_AFTER_FILE = path.resolve("tests/fixtures/scan.after.json")
@@ -45,6 +48,11 @@ export function createTempDir(prefix: string): {
 /** Recursively copy fixture tasks into a target directory. */
 export function copyFixtureTasks(destDir: string): void {
 	fs.cpSync(FIXTURE_DIR, destDir, { recursive: true })
+}
+
+/** Recursively copy ground-truth fixtures into a target directory. */
+export function copyGroundTruthFixtures(destDir: string): void {
+	fs.cpSync(GROUND_TRUTH_DIR, destDir, { recursive: true })
 }
 
 /** Write a JSON-serializable value to a file path (compact JSON). */

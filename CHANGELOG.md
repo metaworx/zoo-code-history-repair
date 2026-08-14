@@ -7,6 +7,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-08-15
+
+### Changed
+
+- **Faithful ui_messages reconstruction** — [`rebuildUiMessages`](src/lib/rebuildUiMessages.ts) now emits `ask`
+  events for `tool_use` (`tool` / `command` / `use_mcp_server`) with the real descriptor shape (`content`,
+  `reason`, computed `isOutsideWorkspace`), reconstructs `command_output` / `user_feedback` / `subtask_result`
+  from tool results, maps `new_task` (`newTask` with display mode + initial todos) and `attempt_completion`
+  (`completion_result` + `finishTask`), adds ask metadata (`isAnswered`, `autoApprovalDecision`), and re-extracts
+  slash commands from the first user message. A gated `includeTelemetry` mode synthesizes `api_req_started` via
+  the existing token estimator.
+- **Scramble preservation** — [`scramble-fixture.ts`](scripts/scramble-fixture.ts) now preserves
+  `say` / `ask` / `name` / `autoApprovalDecision` while keeping free-text lorem-scrambled.
+
+### Added
+
+- **Ground-truth fixtures** — the privacy-scrambled ACH→UIM reference tasks now live under
+  [`tests/fixtures/ground_truth/`](tests/fixtures/ground_truth) and are copied to a temp dir by the round-trip
+  integration tests instead of being read in place.
+- **Rebuild helper unit tests** — every `rebuildUiMessages` helper (`modeDisplay`, `toolNameForDisplay`,
+  `buildReason`, `normalizePath`, `isOutsideWorkspace`, `absolutePath`, `extractSlashCommand`,
+  `stripEnvironmentDetails`, `isErrorToolReminder`, `stripUserMessageWrapper`, `isNewTaskBlock`, `isMcpBlock`,
+  `parseInitialTodos`, `simpleId`, `buildNewTaskDescriptor`, `buildToolUseDescriptor`, `buildMcpDescriptor`,
+  `buildToolResultText`, `splitCommandResult`, `commandOutputText`, `buildImagePlaceholder`, `indexTurns`,
+  `apiReqStartedText`, `estimateTurnTokensOut`, `estimateCumulativeTokensIn`) is now exported and unit-tested.
+
 ## [0.8.3] — 2026-08-14
 
 ### Added

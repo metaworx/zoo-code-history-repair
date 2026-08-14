@@ -262,6 +262,9 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 			delegatedToId: historyItem?.delegatedToId as string | undefined,
 			status: historyItem?.status,
 			resumeAsk: true,
+			workspaceRoot: historyItem?.workspace,
+			apiConfigName: historyItem?.apiConfigName as string | undefined,
+			includeTelemetry: true,
 		})
 		if (newUi.length > 0) {
 			if (!options.dryRun) {
