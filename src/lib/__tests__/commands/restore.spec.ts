@@ -1,11 +1,4 @@
-import {
-    afterEach,
-    beforeEach,
-    describe,
-    expect,
-    it,
-    vi
-} from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
@@ -18,321 +11,326 @@ const mockDeleteBackups = vi.hoisted(() => vi.fn())
 const mockDiffBackup = vi.hoisted(() => vi.fn())
 
 vi.mock("../../cliContext.js", () => ({
-    setRoot: mockSetRoot,
-    setVersion: mockSetVersion,
-    getVersionBanner: mockGetVersionBanner,
-    resolveRoot: mockResolveRoot,
+	setRoot: mockSetRoot,
+	setVersion: mockSetVersion,
+	getVersionBanner: mockGetVersionBanner,
+	resolveRoot: mockResolveRoot,
 }))
 
 vi.mock("../../paths.js", () => ({
-    resolveTasksDir: mockResolveTasksDir,
+	resolveTasksDir: mockResolveTasksDir,
 }))
 
 vi.mock("../../restore.js", () => ({
-    listBackupsForType: mockListBackupsForType,
-    restoreFromBackups: mockRestoreFromBackups,
-    deleteBackups: mockDeleteBackups,
-    diffBackup: mockDiffBackup,
+	listBackupsForType: mockListBackupsForType,
+	restoreFromBackups: mockRestoreFromBackups,
+	deleteBackups: mockDeleteBackups,
+	diffBackup: mockDiffBackup,
 }))
 
 vi.mock("../../format.js", () => ({
-    c: {red: "red"},
-    colorize: vi.fn((s: string) => s),
+	c: { red: "red" },
+	colorize: vi.fn((s: string) => s),
 }))
 
-import {action} from "../../commands/restore.js"
+import { action } from "../../commands/restore.js"
 
 describe("restore command", async () => {
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>
-    let consoleErrorSpy: ReturnType<typeof vi.spyOn>
-    let exitSpy: ReturnType<typeof vi.spyOn>
+	let consoleLogSpy: ReturnType<typeof vi.spyOn>
+	let consoleErrorSpy: ReturnType<typeof vi.spyOn>
+	let exitSpy: ReturnType<typeof vi.spyOn>
 
-    beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
-        })
-        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
-        })
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
-        }) as any)
-        mockResolveRoot.mockReturnValue("/fake/root")
-        mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
-        mockDiffBackup.mockReturnValue({
-            taskId: "t1",
-            baseName: "history_item.json",
-            diffs: [],
-            unchanged: 0,
-            currentMissing: false,
-            backupMissing: false,
-        })
-    })
+	beforeEach(() => {
+		consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+		consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+		exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any)
+		mockResolveRoot.mockReturnValue("/fake/root")
+		mockResolveTasksDir.mockReturnValue("/fake/root/tasks")
+		mockDiffBackup.mockReturnValue({
+			taskId: "t1",
+			baseName: "history_item.json",
+			diffs: [],
+			unchanged: 0,
+			currentMissing: false,
+			backupMissing: false,
+		})
+	})
 
-    afterEach(() => {
-        vi.clearAllMocks()
-    })
+	afterEach(() => {
+		vi.clearAllMocks()
+	})
 
-    it("list mode: no backups found", async () => {
-        mockListBackupsForType.mockReturnValue([])
+	it("list mode: no backups found", async () => {
+		mockListBackupsForType.mockReturnValue([])
 
-        await action(undefined, undefined, {})
+		await action(undefined, undefined, {})
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("No backup files found")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("No backup files found")
+	})
 
-    it("list mode: groups backups by task and timestamp", async () => {
-        mockListBackupsForType.mockReturnValue([
-            {
-                taskId: "t1",
-                timestamp: "20260101-120000",
-                bakPath: "/t1/x.bak",
-                baseName: "history_item.json",
-                basePath: "/t1/history_item.json"
-            },
-            {
-                taskId: "t1",
-                timestamp: "20260101-120000",
-                bakPath: "/t1/y.bak",
-                baseName: "ui_messages.json",
-                basePath: "/t1/ui_messages.json"
-            },
-            {
-                taskId: "t2",
-                timestamp: "20260102-130000",
-                bakPath: "/t2/z.bak",
-                baseName: "history_item.json",
-                basePath: "/t2/history_item.json"
-            },
-        ])
+	it("list mode: groups backups by task and timestamp", async () => {
+		mockListBackupsForType.mockReturnValue([
+			{
+				taskId: "t1",
+				timestamp: "20260101-120000",
+				bakPath: "/t1/x.bak",
+				baseName: "history_item.json",
+				basePath: "/t1/history_item.json",
+			},
+			{
+				taskId: "t1",
+				timestamp: "20260101-120000",
+				bakPath: "/t1/y.bak",
+				baseName: "ui_messages.json",
+				basePath: "/t1/ui_messages.json",
+			},
+			{
+				taskId: "t2",
+				timestamp: "20260102-130000",
+				bakPath: "/t2/z.bak",
+				baseName: "history_item.json",
+				basePath: "/t2/history_item.json",
+			},
+		])
 
-        await action(undefined, undefined, {})
+		await action(undefined, undefined, {})
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("t1:")
-        expect(output).toContain("t2:")
-        expect(output).toContain("history_item.json")
-        expect(output).toContain("ui_messages.json")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("t1:")
+		expect(output).toContain("t2:")
+		expect(output).toContain("history_item.json")
+		expect(output).toContain("ui_messages.json")
+	})
 
-    it("restore mode, dry-run: shows 'Would restore'", async () => {
-        mockRestoreFromBackups.mockReturnValue({
-            restored: [{
-                taskId: "t1",
-                timestamp: "20260101-120000",
-                bakPath: "/t1/x.bak",
-                baseName: "history_item.json",
-                basePath: "/t1/history_item.json"
-            }],
-            skipped: [],
-        })
+	it("restore mode, dry-run: shows 'Would restore'", async () => {
+		mockRestoreFromBackups.mockReturnValue({
+			restored: [
+				{
+					taskId: "t1",
+					timestamp: "20260101-120000",
+					bakPath: "/t1/x.bak",
+					baseName: "history_item.json",
+					basePath: "/t1/history_item.json",
+				},
+			],
+			skipped: [],
+		})
 
-        await action("t1", undefined, {force: false})
+		await action("t1", undefined, { force: false })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Would restore")
-        expect(output).not.toContain("Restored:")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Would restore")
+		expect(output).not.toContain("Restored:")
+	})
 
-    it("restore mode, force: shows 'Restored'", async () => {
-        mockRestoreFromBackups.mockReturnValue({
-            restored: [{
-                taskId: "t1",
-                timestamp: "20260101-120000",
-                bakPath: "/t1/x.bak",
-                baseName: "history_item.json",
-                basePath: "/t1/history_item.json"
-            }],
-            skipped: [],
-        })
+	it("restore mode, force: shows 'Restored'", async () => {
+		mockRestoreFromBackups.mockReturnValue({
+			restored: [
+				{
+					taskId: "t1",
+					timestamp: "20260101-120000",
+					bakPath: "/t1/x.bak",
+					baseName: "history_item.json",
+					basePath: "/t1/history_item.json",
+				},
+			],
+			skipped: [],
+		})
 
-        await action("t1", undefined, {force: true})
+		await action("t1", undefined, { force: true })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Restored:")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Restored:")
+	})
 
-    it("restore mode: no matching backups", async () => {
-        mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
+	it("restore mode: no matching backups", async () => {
+		mockRestoreFromBackups.mockReturnValue({ restored: [], skipped: [] })
 
-        await action("t1", "20260101-120000", {force: false})
+		await action("t1", "20260101-120000", { force: false })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("No matching backups found")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("No matching backups found")
+	})
 
-    it("restore mode: shows skipped items", async () => {
-        mockRestoreFromBackups.mockReturnValue({
-            restored: [],
-            skipped: ["/t1/history_item.json (already matches backup)"],
-        })
+	it("restore mode: shows skipped items", async () => {
+		mockRestoreFromBackups.mockReturnValue({
+			restored: [],
+			skipped: ["/t1/history_item.json (already matches backup)"],
+		})
 
-        await action("t1", undefined, {force: false})
+		await action("t1", undefined, { force: false })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Skipped:")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Skipped:")
+	})
 
-    it("delete mode, dry-run: shows 'Would delete'", async () => {
-        mockDeleteBackups.mockReturnValue({
-            deleted: ["/t1/history_item.json.bak"],
-            skipped: [],
-        })
+	it("delete mode, dry-run: shows 'Would delete'", async () => {
+		mockDeleteBackups.mockReturnValue({
+			deleted: ["/t1/history_item.json.bak"],
+			skipped: [],
+		})
 
-        await action("t1", undefined, {delete: true, force: false})
+		await action("t1", undefined, { delete: true, force: false })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Would delete")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Would delete")
+	})
 
-    it("delete mode, force: shows 'Deleted'", async () => {
-        mockDeleteBackups.mockReturnValue({
-            deleted: ["/t1/history_item.json.bak"],
-            skipped: [],
-        })
+	it("delete mode, force: shows 'Deleted'", async () => {
+		mockDeleteBackups.mockReturnValue({
+			deleted: ["/t1/history_item.json.bak"],
+			skipped: [],
+		})
 
-        await action("t1", undefined, {delete: true, force: true})
+		await action("t1", undefined, { delete: true, force: true })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Deleted:")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Deleted:")
+	})
 
-    it("delete mode, no matching backups", async () => {
-        mockDeleteBackups.mockReturnValue({deleted: [], skipped: []})
+	it("delete mode, no matching backups", async () => {
+		mockDeleteBackups.mockReturnValue({ deleted: [], skipped: [] })
 
-        await action("t1", undefined, {delete: true, force: false})
+		await action("t1", undefined, { delete: true, force: false })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("No matching backups found")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("No matching backups found")
+	})
 
-    it("delete without taskId or timestamp: error and exit 1", async () => {
-        await action(undefined, undefined, {delete: true})
+	it("delete without taskId or timestamp: error and exit 1", async () => {
+		await action(undefined, undefined, { delete: true })
 
-        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--delete requires"))
-        expect(exitSpy).toHaveBeenCalledWith(1)
-    })
+		expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--delete requires"))
+		expect(exitSpy).toHaveBeenCalledWith(1)
+	})
 
-    it("passes options to restoreFromBackups", async () => {
-        mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
+	it("passes options to restoreFromBackups", async () => {
+		mockRestoreFromBackups.mockReturnValue({ restored: [], skipped: [] })
 
-        await action("t1", "20260101-120000", {force: false, type: "history_item"})
+		await action("t1", "20260101-120000", { force: false, type: "history_item" })
 
-        expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
-            taskId: "t1",
-            timestamp: "20260101-120000",
-            dryRun: true,
-            type: "history_item",
-        })
-    })
+		expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
+			taskId: "t1",
+			timestamp: "20260101-120000",
+			dryRun: true,
+			type: "history_item",
+		})
+	})
 
-    it("passes options to deleteBackups", async () => {
-        mockDeleteBackups.mockReturnValue({deleted: [], skipped: []})
+	it("passes options to deleteBackups", async () => {
+		mockDeleteBackups.mockReturnValue({ deleted: [], skipped: [] })
 
-        await action("t1", "20260101-120000", {delete: true, force: true, type: "history_item"})
+		await action("t1", "20260101-120000", { delete: true, force: true, type: "history_item" })
 
-        expect(mockDeleteBackups).toHaveBeenCalledWith("/fake/root/tasks", {
-            taskId: "t1",
-            timestamp: "20260101-120000",
-            dryRun: false,
-            type: "history_item",
-        })
-    })
+		expect(mockDeleteBackups).toHaveBeenCalledWith("/fake/root/tasks", {
+			taskId: "t1",
+			timestamp: "20260101-120000",
+			dryRun: false,
+			type: "history_item",
+		})
+	})
 
-    it("passes --type through to restoreFromBackups", async () => {
-        mockRestoreFromBackups.mockReturnValue({restored: [], skipped: []})
+	it("passes --type through to restoreFromBackups", async () => {
+		mockRestoreFromBackups.mockReturnValue({ restored: [], skipped: [] })
 
-        await action("t1", "20260101-120000", {force: false, type: "_index.task"})
+		await action("t1", "20260101-120000", { force: false, type: "_index.task" })
 
-        expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
-            taskId: "t1",
-            timestamp: "20260101-120000",
-            dryRun: true,
-            type: "_index.task",
-        })
-    })
+		expect(mockRestoreFromBackups).toHaveBeenCalledWith("/fake/root/tasks", {
+			taskId: "t1",
+			timestamp: "20260101-120000",
+			dryRun: true,
+			type: "_index.task",
+		})
+	})
 
-    it("passes --type through to listBackupsForType in list mode", async () => {
-        mockListBackupsForType.mockReturnValue([])
+	it("passes --type through to listBackupsForType in list mode", async () => {
+		mockListBackupsForType.mockReturnValue([])
 
-        await action(undefined, undefined, {type: "_index.task"})
+		await action(undefined, undefined, { type: "_index.task" })
 
-        expect(mockListBackupsForType).toHaveBeenCalledWith("/fake/root/tasks", "_index.task")
-    })
+		expect(mockListBackupsForType).toHaveBeenCalledWith("/fake/root/tasks", "_index.task")
+	})
 
-    it("--diff requires taskId and timestamp", async () => {
-        await action(undefined, undefined, {diff: true})
+	it("--diff requires taskId and timestamp", async () => {
+		await action(undefined, undefined, { diff: true })
 
-        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--diff requires"))
-        expect(exitSpy).toHaveBeenCalledWith(1)
-    })
+		expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("--diff requires"))
+		expect(exitSpy).toHaveBeenCalledWith(1)
+	})
 
-    it("--diff prints diff without restoring", async () => {
-        mockDiffBackup.mockReturnValue({
-            taskId: "t1",
-            baseName: "history_item.json",
-            diffs: [
-                {field: "task", backup: "old", current: "new"},
-                {field: "tokensIn", backup: 0, current: 50000},
-            ],
-            unchanged: 10,
-            currentMissing: false,
-            backupMissing: false,
-        })
+	it("--diff prints diff without restoring", async () => {
+		mockDiffBackup.mockReturnValue({
+			taskId: "t1",
+			baseName: "history_item.json",
+			diffs: [
+				{ field: "task", backup: "old", current: "new" },
+				{ field: "tokensIn", backup: 0, current: 50000 },
+			],
+			unchanged: 10,
+			currentMissing: false,
+			backupMissing: false,
+		})
 
-        await action("t1", "20260101-120000", {diff: true})
+		await action("t1", "20260101-120000", { diff: true })
 
-        expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", {type: undefined})
-        expect(mockRestoreFromBackups).not.toHaveBeenCalled()
+		expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", { type: undefined })
+		expect(mockRestoreFromBackups).not.toHaveBeenCalled()
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
-        expect(output).toContain('task: "old" → "new"')
-        expect(output).toContain("tokensIn: 0 → 50000")
-        expect(output).toContain("2 fields changed, 10 fields unchanged")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
+		expect(output).toContain('task: "old" → "new"')
+		expect(output).toContain("tokensIn: 0 → 50000")
+		expect(output).toContain("2 fields changed, 10 fields unchanged")
+	})
 
-    it("--diff exits non-zero when backup is missing", async () => {
-        mockDiffBackup.mockReturnValue({
-            taskId: "t1",
-            baseName: "history_item.json",
-            diffs: [],
-            unchanged: 0,
-            currentMissing: false,
-            backupMissing: true,
-        })
+	it("--diff exits non-zero when backup is missing", async () => {
+		mockDiffBackup.mockReturnValue({
+			taskId: "t1",
+			baseName: "history_item.json",
+			diffs: [],
+			unchanged: 0,
+			currentMissing: false,
+			backupMissing: true,
+		})
 
-        await action("t1", "20260101-120000", {diff: true})
+		await action("t1", "20260101-120000", { diff: true })
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("(backup file missing)")
-        expect(exitSpy).toHaveBeenCalledWith(1)
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("(backup file missing)")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+	})
 
-    it("prints diff summary per restored entry", async () => {
-        mockRestoreFromBackups.mockReturnValue({
-            restored: [{
-                taskId: "t1",
-                timestamp: "20260101-120000",
-                bakPath: "/t1/history_item.json.20260101-120000.bak.json",
-                baseName: "history_item.json",
-                basePath: "/t1/history_item.json",
-            }],
-            skipped: [],
-        })
-        mockDiffBackup.mockReturnValue({
-            taskId: "t1",
-            baseName: "history_item.json",
-            diffs: [{field: "task", backup: "old", current: "new"}],
-            unchanged: 4,
-            currentMissing: false,
-            backupMissing: false,
-        })
+	it("prints diff summary per restored entry", async () => {
+		mockRestoreFromBackups.mockReturnValue({
+			restored: [
+				{
+					taskId: "t1",
+					timestamp: "20260101-120000",
+					bakPath: "/t1/history_item.json.20260101-120000.bak.json",
+					baseName: "history_item.json",
+					basePath: "/t1/history_item.json",
+				},
+			],
+			skipped: [],
+		})
+		mockDiffBackup.mockReturnValue({
+			taskId: "t1",
+			baseName: "history_item.json",
+			diffs: [{ field: "task", backup: "old", current: "new" }],
+			unchanged: 4,
+			currentMissing: false,
+			backupMissing: false,
+		})
 
-        await action("t1", undefined, {force: false})
+		await action("t1", undefined, { force: false })
 
-        expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", {type: "history_item"})
+		expect(mockDiffBackup).toHaveBeenCalledWith("/fake/root/tasks", "t1", "20260101-120000", {
+			type: "history_item",
+		})
 
-        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
-        expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
-        expect(output).toContain("1 fields changed, 4 fields unchanged")
-    })
+		const output = consoleLogSpy.mock.calls.map((c) => c[0]).join("\n")
+		expect(output).toContain("Diff for t1/history_item.json (20260101-120000):")
+		expect(output).toContain("1 fields changed, 4 fields unchanged")
+	})
 })

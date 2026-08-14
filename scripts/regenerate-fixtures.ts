@@ -8,117 +8,122 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {setRoot} from "../src/lib/cliContext.js"
-import {action as repairAction} from "../src/lib/commands/repair.js"
-import {action as scanAction} from "../src/lib/commands/scan.js"
+import { setRoot } from "../src/lib/cliContext.js"
+import { action as repairAction } from "../src/lib/commands/repair.js"
+import { action as scanAction } from "../src/lib/commands/scan.js"
 
 const FIXTURE_TASKS = path.resolve("tests/fixtures/tasks")
 
 function setup() {
-    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-regen-"))
-    const tasksDir = path.join(tmpRoot, "tasks")
-    fs.mkdirSync(tasksDir)
-    fs.cpSync(FIXTURE_TASKS, tasksDir, {recursive: true})
-    setRoot(tmpRoot)
-    return {tmpRoot, tasksDir}
+	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "zoo-regen-"))
+	const tasksDir = path.join(tmpRoot, "tasks")
+	fs.mkdirSync(tasksDir)
+	fs.cpSync(FIXTURE_TASKS, tasksDir, { recursive: true })
+	setRoot(tmpRoot)
+	return { tmpRoot, tasksDir }
 }
 
 async function run(fn: () => Promise<void>): Promise<string> {
-    const logs: string[] = []
-    const origLog = console.log
-    const origExit = process.exit
-    console.log = (...a: any[]) => {
-        logs.push(a.map(String).join(" "))
-    }
-    ;(process as any).exit = (code?: number) => {
-        throw new Error("__EXIT__:" + code)
-    }
-    try {
-        await fn()
-    } catch (e: any) {
-        if (!String(e?.message).startsWith("__EXIT__:")) throw e
-    } finally {
-        console.log = origLog
-        ;(process as any).exit = origExit
-    }
-    return logs.join("\n")
+	const logs: string[] = []
+	const origLog = console.log
+	const origExit = process.exit
+	console.log = (...a: any[]) => {
+		logs.push(a.map(String).join(" "))
+	}
+	;(process as any).exit = (code?: number) => {
+		throw new Error("__EXIT__:" + code)
+	}
+	try {
+		await fn()
+	} catch (e: any) {
+		if (!String(e?.message).startsWith("__EXIT__:")) throw e
+	} finally {
+		console.log = origLog
+		;(process as any).exit = origExit
+	}
+	return logs.join("\n")
 }
 
 function replaceRoot(data: any, tmpRoot: string): any {
-    if (typeof data === "string") {
-        return data.split(tmpRoot).join("tests\\fixtures")
-    }
-    if (Array.isArray(data)) return data.map(x => replaceRoot(x, tmpRoot))
-    if (data && typeof data === "object") {
-        const out: Record<string, any> = {}
-        for (const [k, v] of Object.entries(data)) out[k] = replaceRoot(v, tmpRoot)
-        return out
-    }
-    return data
+	if (typeof data === "string") {
+		return data.split(tmpRoot).join("tests\\fixtures")
+	}
+	if (Array.isArray(data)) return data.map((x) => replaceRoot(x, tmpRoot))
+	if (data && typeof data === "object") {
+		const out: Record<string, any> = {}
+		for (const [k, v] of Object.entries(data)) out[k] = replaceRoot(v, tmpRoot)
+		return out
+	}
+	return data
 }
 
 async function main() {
-    // Flow A: repair --index → _index.rebuilt.json
-    {
-        const {tmpRoot, tasksDir} = setup()
-        await run(() => repairAction(undefined, {index: true, force: true, backup: false}))
-        const idxData = JSON.parse(fs.readFileSync(path.join(tasksDir, "_index.json"), "utf8"))
-        const entries = Array.isArray(idxData) ? idxData : idxData.entries
-        fs.writeFileSync(
-            path.resolve("tests/fixtures/_index.rebuilt.json"),
-            JSON.stringify({entries}, null, 4) + "\n",
-        )
-        console.log("WROTE _index.rebuilt.json with " + entries.length + " entries")
-        fs.rmSync(tmpRoot, {recursive: true, force: true})
-    }
+	// Flow A: repair --index → _index.rebuilt.json
+	{
+		const { tmpRoot, tasksDir } = setup()
+		await run(() => repairAction(undefined, { index: true, force: true, backup: false }))
+		const idxData = JSON.parse(fs.readFileSync(path.join(tasksDir, "_index.json"), "utf8"))
+		const entries = Array.isArray(idxData) ? idxData : idxData.entries
+		fs.writeFileSync(
+			path.resolve("tests/fixtures/_index.rebuilt.json"),
+			JSON.stringify({ entries }, null, 4) + "\n",
+		)
+		console.log("WROTE _index.rebuilt.json with " + entries.length + " entries")
+		fs.rmSync(tmpRoot, { recursive: true, force: true })
+	}
 
-    // Flow A2: scan before repair → scan.before.json + scan.short.before.json
-    {
-        const {tmpRoot} = setup()
+	// Flow A2: scan before repair → scan.before.json + scan.short.before.json
+	{
+		const { tmpRoot } = setup()
 
-        const scanRaw = await run(() => scanAction({json: true}))
-        const scanJson = JSON.parse(scanRaw)
-        scanJson.version = "0.4.0"
-        const scanFixed = replaceRoot(scanJson, tmpRoot)
-        scanFixed.storageRoot = ".\\tests\\fixtures\\"
-        fs.writeFileSync(path.resolve("tests/fixtures/scan.before.json"), JSON.stringify(scanFixed, null, 4) + "\n")
-        console.log("WROTE scan.before.json corruptions=" + scanFixed.corruptions.length)
+		const scanRaw = await run(() => scanAction({ json: true }))
+		const scanJson = JSON.parse(scanRaw)
+		scanJson.version = "0.4.0"
+		const scanFixed = replaceRoot(scanJson, tmpRoot)
+		scanFixed.storageRoot = ".\\tests\\fixtures\\"
+		fs.writeFileSync(path.resolve("tests/fixtures/scan.before.json"), JSON.stringify(scanFixed, null, 4) + "\n")
+		console.log("WROTE scan.before.json corruptions=" + scanFixed.corruptions.length)
 
-        const lcRaw = await run(() => scanAction({json: true, short: true}))
-        const lcJson = JSON.parse(lcRaw)
-        lcJson.version = "0.4.0"
-        fs.writeFileSync(path.resolve("tests/fixtures/scan.short.before.json"), JSON.stringify(lcJson, null, 4) + "\n")
-        console.log("WROTE scan.short.before.json corruptions=" + lcJson.corruptions.length)
+		const lcRaw = await run(() => scanAction({ json: true, short: true }))
+		const lcJson = JSON.parse(lcRaw)
+		lcJson.version = "0.4.0"
+		fs.writeFileSync(path.resolve("tests/fixtures/scan.short.before.json"), JSON.stringify(lcJson, null, 4) + "\n")
+		console.log("WROTE scan.short.before.json corruptions=" + lcJson.corruptions.length)
 
-        fs.rmSync(tmpRoot, {recursive: true, force: true})
-    }
+		fs.rmSync(tmpRoot, { recursive: true, force: true })
+	}
 
-    // Flow B: repair --all → scan.after.json + scan.short.after.json
-    {
-        const {tmpRoot} = setup()
-        await run(() => repairAction(undefined, {all: true, force: true, backup: false}))
+	// Flow B: repair --all → scan.after.json + scan.short.after.json
+	{
+		const { tmpRoot } = setup()
+		await run(() => repairAction(undefined, { all: true, force: true, backup: false }))
 
-        const scanRaw = await run(() => scanAction({json: true}))
-        const scanJson = JSON.parse(scanRaw)
-        scanJson.version = "0.4.0"
-        const scanFixed = replaceRoot(scanJson, tmpRoot)
-        scanFixed.storageRoot = ".\\tests\\fixtures\\"
-        fs.writeFileSync(path.resolve("tests/fixtures/scan.after.json"), JSON.stringify(scanFixed, null, 4) + "\n")
-        console.log("WROTE scan.after.json indexItemCount=" + scanFixed.indexItemCount + " corruptions=" + scanFixed.corruptions.length)
+		const scanRaw = await run(() => scanAction({ json: true }))
+		const scanJson = JSON.parse(scanRaw)
+		scanJson.version = "0.4.0"
+		const scanFixed = replaceRoot(scanJson, tmpRoot)
+		scanFixed.storageRoot = ".\\tests\\fixtures\\"
+		fs.writeFileSync(path.resolve("tests/fixtures/scan.after.json"), JSON.stringify(scanFixed, null, 4) + "\n")
+		console.log(
+			"WROTE scan.after.json indexItemCount=" +
+				scanFixed.indexItemCount +
+				" corruptions=" +
+				scanFixed.corruptions.length,
+		)
 
-        const lcRaw = await run(() => scanAction({json: true, short: true}))
-        const lcJson = JSON.parse(lcRaw)
-        lcJson.version = "0.4.0"
-        fs.writeFileSync(path.resolve("tests/fixtures/scan.short.after.json"), JSON.stringify(lcJson, null, 4) + "\n")
-        console.log("WROTE scan.short.after.json corruptions=" + lcJson.corruptions.length)
+		const lcRaw = await run(() => scanAction({ json: true, short: true }))
+		const lcJson = JSON.parse(lcRaw)
+		lcJson.version = "0.4.0"
+		fs.writeFileSync(path.resolve("tests/fixtures/scan.short.after.json"), JSON.stringify(lcJson, null, 4) + "\n")
+		console.log("WROTE scan.short.after.json corruptions=" + lcJson.corruptions.length)
 
-        fs.rmSync(tmpRoot, {recursive: true, force: true})
-    }
+		fs.rmSync(tmpRoot, { recursive: true, force: true })
+	}
 
-    console.log("DONE")
+	console.log("DONE")
 }
 
-main().catch(e => {
-    console.error("FATAL", e);
-    process.exit(1)
+main().catch((e) => {
+	console.error("FATAL", e)
+	process.exit(1)
 })

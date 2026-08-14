@@ -1,4 +1,4 @@
-import type {HistoryItem} from "../types.js"
+import type { HistoryItem } from "../types.js"
 
 /**
  * Byte size of a value when serialized as compact JSON (UTF-8).
@@ -6,7 +6,7 @@ import type {HistoryItem} from "../types.js"
  * with no separators.
  */
 export function compactSizeBytes(data: unknown): number {
-    return Buffer.byteLength(JSON.stringify(data), "utf8")
+	return Buffer.byteLength(JSON.stringify(data), "utf8")
 }
 
 /**
@@ -19,18 +19,18 @@ export function compactSizeBytes(data: unknown): number {
  * (or with it — the difference is negligible for practical purposes).
  */
 export function computeTaskSize(
-    uiMessages: unknown,
-    apiHistory: unknown,
-    historyItem: HistoryItem,
-    taskMetadata: unknown,
+	uiMessages: unknown,
+	apiHistory: unknown,
+	historyItem: HistoryItem,
+	taskMetadata: unknown,
 ): number {
-    // Strip `size` from historyItem before measuring — otherwise the
-    // computation diverges on every write (size field auto-grows the payload).
-    const {size: _, ...hiWithoutSize} = historyItem as HistoryItem & {size?: number}
-    return (
-        compactSizeBytes(uiMessages) +
-        compactSizeBytes(apiHistory) +
-        compactSizeBytes(hiWithoutSize) +
-        compactSizeBytes(taskMetadata)
-    )
+	// Strip `size` from historyItem before measuring — otherwise the
+	// computation diverges on every write (size field auto-grows the payload).
+	const { size: _, ...hiWithoutSize } = historyItem as HistoryItem & { size?: number }
+	return (
+		compactSizeBytes(uiMessages) +
+		compactSizeBytes(apiHistory) +
+		compactSizeBytes(hiWithoutSize) +
+		compactSizeBytes(taskMetadata)
+	)
 }

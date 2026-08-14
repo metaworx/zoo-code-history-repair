@@ -1,52 +1,49 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import {
-    backupTimestamp,
-    consolidateBackups,
-    listBackups,
-    mapTypeToFileName,
-    mapTypeToFileNames,
-    parseTimestamp,
-    readJsonFile,
-    saveFile,
+	backupTimestamp,
+	consolidateBackups,
+	listBackups,
+	mapTypeToFileName,
+	mapTypeToFileNames,
+	parseTimestamp,
+	readJsonFile,
+	saveFile,
 } from "./file.js"
-import type {
-    BackupEntry,
-    BackupType
-} from "./file.js"
-import {IndexTransaction} from "./IndexTransaction.js"
-import {HISTORY_ITEM_NAME} from "./paths.js"
+import type { BackupEntry, BackupType } from "./file.js"
+import { IndexTransaction } from "./IndexTransaction.js"
+import { HISTORY_ITEM_NAME } from "./paths.js"
 
 const DEFAULT_TYPE: BackupType = "history_item"
 
 export interface RestoreOptions {
-    taskId?: string
-    timestamp?: string
-    dryRun?: boolean
-    type?: BackupType
-    mergeIntoIndex?: boolean
+	taskId?: string
+	timestamp?: string
+	dryRun?: boolean
+	type?: BackupType
+	mergeIntoIndex?: boolean
 }
 
 export interface DeleteOptions {
-    taskId?: string
-    timestamp?: string
-    dryRun?: boolean
-    type?: BackupType
+	taskId?: string
+	timestamp?: string
+	dryRun?: boolean
+	type?: BackupType
 }
 
 export interface DiffEntry {
-    field: string        // dotted path, e.g. "task", "tokensIn", "childIds[0]"
-    backup: unknown      // value in the backup
-    current: unknown     // value in the current file (undefined if absent)
+	field: string // dotted path, e.g. "task", "tokensIn", "childIds[0]"
+	backup: unknown // value in the backup
+	current: unknown // value in the current file (undefined if absent)
 }
 
 export interface DiffResult {
-    taskId: string
-    baseName: string     // e.g. "history_item.json" or "_index.task"
-    diffs: DiffEntry[]   // changed fields only
-    unchanged: number    // count of fields identical in both
-    currentMissing: boolean   // true when the current target file does not exist
-    backupMissing: boolean    // true when the backup file does not exist
+	taskId: string
+	baseName: string // e.g. "history_item.json" or "_index.task"
+	diffs: DiffEntry[] // changed fields only
+	unchanged: number // count of fields identical in both
+	currentMissing: boolean // true when the current target file does not exist
+	backupMissing: boolean // true when the backup file does not exist
 }
 
 /**
@@ -54,106 +51,103 @@ export interface DiffResult {
  * pushed down into file.ts's listBackups so the scan can skip non-matching
  * files early.
  */
-export async function listBackupsForType(
-    tasksDir: string,
-    type: BackupType = DEFAULT_TYPE,
-): Promise<BackupEntry[]> {
-    return listBackups(tasksDir, {basenames: mapTypeToFileNames(type)})
+export async function listBackupsForType(tasksDir: string, type: BackupType = DEFAULT_TYPE): Promise<BackupEntry[]> {
+	return listBackups(tasksDir, { basenames: mapTypeToFileNames(type) })
 }
 
 export async function restoreFromBackups(
-    tasksDir: string,
-    opts: RestoreOptions,
+	tasksDir: string,
+	opts: RestoreOptions,
 ): Promise<{ restored: BackupEntry[]; skipped: string[] }> {
-    const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
-    const filtered = (await listBackups(tasksDir, {taskId: opts.taskId, basenames}))
-        .filter(e => !opts.timestamp || e.timestamp === opts.timestamp)
+	const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
+	const filtered = (await listBackups(tasksDir, { taskId: opts.taskId, basenames })).filter(
+		(e) => !opts.timestamp || e.timestamp === opts.timestamp,
+	)
 
-    const restored: BackupEntry[] = []
-    const skipped: string[] = []
+	const restored: BackupEntry[] = []
+	const skipped: string[] = []
 
-    // Idempotency: skip any (taskId, baseName) group whose current target
-    // already matches one of its backups. Safety backups created by a prior
-    // restore carry a newer timestamp than their source, so matching must be
-    // checked across the whole group rather than just the newest entry.
-    const candidates = await filterAlreadyMatching(filtered, skipped)
-    const toRestore = deduplicateByNewest(candidates, opts)
+	// Idempotency: skip any (taskId, baseName) group whose current target
+	// already matches one of its backups. Safety backups created by a prior
+	// restore carry a newer timestamp than their source, so matching must be
+	// checked across the whole group rather than just the newest entry.
+	const candidates = await filterAlreadyMatching(filtered, skipped)
+	const toRestore = deduplicateByNewest(candidates, opts)
 
-    for (const entry of toRestore) {
-        try {
-            await fs.access(entry.bakPath)
-        } catch {
-            skipped.push(`${entry.bakPath} (missing)`)
-            continue
-        }
+	for (const entry of toRestore) {
+		try {
+			await fs.access(entry.bakPath)
+		} catch {
+			skipped.push(`${entry.bakPath} (missing)`)
+			continue
+		}
 
-        const isIndex = entry.baseName === mapTypeToFileName("_index.task")
-        const taskDir = path.dirname(entry.bakPath)
-        const targetPath = isIndex
-            ? path.join(taskDir, HISTORY_ITEM_NAME)
-            : entry.basePath
+		const isIndex = entry.baseName === mapTypeToFileName("_index.task")
+		const taskDir = path.dirname(entry.bakPath)
+		const targetPath = isIndex ? path.join(taskDir, HISTORY_ITEM_NAME) : entry.basePath
 
-        let entryData: Record<string, unknown> | null = null
-        if (isIndex) {
-            const raw = await readJsonFile(entry.bakPath) as Record<string, unknown> | null
-            if (raw === null) {
-                skipped.push(`${entry.bakPath} (invalid JSON)`)
-                continue
-            }
-            entryData = stripBackupMetadata(raw)
-        }
+		let entryData: Record<string, unknown> | null = null
+		if (isIndex) {
+			const raw = (await readJsonFile(entry.bakPath)) as Record<string, unknown> | null
+			if (raw === null) {
+				skipped.push(`${entry.bakPath} (invalid JSON)`)
+				continue
+			}
+			entryData = stripBackupMetadata(raw)
+		}
 
-        if (!opts.dryRun) {
-            // Safety backup of the current file before overwriting any history_item.json
-            if (path.basename(targetPath) === HISTORY_ITEM_NAME) {
-                await safetyBackup(targetPath)
-            }
+		if (!opts.dryRun) {
+			// Safety backup of the current file before overwriting any history_item.json
+			if (path.basename(targetPath) === HISTORY_ITEM_NAME) {
+				await safetyBackup(targetPath)
+			}
 
-            if (isIndex) {
-                const data = entryData as Record<string, unknown>
-                await saveFile(targetPath, data, {stringify: true})
-                if (opts.mergeIntoIndex !== false) {
-                    const tx = new IndexTransaction(false)
-                    const entryId = (data.id as string | undefined) ?? entry.taskId
-                    await tx.replaceId(entryId, data, true, false)
-                }
-            } else {
-                await fs.copyFile(entry.bakPath, targetPath)
-            }
-        }
+			if (isIndex) {
+				const data = entryData as Record<string, unknown>
+				await saveFile(targetPath, data, { stringify: true })
+				if (opts.mergeIntoIndex !== false) {
+					const tx = new IndexTransaction(false)
+					const entryId = (data.id as string | undefined) ?? entry.taskId
+					await tx.replaceId(entryId, data, true, false)
+				}
+			} else {
+				await fs.copyFile(entry.bakPath, targetPath)
+			}
+		}
 
-        restored.push(entry)
-    }
+		restored.push(entry)
+	}
 
-    return {restored, skipped}
+	return { restored, skipped }
 }
 
 export async function deleteBackups(
-    tasksDir: string,
-    opts: DeleteOptions,
+	tasksDir: string,
+	opts: DeleteOptions,
 ): Promise<{ deleted: string[]; skipped: string[] }> {
-    const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
-    const filtered = (await listBackups(tasksDir, {taskId: opts.taskId, basenames}))
-        .filter(e => !opts.timestamp || e.timestamp === opts.timestamp)
+	const basenames = mapTypeToFileNames(opts.type ?? DEFAULT_TYPE)
+	const filtered = (await listBackups(tasksDir, { taskId: opts.taskId, basenames })).filter(
+		(e) => !opts.timestamp || e.timestamp === opts.timestamp,
+	)
 
-    const deleted: string[] = []
-    const skipped: string[] = []
+	const deleted: string[] = []
+	const skipped: string[] = []
 
-    for (const entry of filtered) {
-        try {
-            await fs.access(entry.bakPath)
-        } catch {
-            skipped.push(`${entry.bakPath} (missing)`)
-            continue
-        }
+	for (const entry of filtered) {
+		try {
+			await fs.access(entry.bakPath)
+		} catch {
+			skipped.push(`${entry.bakPath} (missing)`)
+			continue
+		}
 
-        if (!opts.dryRun) {
-            await fs.rm(entry.bakPath)
-        }
-        deleted.push(entry.bakPath)
-    }
+		if (!opts.dryRun) {
+			await fs.rm(entry.bakPath)
+		}
+		deleted.push(entry.bakPath)
+	}
 
-    return {deleted, skipped}
+	return { deleted, skipped }
 }
 
 /**
@@ -164,65 +158,60 @@ export async function deleteBackups(
  * metadata is stripped before comparison.
  */
 export async function diffBackup(
-    tasksDir: string,
-    taskId: string,
-    timestamp: string,
-    opts: { type?: BackupType } = {},
+	tasksDir: string,
+	taskId: string,
+	timestamp: string,
+	opts: { type?: BackupType } = {},
 ): Promise<DiffResult> {
-    const rawType = opts.type ?? DEFAULT_TYPE
-    const type: Exclude<BackupType, "all"> = rawType === "all" ? "history_item" : rawType
-    const basenames = mapTypeToFileNames(type)
-    const baseName = mapTypeToFileName(type)
+	const rawType = opts.type ?? DEFAULT_TYPE
+	const type: Exclude<BackupType, "all"> = rawType === "all" ? "history_item" : rawType
+	const basenames = mapTypeToFileNames(type)
+	const baseName = mapTypeToFileName(type)
 
-    const entries = (await listBackups(tasksDir, {taskId, basenames}))
-        .filter(e => e.timestamp === timestamp)
+	const entries = (await listBackups(tasksDir, { taskId, basenames })).filter((e) => e.timestamp === timestamp)
 
-    const entry = entries[0]
+	const entry = entries[0]
 
-    if (!entry || !(await fileExists(entry.bakPath))) {
-        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true}
-    }
+	if (!entry || !(await fileExists(entry.bakPath))) {
+		return { taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true }
+	}
 
-    const isIndex = entry.baseName === mapTypeToFileName("_index.task")
-    const taskDir = path.dirname(entry.bakPath)
-    const targetPath = isIndex
-        ? path.join(taskDir, HISTORY_ITEM_NAME)
-        : entry.basePath
+	const isIndex = entry.baseName === mapTypeToFileName("_index.task")
+	const taskDir = path.dirname(entry.bakPath)
+	const targetPath = isIndex ? path.join(taskDir, HISTORY_ITEM_NAME) : entry.basePath
 
-    const rawBackup = await readJsonFile(entry.bakPath)
-    if (rawBackup === null) {
-        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true}
-    }
+	const rawBackup = await readJsonFile(entry.bakPath)
+	if (rawBackup === null) {
+		return { taskId, baseName, diffs: [], unchanged: 0, currentMissing: false, backupMissing: true }
+	}
 
-    const backupData = isIndex
-        ? stripBackupMetadata(rawBackup as Record<string, unknown>)
-        : rawBackup
+	const backupData = isIndex ? stripBackupMetadata(rawBackup as Record<string, unknown>) : rawBackup
 
-    if (!(await fileExists(targetPath))) {
-        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false}
-    }
+	if (!(await fileExists(targetPath))) {
+		return { taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false }
+	}
 
-    const currentData = await readJsonFile(targetPath)
-    if (currentData === null) {
-        return {taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false}
-    }
+	const currentData = await readJsonFile(targetPath)
+	if (currentData === null) {
+		return { taskId, baseName, diffs: [], unchanged: 0, currentMissing: true, backupMissing: false }
+	}
 
-    const diffs: DiffEntry[] = []
-    let unchanged = 0
-    diffObjects(backupData, currentData, "", diffs, () => {
-        unchanged++
-    })
+	const diffs: DiffEntry[] = []
+	let unchanged = 0
+	diffObjects(backupData, currentData, "", diffs, () => {
+		unchanged++
+	})
 
-    return {taskId, baseName, diffs, unchanged, currentMissing: false, backupMissing: false}
+	return { taskId, baseName, diffs, unchanged, currentMissing: false, backupMissing: false }
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
-    try {
-        await fs.access(filePath)
-        return true
-    } catch {
-        return false
-    }
+	try {
+		await fs.access(filePath)
+		return true
+	} catch {
+		return false
+	}
 }
 
 /**
@@ -231,61 +220,61 @@ async function fileExists(filePath: string): Promise<boolean> {
  * dotted path (`childIds[0]` for arrays, `a.b` for objects).
  */
 function diffObjects(
-    backup: unknown,
-    current: unknown,
-    path: string,
-    diffs: DiffEntry[],
-    onUnchanged: () => void,
+	backup: unknown,
+	current: unknown,
+	path: string,
+	diffs: DiffEntry[],
+	onUnchanged: () => void,
 ): void {
-    if (backup === current) {
-        onUnchanged()
-        return
-    }
+	if (backup === current) {
+		onUnchanged()
+		return
+	}
 
-    const backupIsObj = typeof backup === "object" && backup !== null
-    const currentIsObj = typeof current === "object" && current !== null
+	const backupIsObj = typeof backup === "object" && backup !== null
+	const currentIsObj = typeof current === "object" && current !== null
 
-    if (!backupIsObj || !currentIsObj) {
-        diffs.push({field: path || "(root)", backup, current})
-        return
-    }
+	if (!backupIsObj || !currentIsObj) {
+		diffs.push({ field: path || "(root)", backup, current })
+		return
+	}
 
-    const backupIsArray = Array.isArray(backup)
-    const currentIsArray = Array.isArray(current)
+	const backupIsArray = Array.isArray(backup)
+	const currentIsArray = Array.isArray(current)
 
-    if (backupIsArray !== currentIsArray) {
-        diffs.push({field: path || "(root)", backup, current})
-        return
-    }
+	if (backupIsArray !== currentIsArray) {
+		diffs.push({ field: path || "(root)", backup, current })
+		return
+	}
 
-    if (backupIsArray) {
-        const b = backup as unknown[]
-        const c = current as unknown[]
-        const len = Math.max(b.length, c.length)
-        for (let i = 0; i < len; i++) {
-            const childPath = path ? `${path}[${i}]` : `[${i}]`
-            if (i >= b.length || i >= c.length) {
-                diffs.push({field: childPath, backup: b[i], current: c[i]})
-            } else {
-                diffObjects(b[i], c[i], childPath, diffs, onUnchanged)
-            }
-        }
-        return
-    }
+	if (backupIsArray) {
+		const b = backup as unknown[]
+		const c = current as unknown[]
+		const len = Math.max(b.length, c.length)
+		for (let i = 0; i < len; i++) {
+			const childPath = path ? `${path}[${i}]` : `[${i}]`
+			if (i >= b.length || i >= c.length) {
+				diffs.push({ field: childPath, backup: b[i], current: c[i] })
+			} else {
+				diffObjects(b[i], c[i], childPath, diffs, onUnchanged)
+			}
+		}
+		return
+	}
 
-    const b = backup as Record<string, unknown>
-    const c = current as Record<string, unknown>
-    const keys = new Set([...Object.keys(b), ...Object.keys(c)])
-    for (const key of keys) {
-        const childPath = path ? `${path}.${key}` : key
-        const hasB = Object.prototype.hasOwnProperty.call(b, key)
-        const hasC = Object.prototype.hasOwnProperty.call(c, key)
-        if (!hasB || !hasC) {
-            diffs.push({field: childPath, backup: b[key], current: c[key]})
-        } else {
-            diffObjects(b[key], c[key], childPath, diffs, onUnchanged)
-        }
-    }
+	const b = backup as Record<string, unknown>
+	const c = current as Record<string, unknown>
+	const keys = new Set([...Object.keys(b), ...Object.keys(c)])
+	for (const key of keys) {
+		const childPath = path ? `${path}.${key}` : key
+		const hasB = Object.prototype.hasOwnProperty.call(b, key)
+		const hasC = Object.prototype.hasOwnProperty.call(c, key)
+		if (!hasB || !hasC) {
+			diffs.push({ field: childPath, backup: b[key], current: c[key] })
+		} else {
+			diffObjects(b[key], c[key], childPath, diffs, onUnchanged)
+		}
+	}
 }
 
 /**
@@ -294,10 +283,10 @@ function diffObjects(
  * only meaningful inside the `.bak.json` file itself.
  */
 function stripBackupMetadata(entry: Record<string, unknown>): Record<string, unknown> {
-    const copy = {...entry}
-    delete copy._removedReason
-    delete copy._removedAt
-    return copy
+	const copy = { ...entry }
+	delete copy._removedReason
+	delete copy._removedAt
+	return copy
 }
 
 /**
@@ -306,13 +295,13 @@ function stripBackupMetadata(entry: Record<string, unknown>): Record<string, unk
  * runs Block 0 consolidation so duplicates are deduplicated via content hash.
  */
 async function safetyBackup(targetPath: string): Promise<void> {
-    const safetyPath = `${targetPath}.${backupTimestamp}.bak.json`
-    try {
-        await fs.copyFile(targetPath, safetyPath)
-    } catch {
-        return // target does not exist — nothing to back up
-    }
-    await consolidateBackups(targetPath, safetyPath)
+	const safetyPath = `${targetPath}.${backupTimestamp}.bak.json`
+	try {
+		await fs.copyFile(targetPath, safetyPath)
+	} catch {
+		return // target does not exist — nothing to back up
+	}
+	await consolidateBackups(targetPath, safetyPath)
 }
 
 /**
@@ -321,95 +310,90 @@ async function safetyBackup(targetPath: string): Promise<void> {
  * idempotent even after safety backups (newer timestamp, pre-restore content)
  * are created.
  */
-async function filterAlreadyMatching(
-    entries: BackupEntry[],
-    skipped: string[],
-): Promise<BackupEntry[]> {
-    const groups = new Map<string, BackupEntry[]>()
-    for (const entry of entries) {
-        const key = `${entry.taskId}\u0000${entry.baseName}`
-        const group = groups.get(key) ?? []
-        group.push(entry)
-        groups.set(key, group)
-    }
+async function filterAlreadyMatching(entries: BackupEntry[], skipped: string[]): Promise<BackupEntry[]> {
+	const groups = new Map<string, BackupEntry[]>()
+	for (const entry of entries) {
+		const key = `${entry.taskId}\u0000${entry.baseName}`
+		const group = groups.get(key) ?? []
+		group.push(entry)
+		groups.set(key, group)
+	}
 
-    const candidates: BackupEntry[] = []
-    for (const group of groups.values()) {
-        const first = group[0]
-        const targetPath = first.baseName === mapTypeToFileName("_index.task")
-            ? path.join(path.dirname(first.bakPath), HISTORY_ITEM_NAME)
-            : first.basePath
+	const candidates: BackupEntry[] = []
+	for (const group of groups.values()) {
+		const first = group[0]
+		const targetPath =
+			first.baseName === mapTypeToFileName("_index.task")
+				? path.join(path.dirname(first.bakPath), HISTORY_ITEM_NAME)
+				: first.basePath
 
-        let current: Buffer | null = null
-        try {
-            current = await fs.readFile(targetPath)
-        } catch {
-            // target missing — nothing matches, restore proceeds
-        }
+		let current: Buffer | null = null
+		try {
+			current = await fs.readFile(targetPath)
+		} catch {
+			// target missing — nothing matches, restore proceeds
+		}
 
-        let matched = false
-        if (current) {
-            for (const entry of group) {
-                try {
-                    const backup = await fs.readFile(entry.bakPath)
-                    if (backup.equals(current)) {
-                        matched = true
-                        break
-                    }
-                } catch {
-                    // missing backup — not a match
-                }
-            }
-        }
+		let matched = false
+		if (current) {
+			for (const entry of group) {
+				try {
+					const backup = await fs.readFile(entry.bakPath)
+					if (backup.equals(current)) {
+						matched = true
+						break
+					}
+				} catch {
+					// missing backup — not a match
+				}
+			}
+		}
 
-        if (matched) {
-            skipped.push(`${targetPath} (already matches backup)`)
-        } else {
-            candidates.push(...group)
-        }
-    }
+		if (matched) {
+			skipped.push(`${targetPath} (already matches backup)`)
+		} else {
+			candidates.push(...group)
+		}
+	}
 
-    return candidates
+	return candidates
 }
 
 /**
  * When restoring with only taskId (no explicit timestamp), pick the newest
  * timestamp for that task. All files restored must share the same timestamp.
  */
-function deduplicateByNewest(
-    entries: BackupEntry[],
-    opts: RestoreOptions,
-): BackupEntry[] {
-    if (opts.timestamp) return entries // explicit timestamp, no dedup needed
+function deduplicateByNewest(entries: BackupEntry[], opts: RestoreOptions): BackupEntry[] {
+	if (opts.timestamp) return entries // explicit timestamp, no dedup needed
 
-    if (!opts.taskId) {
-        // Restoring all tasks by timestamp only (or all backups?).
-        // When neither taskId nor timestamp, this means "no-args list mode" which
-        // is handled by the command, not by restoreFromBackups. So if we get
-        // here with no filters, restore all.
-        return entries
-    }
+	if (!opts.taskId) {
+		// Restoring all tasks by timestamp only (or all backups?).
+		// When neither taskId nor timestamp, this means "no-args list mode" which
+		// is handled by the command, not by restoreFromBackups. So if we get
+		// here with no filters, restore all.
+		return entries
+	}
 
-    // taskId only: pick the newest timestamp
-    const byTs = new Map<string, BackupEntry[]>()
-    for (const e of entries) {
-        const group = byTs.get(e.timestamp) ?? []
-        group.push(e)
-        byTs.set(e.timestamp, group)
-    }
+	// taskId only: pick the newest timestamp
+	const byTs = new Map<string, BackupEntry[]>()
+	for (const e of entries) {
+		const group = byTs.get(e.timestamp) ?? []
+		group.push(e)
+		byTs.set(e.timestamp, group)
+	}
 
-    if (byTs.size === 0) return []
+	if (byTs.size === 0) return []
 
-    // Find newest timestamp by parsing dates
-    let newest: string | null = null
-    let newestDate: Date | null = null
-    for (const ts of byTs.keys()) {
-        const d = parseTimestamp(ts)
-        if (d && (!newestDate || d > newestDate)) {
-            newestDate = d
-            newest = ts
-        }
-    }
+	// Find newest timestamp by parsing dates
+	let newest: string | null = null
+	let newestDate: Date | null = null
+	for (const ts of byTs.keys()) {
+		const d = parseTimestamp(ts)
+		if (d && (!newestDate || d > newestDate)) {
+			newestDate = d
+			newest = ts
+		}
+	}
 
-    return newest ? byTs.get(newest)! : entries
+	return newest ? byTs.get(newest)! : entries
 }

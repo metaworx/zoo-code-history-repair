@@ -43,8 +43,9 @@ JetBrains IDE inspections via the JetBrains MCP server.
 
 Enforced by `.editorconfig` and JetBrains formatting; keep changes consistent with the existing style:
 
-- 4-space indentation (2 for `package.json`/YAML), Linux line endings (`\n`), trailing newline.
+- Tabs for indentation (tab width 4), 2-space for `package.json`/YAML, Linux line endings (`\n`), trailing newline.
 - No semicolons; double quotes; trailing commas in multiline constructs.
+- Formatting is governed by [`.prettierrc.json`](../.prettierrc.json) (tabs, `semi: false`, `printWidth: 120`); run `npx prettier --write` for bulk reformat.
 - `NodeNext` module resolution — relative imports use the `.js` extension.
 - Explicit return types and accessibility modifiers are NOT enforced project-wide; match the
   surrounding file's conventions.

@@ -67,7 +67,11 @@ export interface SafeWriteJsonResult {
  * @returns {Promise<SafeWriteJsonResult>}
  */
 
-async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJsonOptions): Promise<SafeWriteJsonResult> {
+async function safeWriteJson(
+	filePath: string,
+	data: any,
+	options?: SafeWriteJsonOptions,
+): Promise<SafeWriteJsonResult> {
 	const absoluteFilePath = path.resolve(filePath)
 	let releaseLock = async () => {} // Initialized to a no-op
 
@@ -155,7 +159,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 		actualTempNewFilePath = null
 
 		// Step 4: If a backup was created, keep it if requested, otherwise delete it.
-		if (actualTempBackupFilePath && ! options?.keepBackup) {
+		if (actualTempBackupFilePath && !options?.keepBackup) {
 			try {
 				await fs.unlink(actualTempBackupFilePath)
 				// Mark backup as handled

@@ -15,31 +15,32 @@ const USER_MESSAGE_RE = /<user_message>(.*?)<\/user_message>/s
  * Returns null if the conversation history is missing or malformed.
  */
 export function extractTaskFromApiHistory(apiHistory: unknown[]): string | null {
-    if (!Array.isArray(apiHistory)) return null
+	if (!Array.isArray(apiHistory)) return null
 
-    for (const turn of apiHistory) {
-        if (!turn || typeof turn !== "object") continue
-        const t = turn as Record<string, unknown>
-        if (t.role !== "user") continue
+	for (const turn of apiHistory) {
+		if (!turn || typeof turn !== "object") continue
+		const t = turn as Record<string, unknown>
+		if (t.role !== "user") continue
 
-        const content = t.content
-        if (!Array.isArray(content)) continue
+		const content = t.content
+		if (!Array.isArray(content)) continue
 
-        // Concatenate all text blocks in the first user turn, then match.
-        // This handles cases where <user_message> spans multiple blocks.
-        const allText = content
-            .filter((block): block is Record<string, unknown> =>
-                block != null && typeof block === "object" && (block as Record<string, unknown>).type === "text",
-            )
-            .map(b => typeof b.text === "string" ? b.text : "")
-            .join("")
+		// Concatenate all text blocks in the first user turn, then match.
+		// This handles cases where <user_message> spans multiple blocks.
+		const allText = content
+			.filter(
+				(block): block is Record<string, unknown> =>
+					block != null && typeof block === "object" && (block as Record<string, unknown>).type === "text",
+			)
+			.map((b) => (typeof b.text === "string" ? b.text : ""))
+			.join("")
 
-        const m = USER_MESSAGE_RE.exec(allText)
-        if (m) return m[1].trim()
+		const m = USER_MESSAGE_RE.exec(allText)
+		if (m) return m[1].trim()
 
-        // Only check the first user turn
-        break
-    }
+		// Only check the first user turn
+		break
+	}
 
-    return null
+	return null
 }
