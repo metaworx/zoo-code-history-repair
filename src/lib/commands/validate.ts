@@ -2,8 +2,7 @@ import path from "node:path"
 import { getVersionBanner, resolveRoot } from "../cliContext.js"
 import { resolveTasksDir } from "../paths.js"
 import { validatePath, ValidateResult } from "../validation.js"
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_FULL_PATTERN } from "../constants.js"
 
 export const name = "validate"
 export const summary = "Validate task storage files against schema rules"
@@ -28,7 +27,7 @@ export async function action(
 
 	// Resolve UUID targets to task directories
 	let resolvedTarget = target
-	if (target && UUID_RE.test(target)) {
+	if (target && UUID_FULL_PATTERN.test(target)) {
 		const root = path.resolve(resolveRoot())
 		resolvedTarget = path.join(resolveTasksDir(root), target)
 	}

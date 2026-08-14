@@ -3,13 +3,12 @@ import { historyItemSchema } from "@roo-code/types"
 import type { ValidationResult } from "../validation.js"
 import { error, warning } from "../validation.js"
 import { zodResultToValidationResult } from "./zod.js"
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_FULL_PATTERN } from "../constants.js"
 
 type EntryMap = Map<string, Record<string, unknown>>
 
 function isUuid(v: unknown): boolean {
-	return typeof v === "string" && UUID_RE.test(v)
+	return typeof v === "string" && UUID_FULL_PATTERN.test(v)
 }
 
 /**

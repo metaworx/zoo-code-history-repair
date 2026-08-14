@@ -12,6 +12,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Adopted tabs + Prettier** — reformatted all TypeScript sources and the `tests/` tooling to tab indentation
   (new [`.prettierrc.json`](.prettierrc.json): `useTabs`, no semicolons, `printWidth: 120`), updated
   [`.editorconfig`](.editorconfig) and linting docs, removed trailing semicolons, and sentence-cased error messages.
+- **Extracted shared recovery primitives** — new [`src/lib/constants.ts`](src/lib/constants.ts) (UUID patterns plus
+  `_removedReason`/`_removedAt` backup-metadata fields); `recoverTokens()` and `collectBackupPaths()` now replace the
+  hand-copied token-repair and backup-path logic duplicated between `repairTask` and `scanOutput`.
 
 ## [0.8.0] — 2026-08-14
 

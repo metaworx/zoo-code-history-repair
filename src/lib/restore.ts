@@ -13,6 +13,7 @@ import {
 import type { BackupEntry, BackupType } from "./file.js"
 import { IndexTransaction } from "./IndexTransaction.js"
 import { HISTORY_ITEM_NAME } from "./paths.js"
+import { BACKUP_META_FIELDS } from "./constants.js"
 
 const DEFAULT_TYPE: BackupType = "history_item"
 
@@ -284,8 +285,7 @@ function diffObjects(
  */
 function stripBackupMetadata(entry: Record<string, unknown>): Record<string, unknown> {
 	const copy = { ...entry }
-	delete copy._removedReason
-	delete copy._removedAt
+	for (const field of BACKUP_META_FIELDS) delete copy[field]
 	return copy
 }
 

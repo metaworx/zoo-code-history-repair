@@ -7,8 +7,8 @@
 import fs from "node:fs"
 import os from "node:os"
 
-const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
-const UUID_FULL_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_FULL_PATTERN, UUID_PATTERN } from "./constants.js"
+import { estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost } from "./estimateTokens.js"
 
 export type ReferenceSource = "ach" | "index" | "backup"
 
@@ -381,6 +381,125 @@ export function positiveNumber(v: unknown): number | null {
 
 export function nonEmptyString(v: unknown): string | null {
 	return typeof v === "string" && v.trim() !== "" ? v : null
+}
+
+/** Source a token recovery came from. */
+export type TokenRecoverySource = "index" | "estimate" | "user_override"
+
+/** Token-related fields recoverTokens can write. */
+export type TokenField = "tokensIn" | "tokensOut" | "totalCost" | "cacheReads" | "cacheWrites"
+
+/** Provenance of a single recovered token field. */
+export type TokenChangeSource = "index" | "ach" | "user_override" | "default"
+
+export interface TokenRecoveryChange {
+	field: TokenField
+	from: TokenChangeSource
+}
+
+export interface TokenRecoveryResult {
+	repaired: boolean
+	source: TokenRecoverySource
+	changes: TokenRecoveryChange[]
+}
+
+export interface RecoverTokensOptions {
+	/** Live index entry for this task, used as the priority token source. */
+	indexEntry?: {
+		tokensIn?: number
+		tokensOut?: number
+		totalCost?: number
+		cacheReads?: number
+		cacheWrites?: number
+	} | null
+	/** The task's api_conversation_history.json, used for estimation. */
+	ach: unknown[] | null
+	/** User-supplied tokensIn override. 0 disables estimation (keeps zeros). */
+	fixedInputToken?: number
+}
+
+/**
+ * Repair token fields (`tokensIn`/`tokensOut`/`totalCost` plus cache fields)
+ * on a history item whose token triple is all zero.
+ *
+ * Priority: index entry → user override → ACH estimation. After a successful
+ * recovery, cache fields are filled (`cacheReads` estimated, `cacheWrites`
+ * defaulted to 0). Mutates `entry` in place and reports whether, from where,
+ * and which fields were recovered.
+ */
+export function recoverTokens(entry: Record<string, unknown>, opts: RecoverTokensOptions): TokenRecoveryResult {
+	const changes: TokenRecoveryChange[] = []
+	if (entry.tokensIn !== 0 || entry.tokensOut !== 0 || entry.totalCost !== 0) {
+		return { repaired: false, source: "estimate", changes }
+	}
+	if (!Array.isArray(opts.ach) || opts.ach.length === 0) {
+		return { repaired: false, source: "estimate", changes }
+	}
+
+	const ach = opts.ach
+	const provider = entry.apiConfigName as string | undefined
+
+	// Fill cache fields after a token recovery; no-op when tokensIn stayed 0.
+	const fillCache = (): void => {
+		if (positiveNumber(entry.tokensIn) === null) return
+		if (positiveNumber(entry.cacheReads) === null) {
+			const est = estimateCacheReads(entry.tokensIn as number, provider)
+			entry.cacheReads = est
+			if (positiveNumber(est) !== null) changes.push({ field: "cacheReads", from: "ach" })
+		}
+		if (entry.cacheWrites === undefined || entry.cacheWrites === null) {
+			entry.cacheWrites = 0
+			changes.push({ field: "cacheWrites", from: "default" })
+		}
+	}
+
+	const idx = opts.indexEntry
+	if (idx && typeof idx.tokensIn === "number" && idx.tokensIn > 0) {
+		entry.tokensIn = idx.tokensIn
+		changes.push({ field: "tokensIn", from: "index" })
+		entry.tokensOut = idx.tokensOut ?? 0
+		if (positiveNumber(idx.tokensOut) !== null) changes.push({ field: "tokensOut", from: "index" })
+		entry.totalCost = idx.totalCost ?? 0
+		if (positiveNumber(idx.totalCost) !== null) changes.push({ field: "totalCost", from: "index" })
+		if (idx.cacheReads != null) entry.cacheReads = idx.cacheReads
+		if (positiveNumber(idx.cacheReads) !== null) changes.push({ field: "cacheReads", from: "index" })
+		if (idx.cacheWrites != null) entry.cacheWrites = idx.cacheWrites
+		if (positiveNumber(idx.cacheWrites) !== null) changes.push({ field: "cacheWrites", from: "index" })
+		fillCache()
+		return { repaired: true, source: "index", changes }
+	}
+
+	if (opts.fixedInputToken !== undefined) {
+		if (opts.fixedInputToken > 0) {
+			const tokensIn = opts.fixedInputToken
+			const tokensOut = estimateTokensOut(ach as Parameters<typeof estimateTokensOut>[0])
+			entry.tokensIn = tokensIn
+			changes.push({ field: "tokensIn", from: "user_override" })
+			entry.tokensOut = tokensOut
+			if (positiveNumber(tokensOut) !== null) changes.push({ field: "tokensOut", from: "ach" })
+			entry.totalCost = estimateTotalCost(tokensIn, tokensOut, provider)
+			if (positiveNumber(entry.totalCost) !== null) changes.push({ field: "totalCost", from: "ach" })
+			fillCache()
+			return { repaired: true, source: "user_override", changes }
+		}
+		// fixedInputToken === 0: explicitly skip estimation, keep zeros
+		return { repaired: false, source: "estimate", changes }
+	}
+
+	const estOut = estimateTokensOut(ach as Parameters<typeof estimateTokensOut>[0])
+	const estIn = estimateTokensIn(ach as Parameters<typeof estimateTokensIn>[0])
+	if (estOut > 0 || estIn > 0) {
+		entry.tokensOut = estOut
+		if (estOut > 0) changes.push({ field: "tokensOut", from: "ach" })
+		entry.tokensIn = estIn
+		if (estIn > 0) changes.push({ field: "tokensIn", from: "ach" })
+		entry.totalCost = estimateTotalCost(estIn, estOut, provider)
+		if (positiveNumber(entry.totalCost) !== null) changes.push({ field: "totalCost", from: "ach" })
+		fillCache()
+		return { repaired: true, source: "estimate", changes }
+	}
+
+	return { repaired: false, source: "estimate", changes }
 }
 
 /**

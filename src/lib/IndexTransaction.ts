@@ -14,6 +14,7 @@ import { resolveRoot } from "./cliContext.js"
 import { validateHistoryItem } from "./validate/historyItem.js"
 import { safeWriteJson } from "./io/safeWriteJson.js"
 import { inspectTaskDir } from "./validation.js"
+import { REMOVED_AT_FIELD, REMOVED_REASON_FIELD } from "./constants.js"
 
 interface RepairStats {
 	orphansDisk: number
@@ -508,7 +509,7 @@ export class IndexTransaction extends JsonFileTransaction {
 
 		const baseName = mapTypeToFileName("_index.task")
 		const backupPath = path.join(this.tasksDir, id, `${baseName}.${backupTimestamp}.bak.json`)
-		const data = { ...entry, _removedReason: reason, _removedAt: Date.now() }
+		const data = { ...entry, [REMOVED_REASON_FIELD]: reason, [REMOVED_AT_FIELD]: Date.now() }
 		try {
 			await safeWriteJson(backupPath, data, { keepBackup: true })
 			// N1: deduplicate identical index-entry backups with the same

@@ -1,26 +1,20 @@
 import path from "node:path"
 import type { HistoryItem } from "../types.js"
-import {
-	API_HISTORY_NAME,
-	DEFAULT_INDEX_NAME,
-	HISTORY_ITEM_NAME,
-	TASK_METADATA_NAME,
-	UI_MESSAGES_NAME,
-} from "./paths.js"
-import { JsonFileTransaction, listBackupsForTask } from "./file.js"
+import { API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME } from "./paths.js"
+import { collectBackupPaths, JsonFileTransaction } from "./file.js"
 import { inspectTaskDir, isPlaceholderTaskName } from "./validation.js"
 import { readPartialJsonArray } from "./io/readJson.js"
 import { rebuildUiMessages } from "./rebuildUiMessages.js"
 import { extractTaskFromApiHistory } from "./rebuildTaskField.js"
 import {
 	recoverFields,
+	recoverTokens,
 	readBackupEntries,
 	type FieldSource,
 	type ReferenceSource,
 	resolveReferences,
 } from "./resolveReferences.js"
 import { computeTaskSize } from "./size.js"
-import { estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost } from "./estimateTokens.js"
 
 export interface RepairResult {
 	taskId: string
@@ -221,14 +215,7 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 
 	// Backup sources shared by reference-field recovery and field recovery (L1/L2/L3).
 	const tasksDir = path.dirname(taskDir)
-	const taskBackupPaths: string[] = []
-	for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
-		taskBackupPaths.push(b.bakPath)
-	}
-	const indexBackupPaths: string[] = []
-	for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
-		indexBackupPaths.push(b.bakPath)
-	}
+	const { taskBackupPaths, indexBackupPaths } = await collectBackupPaths(taskDir, tasksDir)
 	const allBackupPaths = [...taskBackupPaths, ...indexBackupPaths]
 
 	// --- 1. Repair reference fields (before UI rebuild, so newTask taskIds resolve) ---
@@ -293,67 +280,15 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 		}
 
 		// --- 3. Repair token fields ---
-		if (
-			historyItem.tokensIn === 0 &&
-			historyItem.tokensOut === 0 &&
-			historyItem.totalCost === 0 &&
-			Array.isArray(apiHistory) &&
-			apiHistory.length > 0
-		) {
-			// a. Try index recovery first
-			const idxEntry = options.indexItems?.find((e) => e.id === taskId)
-			if (idxEntry && idxEntry.tokensIn && idxEntry.tokensIn > 0) {
-				historyItem.tokensIn = idxEntry.tokensIn
-				historyItem.tokensOut = idxEntry.tokensOut ?? 0
-				historyItem.totalCost = idxEntry.totalCost ?? 0
-				if (idxEntry.cacheReads != null) historyItem.cacheReads = idxEntry.cacheReads
-				if (idxEntry.cacheWrites != null) historyItem.cacheWrites = idxEntry.cacheWrites
-				result.tokensRepaired = true
-				result.tokensRecoverySource = "index"
-				modified = true
-			} else if (options.fixedInputToken !== undefined) {
-				// b. User override (0 = disable, keep zeros)
-				if (options.fixedInputToken > 0) {
-					historyItem.tokensIn = options.fixedInputToken
-					historyItem.tokensOut = estimateTokensOut(apiHistory as Parameters<typeof estimateTokensOut>[0])
-					historyItem.totalCost = estimateTotalCost(
-						historyItem.tokensIn,
-						historyItem.tokensOut,
-						historyItem.apiConfigName as string | undefined,
-					)
-					result.tokensRepaired = true
-					result.tokensRecoverySource = "user_override"
-					modified = true
-				}
-				// fixedInputToken === 0: explicitly skip estimation, keep zeros
-			} else {
-				// c. Default: estimate from ACH
-				const estOut = estimateTokensOut(apiHistory as Parameters<typeof estimateTokensOut>[0])
-				const estIn = estimateTokensIn(apiHistory as Parameters<typeof estimateTokensIn>[0])
-				if (estOut > 0 || estIn > 0) {
-					historyItem.tokensOut = estOut
-					historyItem.tokensIn = estIn
-					historyItem.totalCost = estimateTotalCost(
-						estIn,
-						estOut,
-						historyItem.apiConfigName as string | undefined,
-					)
-					result.tokensRepaired = true
-					result.tokensRecoverySource = "estimate"
-					modified = true
-				}
-			}
-
-			// Estimate cacheReads if still zero/missing after repair
-			if (result.tokensRepaired && historyItem.tokensIn > 0) {
-				const provider = historyItem.apiConfigName as string | undefined
-				if (!historyItem.cacheReads || historyItem.cacheReads === 0) {
-					historyItem.cacheReads = estimateCacheReads(historyItem.tokensIn, provider)
-				}
-				if (historyItem.cacheWrites === undefined || historyItem.cacheWrites === null) {
-					historyItem.cacheWrites = 0
-				}
-			}
+		const tokenRecovery = recoverTokens(historyItem, {
+			indexEntry: options.indexItems?.find((e) => e.id === taskId),
+			ach: apiHistory,
+			fixedInputToken: options.fixedInputToken,
+		})
+		if (tokenRecovery.repaired) {
+			result.tokensRepaired = true
+			result.tokensRecoverySource = tokenRecovery.source
+			modified = true
 		}
 
 		// --- 3b. Backup-source field recovery with defaults (L2/L3/L9) ---

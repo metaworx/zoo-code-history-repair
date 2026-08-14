@@ -8,16 +8,16 @@
 import fs from "node:fs"
 import path from "node:path"
 import type { CorruptionReason, TaskCorruption } from "../types.js"
-import { API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME } from "./paths.js"
-import { listBackupsForTask } from "./file.js"
+import { API_HISTORY_NAME } from "./paths.js"
+import { collectBackupPaths } from "./file.js"
 import { extractTaskFromApiHistory } from "./rebuildTaskField.js"
 import { isPlaceholderTaskName } from "./validation.js"
-import { estimateCacheReads, estimateTokensIn, estimateTokensOut, estimateTotalCost } from "./estimateTokens.js"
 import {
 	nonEmptyString,
 	positiveNumber,
 	readBackupEntries,
 	recoverFields,
+	recoverTokens,
 	resolveReferences,
 	type ReferenceSource,
 } from "./resolveReferences.js"
@@ -212,16 +212,9 @@ export async function perFieldRecoverability(
 	const ach = readApiHistory(c.dir)
 
 	// Backup paths — same sources repairTaskDir searches (Block 2 L2/L3/L9).
-	const taskBackupPaths: string[] = []
-	const indexBackupPaths: string[] = []
-	if (c.dir) {
-		for (const b of await listBackupsForTask(c.dir, [HISTORY_ITEM_NAME, "_index.task"])) {
-			taskBackupPaths.push(b.bakPath)
-		}
-		for (const b of await listBackupsForTask(path.dirname(c.dir), [DEFAULT_INDEX_NAME])) {
-			indexBackupPaths.push(b.bakPath)
-		}
-	}
+	const { taskBackupPaths, indexBackupPaths } = c.dir
+		? await collectBackupPaths(c.dir, path.dirname(c.dir))
+		: { taskBackupPaths: [], indexBackupPaths: [] }
 
 	// Repair target: the disk history_item.json, else the L1 rebuild base {id}.
 	const entry: Record<string, unknown> = c.diskItem ? { ...c.diskItem } : { id: taskId }
@@ -232,49 +225,13 @@ export async function perFieldRecoverability(
 	}
 
 	// --- 1. Token recovery (mirrors repairTaskDir step 3, run before recoverFields) ---
-	const tokensAllZero = entry.tokensIn === 0 && entry.tokensOut === 0 && entry.totalCost === 0
-	let tokensRepaired = false
-	if (tokensAllZero && Array.isArray(ach) && ach.length > 0) {
-		const idx = c.indexItem
-		if (idx && typeof idx.tokensIn === "number" && idx.tokensIn > 0) {
-			entry.tokensIn = idx.tokensIn
-			mark("tokensIn", "index", "high")
-			entry.tokensOut = idx.tokensOut ?? 0
-			if (positiveNumber(idx.tokensOut) !== null) mark("tokensOut", "index", "high")
-			entry.totalCost = idx.totalCost ?? 0
-			if (positiveNumber(idx.totalCost) !== null) mark("totalCost", "index", "high")
-			if (idx.cacheReads != null) entry.cacheReads = idx.cacheReads
-			if (positiveNumber(idx.cacheReads) !== null) mark("cacheReads", "index", "high")
-			if (idx.cacheWrites != null) entry.cacheWrites = idx.cacheWrites
-			if (positiveNumber(idx.cacheWrites) !== null) mark("cacheWrites", "index", "high")
-			tokensRepaired = true
-		} else {
-			const estOut = estimateTokensOut(ach as Parameters<typeof estimateTokensOut>[0])
-			const estIn = estimateTokensIn(ach as Parameters<typeof estimateTokensIn>[0])
-			if (estOut > 0 || estIn > 0) {
-				entry.tokensOut = estOut
-				if (estOut > 0) mark("tokensOut", "ach", "medium")
-				entry.tokensIn = estIn
-				if (estIn > 0) mark("tokensIn", "ach", "medium")
-				entry.totalCost = estimateTotalCost(estIn, estOut, entry.apiConfigName as string | undefined)
-				if (positiveNumber(entry.totalCost) !== null) mark("totalCost", "ach", "medium")
-				tokensRepaired = true
-			}
-		}
-
-		// Cache estimation after token repair (mirrors repairTaskDir step 3 tail).
-		if (tokensRepaired && positiveNumber(entry.tokensIn) !== null) {
-			const provider = entry.apiConfigName as string | undefined
-			if (positiveNumber(entry.cacheReads) === null) {
-				const estCacheReads = estimateCacheReads(entry.tokensIn as number, provider)
-				entry.cacheReads = estCacheReads
-				if (positiveNumber(estCacheReads) !== null) mark("cacheReads", "ach", "medium")
-			}
-			if (entry.cacheWrites === undefined || entry.cacheWrites === null) {
-				entry.cacheWrites = 0
-				mark("cacheWrites", "default", "low")
-			}
-		}
+	const tokenRecovery = recoverTokens(entry, { indexEntry: c.indexItem ?? null, ach })
+	for (const change of tokenRecovery.changes) {
+		const source: RecoverabilitySource =
+			change.from === "index" ? "index" : change.from === "default" ? "default" : "ach"
+		const confidence: RecoverabilityConfidence =
+			change.from === "index" ? "high" : change.from === "default" ? "low" : "medium"
+		mark(change.field, source, confidence)
 	}
 
 	// --- 2. Backup-source field recovery (recoverFields — Block 2 L2/L3) ---

@@ -18,6 +18,11 @@ import {
 import { API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME } from "../paths.js"
 import { ABBREV_HELP, getVersionBanner, resolveRoot } from "../cliContext.js"
 
+/** Cap a corruption count to the 1–255 process exit-code range. */
+function cappedExitCode(corruptions: number): number {
+	return Math.min(corruptions, 255)
+}
+
 export const name = "scan"
 export const summary = `Scan _index.json + task directories for corruption`
 export const description = `${summary}.
@@ -85,7 +90,7 @@ export async function action(cmdOpts: {
 				})),
 			}
 			console.log(JSON.stringify(out))
-			const exitCode = Math.min(result.corruptions.length, 255)
+			const exitCode = cappedExitCode(result.corruptions.length)
 			if (exitCode > 0) process.exit(exitCode)
 			return
 		}
@@ -105,7 +110,7 @@ export async function action(cmdOpts: {
 			)
 		}
 
-		const exitCode = Math.min(result.corruptions.length, 255)
+		const exitCode = cappedExitCode(result.corruptions.length)
 		if (exitCode > 0) process.exit(exitCode)
 		return
 	}
@@ -140,7 +145,7 @@ export async function action(cmdOpts: {
 			corruptions,
 		}
 		console.log(JSON.stringify(out))
-		const exitCode = Math.min(result.corruptions.length, 255)
+		const exitCode = cappedExitCode(result.corruptions.length)
 		if (exitCode > 0) process.exit(exitCode)
 		return
 	}
@@ -182,6 +187,6 @@ export async function action(cmdOpts: {
 		}
 	}
 
-	const exitCode = Math.min(result.corruptions.length, 255)
+	const exitCode = cappedExitCode(result.corruptions.length)
 	if (exitCode > 0) process.exit(exitCode)
 }

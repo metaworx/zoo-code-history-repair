@@ -271,6 +271,26 @@ export async function listBackupsForTask(dir: string, basenames?: string[]): Pro
 	return entries
 }
 
+/**
+ * Collect the backup paths a repair or simulation scans for a task:
+ * task-level backups (`history_item.json` / `_index.task`) plus the root
+ * `_index.json` backups. Shared by repairTaskDir and perFieldRecoverability.
+ */
+export async function collectBackupPaths(
+	taskDir: string,
+	tasksDir: string,
+): Promise<{ taskBackupPaths: string[]; indexBackupPaths: string[] }> {
+	const taskBackupPaths: string[] = []
+	for (const b of await listBackupsForTask(taskDir, [HISTORY_ITEM_NAME, "_index.task"])) {
+		taskBackupPaths.push(b.bakPath)
+	}
+	const indexBackupPaths: string[] = []
+	for (const b of await listBackupsForTask(tasksDir, [DEFAULT_INDEX_NAME])) {
+		indexBackupPaths.push(b.bakPath)
+	}
+	return { taskBackupPaths, indexBackupPaths }
+}
+
 export interface BackupConsolidationResult {
 	/** The target file path that was saved. */
 	target: string
