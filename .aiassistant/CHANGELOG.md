@@ -1,4 +1,4 @@
-# AI Agent Guidelines History (v1.3.0)
+# AI Agent Guidelines History (v1.4.0)
 
 ## Contents
 
@@ -9,7 +9,8 @@
    - 1.4 `Contents` Section Rules
 2. AGENTS.md Document Governance (STRICT)
    - 2.1 AGENTS.md Version History (INFORMATIONAL)
-3. Version History
+3. Root CHANGELOG.md (Keep a Changelog)
+4. Version History
 
 ## 1. General Document Governance
 
@@ -88,10 +89,20 @@ Example:
 | v1.23.0 | 2026-03-12 | 0.7                          | minor       | Persist AP iterations before project write actions.                                                                                                                       |
 | v1.11.0 | 2026-03-07 | 0.*, 1, 2, 3, 4, 5           | major       | Re-validate default execution behavior against pause/plan/commit gates.                                                                                                   |
 
-## 3. Version History
+## 3. Root CHANGELOG.md (Keep a Changelog)
+
+The project root [`CHANGELOG.md`](../CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+- The `## [Unreleased]` section MUST ALWAYS remain the top version section and MUST NEVER be removed or renamed.
+- When releasing a version, INSERT a new `## [X.Y.Z] — YYYY-MM-DD` header directly below `## [Unreleased]`
+  (so `[Unreleased]` stays empty at the top) and move the released changes under the new header.
+- Category sub-headings: `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Security`.
+
+## 4. Version History
 
 | Version | Date       | Changed sections            | Change type | Agent impact                                                                                       |
 |---------|------------|-----------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| v1.4.0  | 2026-08-14 | 3, 4, Contents               | minor       | Added root CHANGELOG.md Keep-a-Changelog rule: `[Unreleased]` must never be removed; releases insert a new header above it. |
 | v1.3.0  | 2026-08-05 | 2.1                          | minor       | Added AGENTS.md v2.4.0 history entry.                                                              |
 | v1.2.0  | 2026-04-22 | 1, 1.3, 1.4, 3              | minor       | Adds governance rules for `Contents` structure and section-numbering expectations across docs.     |
 | v1.1.0  | 2026-04-22 | Title, Contents, 1, 2, 3, 4 | minor       | Adds title-based versioning, plain ToC, explicit canonical-governance statement, and self-history. |

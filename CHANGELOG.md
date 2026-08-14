@@ -7,6 +7,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-08-14
+
 ### Changed
 
 - **Adopted tabs + Prettier** — reformatted all TypeScript sources and the `tests/` tooling to tab indentation
