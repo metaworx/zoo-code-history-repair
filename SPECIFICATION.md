@@ -31,7 +31,7 @@ Zoo Code / Roo-code stores task history as JSON files under the storage root
 
 ## 2. Commands (CLI)
 
-There are **8 commands**. Every command prints the version banner; `--no-color` /
+There are **5 commands**. Every command prints the version banner; `--no-color` /
 `NO_COLOR` / TTY detection governs ANSI color. Global `-r, --root <path>`
 resolves the storage root. All write commands default to **dry-run**; `--force`
 applies the changes.
@@ -50,17 +50,20 @@ applies the changes.
 
 | Command | Args / options | Behavior |
 |---|---|---|
-| `scan` | `--verify-ui-sync`, `--json`, `--quiet`, `--no-summary`, `--no-warnings` | Cross-reference `_index.json` vs task dirs; report `TaskCorruption[]` with recoverability %, ACH/UIM entry counts, `task.match`, and per-field recoverability; exit code = corruption count (capped at 255) |
-| `list-corrupt` | `--verify-ui-sync`, `--json`, `--no-summary`, `--no-warnings` | Compact `taskId(pad38) recoverability% reasons(source)` lines; JSON mode |
+| `scan` | `--verify-ui-sync`, `--json`, `--short`, `--quiet`, `--no-summary`, `--no-warnings` | Cross-reference `_index.json` vs task dirs; report `TaskCorruption[]` with recoverability %, ACH/UIM entry counts, `task.match`, and per-field recoverability; exit code = corruption count (capped at 255) |
+| `scan --short` | `--verify-ui-sync`, `--json`, `--no-summary`, `--no-warnings` | Compact `taskId(pad38) recoverability% reasons(source)` lines; JSON mode |
 | `validate [file\|uuid\|dir]` | `--json`, `--no-warnings` | Run per-file validators; errors and warnings are shown **by default**; `--no-warnings` hides warnings; exit 1 on errors |
-| `rebuild-index` | `--force`, `--no-backup`, `--verify-ui-sync` | [`IndexTransaction.repair()`](src/lib/IndexTransaction.ts:189) — unified merge algorithm; writes `_index.json`; `--verify-ui-sync` cross-checks `ui_messages.json` against the ACH reconstruction |
-| `repair-task <taskId>` | `--force`, `--no-backup`, `--force-uim`, `--fixed-input-token <n>`, `--force-rebuild-hi` | Repair ui/task/size/tokens/refs/interrupted/fields for one task, then surgical `replaceId` of that entry only |
-| `repair-all` | `--force`, `--no-backup`, `--verbose`, `--fixed-input-token <n>`, `--verify-ui-sync`, `--force-rebuild-hi` | Scan → per-task repair → rebuild `_index.json`; reports repaired / unrepairable / failed + index add/remove |
+| `repair --index` | `--force`, `--no-backup`, `--verify-ui-sync` | [`IndexTransaction.repair()`](src/lib/IndexTransaction.ts:189) — unified merge algorithm; writes `_index.json`; `--verify-ui-sync` cross-checks `ui_messages.json` against the ACH reconstruction |
+| `repair <taskId>` | `--force`, `--no-backup`, `--force-uim`, `--fixed-input-token <n>`, `--force-rebuild-hi` | Repair ui/task/size/tokens/refs/interrupted/fields for one task, then surgical `replaceId` of that entry only |
+| `repair --all` | `--force`, `--no-backup`, `--verbose`, `--fixed-input-token <n>`, `--verify-ui-sync`, `--force-rebuild-hi` | Scan → per-task repair → rebuild `_index.json`; reports repaired / unrepairable / failed + index add/remove |
 | `restore [taskId] [timestamp]` | `--delete`, `--force`, `--type <t>`, `--diff` | List / restore / delete backups; `--diff` shows a field-by-field JSON diff |
 | `delete <taskId>` | `--force`, `--no-backup` | Delete the task directory + strip the `_index.json` entry |
 
+`repair` requires **exactly one** mode selector: `--index`, `--all`, or a
+`<taskId>` positional argument; any other combination errors with usage.
+
 Warnings polarity is uniform: warnings are **ON by default** everywhere; the
-`--no-warnings` flag suppresses them (`scan`, `list-corrupt`, `validate`).
+`--no-warnings` flag suppresses them (`scan` / `scan --short`, `validate`).
 
 ---
 
@@ -531,30 +534,22 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    A["scan [--verify-ui-sync] [--json] [--quiet] [--no-summary] [--no-warnings]"] --> B["resolveRoot → scanStorage"]
-    B --> C{"--json?"}
-    C -->|yes| D["JSON (incl. per-field recoverability) → exit(min(corruptions,255))"]
-    C -->|no| E["Print banner + summary"]
-    E --> F{"--quiet?"}
-    F -->|no| G["Per-task detail + per-field summary → exit"]
-    F -->|yes| G
+    A["scan [--verify-ui-sync] [--json] [--short] [--quiet] [--no-summary] [--no-warnings]"] --> B["resolveRoot → scanStorage"]
+    B --> C{"--short?"}
+    C -->|yes| S["taskId(pad38) recoverability% reasons(source) per line → exit(min(corruptions,255))"]
+    C -->|no| D{"--json?"}
+    D -->|yes| E["JSON (incl. per-field recoverability) → exit(min(corruptions,255))"]
+    D -->|no| F["Print banner + summary"]
+    F --> G{"--quiet?"}
+    G -->|no| H["Per-task detail + per-field summary → exit"]
+    G -->|yes| H
 ```
 
-### Command: `list-corrupt`
+### Command: `repair --index`
 
 ```mermaid
 flowchart TB
-    A["list-corrupt [--verify-ui-sync] [--json] [--no-summary] [--no-warnings]"] --> B["resolveRoot → scanStorage"]
-    B --> C{"--json?"}
-    C -->|yes| D["JSON {corruptions: [{taskId, recoverability, reasons}]} → exit(min(corruptions,255))"]
-    C -->|no| E["taskId(pad38) recoverability% reasons(source) per line → summary → exit"]
-```
-
-### Command: `rebuild-index`
-
-```mermaid
-flowchart TB
-    A["rebuild-index [--force] [--no-backup] [--verify-ui-sync]"] --> B["resolveRoot → IndexTransaction.repair"]
+    A["repair --index [--force] [--no-backup] [--verify-ui-sync]"] --> B["resolveRoot → IndexTransaction.repair"]
     B --> C["Print 'Rebuilt index with N items'"]
     C --> D{"written?"}
     D -->|no| E["Print dry-run warning"]
@@ -566,11 +561,11 @@ flowchart TB
     H --> I
 ```
 
-### Command: `repair-task`
+### Command: `repair <taskId>`
 
 ```mermaid
 flowchart TB
-    A["repair-task <id> [--force] [--no-backup] [--force-uim] [--fixed-input-token N] [--force-rebuild-hi]"] --> B["resolveRoot → read index → repairTaskDir"]
+    A["repair <id> [--force] [--no-backup] [--force-uim] [--fixed-input-token N] [--force-rebuild-hi]"] --> B["resolveRoot → read index → repairTaskDir"]
     B --> C{"errors?"}
     C -->|yes| D["Print errors + hint → done"]
     C -->|no| E["formatRepairParts → '[DRY-RUN] would repair X' | 'repaired X'"]
@@ -578,11 +573,11 @@ flowchart TB
     F --> G["Print backups + dry-run msg"]
 ```
 
-### Command: `repair-all`
+### Command: `repair --all`
 
 ```mermaid
 flowchart TB
-    A["repair-all [--force] [--no-backup] [--verbose] [--fixed-input-token N] [--verify-ui-sync] [--force-rebuild-hi]"] --> B["resolveRoot → repairAllCorrupted"]
+    A["repair --all [--force] [--no-backup] [--verbose] [--fixed-input-token N] [--verify-ui-sync] [--force-rebuild-hi]"] --> B["resolveRoot → repairAllCorrupted"]
     B --> C["Print 'Found N corrupted tasks'"]
     C --> D["Per-task: [DRY-RUN] X | UNREPAIRABLE | FAILED"]
     D --> E{"indexEntries>0?"}

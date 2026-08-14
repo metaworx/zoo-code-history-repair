@@ -5,10 +5,7 @@ import "./lib/registerCommandOptions.js"
 import {setColorEnabled, setRoot, setVersion} from "./lib/cliContext.js"
 import {guessStorageRoots} from "./lib/paths.js"
 import * as scanCmd from "./lib/commands/scan.js"
-import * as listCorruptCmd from "./lib/commands/listCorrupt.js"
-import * as rebuildIndexCmd from "./lib/commands/rebuildIndex.js"
-import * as repairTaskCmd from "./lib/commands/repairTask.js"
-import * as repairAllCmd from "./lib/commands/repairAll.js"
+import * as repairCmd from "./lib/commands/repair.js"
 import * as deleteCmd from "./lib/commands/delete.js"
 import * as restoreCmd from "./lib/commands/restore.js"
 import * as validateCmd from "./lib/commands/validate.js"
@@ -58,45 +55,21 @@ program
     .command(scanCmd.name)
     .summary(scanCmd.summary)
     .description(scanCmd.description)
+    .usage(scanCmd.usage)
     .addHelpText("before", version)
     .addHelpText("after", scanCmd.additionalHelp)
     .registerOptions(scanCmd.options)
     .action(runAction(scanCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
-    .command(listCorruptCmd.name)
-    .summary(listCorruptCmd.summary)
-    .description(listCorruptCmd.description)
+    .command(`${repairCmd.name} [taskId]`)
+    .summary(repairCmd.summary)
+    .description(repairCmd.description)
+    .usage(repairCmd.usage)
     .addHelpText("before", version)
-    .addHelpText("after", listCorruptCmd.additionalHelp)
-    .registerOptions(listCorruptCmd.options)
-    .action(runAction(listCorruptCmd.action as (...a: unknown[]) => Promise<void>))
-
-program
-    .command(rebuildIndexCmd.name)
-    .summary(rebuildIndexCmd.summary)
-    .description(rebuildIndexCmd.description)
-    .addHelpText("before", version)
-    .registerOptions(rebuildIndexCmd.options)
-    .action(runAction(rebuildIndexCmd.action as (...a: unknown[]) => Promise<void>))
-
-program
-    .command(`${repairTaskCmd.name} <taskId>`)
-    .summary(repairTaskCmd.summary)
-    .description(repairTaskCmd.description)
-    .addHelpText("before", version)
-    .addHelpText("after", repairTaskCmd.additionalHelp)
-    .registerOptions(repairTaskCmd.options)
-    .action(runAction(repairTaskCmd.action as (...a: unknown[]) => Promise<void>))
-
-program
-    .command(repairAllCmd.name)
-    .summary(repairAllCmd.summary)
-    .description(repairAllCmd.description)
-    .addHelpText("before", version)
-    .addHelpText("after", repairAllCmd.additionalHelp)
-    .registerOptions(repairAllCmd.options)
-    .action(runAction(repairAllCmd.action as (...a: unknown[]) => Promise<void>))
+    .addHelpText("after", repairCmd.additionalHelp)
+    .registerOptions(repairCmd.options)
+    .action(runAction(repairCmd.action as (...a: unknown[]) => Promise<void>))
 
 program
     .command(`${deleteCmd.name} <taskId>`)
@@ -110,6 +83,7 @@ program
     .command(`${restoreCmd.name} [taskId] [timestamp]`)
     .summary(restoreCmd.summary)
     .description(restoreCmd.description)
+    .usage(restoreCmd.usage)
     .addHelpText("before", version)
     .registerOptions(restoreCmd.options)
     .action(runAction(restoreCmd.action as (...a: unknown[]) => Promise<void>))

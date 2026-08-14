@@ -17,8 +17,8 @@ export const FIXTURE_DIR = path.resolve("tests/fixtures/tasks");
 export const HASHES_FILE = path.resolve("tests/fixtures/hashes.json");
 export const FIXTURE_SCAN_BEFORE_FILE = path.resolve("tests/fixtures/scan.before.json");
 export const FIXTURE_SCAN_AFTER_FILE = path.resolve("tests/fixtures/scan.after.json");
-export const FIXTURE_LIST_BEFORE_FILE = path.resolve("tests/fixtures/list-corrupt.before.json");
-export const FIXTURE_LIST_AFTER_FILE = path.resolve("tests/fixtures/list-corrupt.after.json");
+export const FIXTURE_SCAN_SHORT_BEFORE_FILE = path.resolve("tests/fixtures/scan.short.before.json");
+export const FIXTURE_SCAN_SHORT_AFTER_FILE = path.resolve("tests/fixtures/scan.short.after.json");
 
 /** Create a temp directory with an optional tasks/ subdirectory. */
 export function createTempDir(prefix: string): {

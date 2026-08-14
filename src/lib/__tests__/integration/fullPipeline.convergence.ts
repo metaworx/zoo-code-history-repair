@@ -1,6 +1,6 @@
 /**
- * Integration test: pipeline convergence (rebuildIndex → repairTask →
- * rebuildIndex → repairAll → rebuildIndex).
+ * Integration test: pipeline convergence (repair --index → repairTask →
+ * repair --index → repairAll → repair --index).
  *
  * Verifies that repeatedly rebuilding the index and repairing tasks converges:
  * corruption counts decrease across passes and the final index is error-free
@@ -12,7 +12,7 @@ import {IndexTransaction} from "../../IndexTransaction.js"
 import {scanStorage} from "../../scan.js"
 import {repairTaskDir} from "../../repairTask.js"
 import {repairAllCorrupted} from "../../repairAll.js"
-import {action as rebuildIndexAction} from "../../commands/rebuildIndex.js"
+import {action as repairAction} from "../../commands/repair.js"
 import {contentHash} from "../../file.js"
 
 interface RepairCounters {
@@ -46,7 +46,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
 
     // ── Phase 1: rebuild index from (possibly corrupt) disk state ──
     consoleLogSpy.mockClear()
-    await rebuildIndexAction({force: true, backup: true})
+    await repairAction(undefined, {index: true, force: true, backup: true})
     const corrupt1 = corruptionCount(await measureCounters())
     expect(corrupt1, "initial rebuild must still leave some corrupt entries").toBeGreaterThan(0)
 
@@ -69,7 +69,7 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     }
 
     // ── Phase 3: rebuild again — assert fewer corrupt entries than Phase 1 ──
-    await rebuildIndexAction({force: true, backup: true})
+    await repairAction(undefined, {index: true, force: true, backup: true})
     const corrupt3 = corruptionCount(await measureCounters())
     expect(corrupt3, "repaired + rebuilt index must have fewer corrupt entries").toBeLessThan(corrupt1)
 
@@ -77,14 +77,14 @@ export default (tmpRoot: string, tasksDir: string, consoleLogSpy: ReturnType<typ
     await repairAllCorrupted(tmpRoot, {dryRun: false, backup: true})
 
     // ── Phase 5: final rebuild — assert zero errors (converged) ──
-    await rebuildIndexAction({force: true, backup: true})
+    await repairAction(undefined, {index: true, force: true, backup: true})
     const c5 = await measureCounters()
     expect(c5.errorsDisk + c5.errorsIdx, "final rebuild must leave zero errors on disk and in index").toBe(0)
     expect(c5.corruptIdx, "final rebuild must leave no corrupt index entries").toBe(0)
 
     // ── Phase 6: final rebuild again — assert no change (idempotent) ──
     const hashBefore = await contentHash(indexPath)
-    await rebuildIndexAction({force: true, backup: true})
+    await repairAction(undefined, {index: true, force: true, backup: true})
     const hashAfter = await contentHash(indexPath)
     expect(hashAfter, "re-running rebuild must not change the index").toBe(hashBefore)
 }

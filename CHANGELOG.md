@@ -7,6 +7,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Unified `repair` command** — merged `rebuild-index`, `repair-task`, and `repair-all` into a single
+  `repair` command with mode selectors `repair --index`, `repair <taskId>`, and `repair --all`. Exactly one
+  mode selector is required; any other combination errors with usage.
+- **`scan --short`** — folded `list-corrupt` into `scan` as `scan --short` (compact task-id lines and JSON mode).
+
+### Removed
+
+- `rebuild-index`, `repair-task`, `repair-all`, and `list-corrupt` command names (no backwards compatibility).
+
 ## [0.7.1] — 2026-08-11
 
 ### Changed

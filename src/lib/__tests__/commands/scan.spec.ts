@@ -233,3 +233,92 @@ describe("scan command", () => {
         expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true, showWarnings: true})
     })
 })
+
+describe("scan --short command", () => {
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>
+    let exitSpy: ReturnType<typeof vi.spyOn>
+
+    const shortResult = {
+        filesChecked: 12,
+        totalErrorCount: 5,
+        totalWarningCount: 2,
+        corruptions: [] as any[],
+    }
+
+    beforeEach(() => {
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
+        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        }) as any)
+        mockResolveRoot.mockReturnValue("/fake/root")
+    })
+
+    afterEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it("no corruptions: banner only, no exit", async () => {
+        mockScanStorage.mockReturnValue({...shortResult, corruptions: []})
+
+        await action({short: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
+        expect(output).toContain("Zoo Code History Repair")
+        expect(exitSpy).not.toHaveBeenCalled()
+    })
+
+    it("text mode: formatted output with recoverability", async () => {
+        mockScanStorage.mockReturnValue({
+            ...shortResult,
+            corruptions: [{taskId: "corrupt-1", reasons: [{reason: "zero_size", source: "hi"}]}],
+        })
+
+        await action({short: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).toContain("corrupt-1")
+        expect(output).toContain("zero_size(hi)")
+        expect(mockRecoverabilityScore).toHaveBeenCalled()
+        expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it("JSON mode: outputs JSON and exits with corruption count", async () => {
+        mockScanStorage.mockReturnValue({
+            ...shortResult,
+            corruptions: [
+                {taskId: "c1", reasons: [{reason: "zero_size", source: "hi"}]},
+                {taskId: "c2", reasons: [{reason: "index_orphan", source: "idx"}]},
+            ],
+        })
+
+        await action({short: true, json: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
+        const parsed = JSON.parse(output)
+        expect(parsed.corruptions).toHaveLength(2)
+        expect(parsed.corruptions[0].taskId).toBe("c1")
+        expect(parsed.corruptions[0].reasons).toEqual([{reason: "zero_size", source: "hi"}])
+        expect(exitSpy).toHaveBeenCalledWith(2)
+    })
+
+    it("passes verifyUiSync option to scanStorage", async () => {
+        mockScanStorage.mockReturnValue({...shortResult, corruptions: []})
+
+        await action({short: true, verifyUiSync: true})
+
+        expect(mockScanStorage).toHaveBeenCalledWith("/fake/root", {verifyUiSync: true, showWarnings: true})
+    })
+
+    it("--no-summary suppresses summary line", async () => {
+        mockScanStorage.mockReturnValue({
+            ...shortResult,
+            corruptions: [{taskId: "c1", reasons: [{reason: "zero_size", source: "hi"}]}],
+        })
+
+        await action({short: true, summary: false})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("\n")
+        expect(output).not.toContain("files checked")
+        expect(output).toContain("zero_size(hi)")
+    })
+})

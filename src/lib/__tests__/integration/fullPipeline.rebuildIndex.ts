@@ -1,49 +1,45 @@
 /**
- * Integration test: rebuild-index → list-corrupt reduces index_orphans, adds folder_orphans.
+ * Integration test: repair --index → scan --short reduces index_orphans, adds folder_orphans.
  *
- * rebuild-index reads task directories from disk and rebuilds _index.json.
+ * repair --index reads task directories from disk and rebuilds _index.json.
  * This removes index_orphans (entries without folders) and adds folder_orphans
  * (folders without entries).
  */
 import path from "node:path";
 import {expect, vi} from "vitest";
-import {action as listCorruptAction} from "../../commands/listCorrupt.js";
-import {action as rebuildIndexAction} from "../../commands/rebuildIndex.js";
+import {action as scanAction} from "../../commands/scan.js";
+import {action as repairAction} from "../../commands/repair.js";
 import {getJsonOutput, quotePathRegex, readJson} from "../testHelpers.js";
 import {DEFAULT_INDEX_NAME} from "../../paths.js";
 
 export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tmpRoot: string) => async () => {
-    // ── Phase 1: list-corrupt --json before rebuild ──
+    // ── Phase 1: scan --short --json before rebuild ──
     consoleLogSpy.mockClear();
-    await listCorruptAction({json: true});
+    await scanAction({json: true, short: true});
     const lcJson1 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions1 = lcJson1.corruptions as Array<Record<string, unknown>>;
     expect(corruptions1.length).toBe(7);
 
-    // ── Phase 2: rebuild-index dry-run ──
+    // ── Phase 2: repair --index dry-run ──
     consoleLogSpy.mockClear();
-    await rebuildIndexAction({force: false});
+    await repairAction(undefined, {index: true, force: false});
     const dryOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(dryOut).toContain("Rebuilt index with 6 items");
     expect(dryOut).toContain("Dry-run — nothing written");
 
-    // ── Phase 3: rebuild-index --force ──
+    // ── Phase 3: repair --index --force ──
     consoleLogSpy.mockClear();
-    await rebuildIndexAction({force: true, backup: true});
+    await repairAction(undefined, {index: true, force: true, backup: true});
     const forceOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(forceOut).toContain("Rebuilt index with 6 items");
-    // ToDo:
-    // expect(forceOut).toContain("Written:");
-    // expect(forceOut).toContain("_index.json");
-    // expect(forceOut).toContain("Backup:");
     expect(forceOut).not.toContain("Dry-run");
 
-    // ── Phase 4: list-corrupt --json after rebuild (folder_orphans added) ──
+    // ── Phase 4: scan --short --json after rebuild (folder_orphans added) ──
     consoleLogSpy.mockClear();
-    await listCorruptAction({json: true});
+    await scanAction({json: true, short: true});
     const lcJson2 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions2 = lcJson2.corruptions as Array<Array<Record<string, unknown>>>;
-    // After rebuild-index, previously-indexed tasks that had folders become folder_orphans
+    // After repair --index, previously-indexed tasks that had folders become folder_orphans
     // The 019fde29 was already a folder_orphan. The 019ede5a is still missing_history_item + folder_orphan.
     // All tasks should still appear (some now with folder_orphan added)
     expect(corruptions2.length).toBe(6);
@@ -54,14 +50,11 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
     const f0f12Reasons = (f0f12 as any).reasons.map((r: any) => r.reason);
     expect(f0f12Reasons).toContain("folder_orphan");
 
-    // ── Phase 5: rebuild-index --force again (idempotent) ──
+    // ── Phase 5: repair --index --force again (idempotent) ──
     consoleLogSpy.mockClear();
-    await rebuildIndexAction({force: true, backup: true});
+    await repairAction(undefined, {index: true, force: true, backup: true});
     const idemOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(idemOut).toContain("Rebuilt index with 6 items");
-    // ToDo:
-    // expect(idemOut).toContain("Written:");
-    // expect(idemOut).toContain("_index.json");
     expect(idemOut).not.toContain("Dry-run");
 
     expect(readJson(path.join(tasksDir, DEFAULT_INDEX_NAME))).toDeepEqualJson(readJson('tests/fixtures/_index.rebuilt.json'), {
@@ -73,9 +66,9 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>, tm
         maxLength: 200,
     }, "scan json output before")
 
-    // ── Phase 6: list-corrupt --json stable after idempotent rebuild ──
+    // ── Phase 6: scan --short --json stable after idempotent rebuild ──
     consoleLogSpy.mockClear();
-    await listCorruptAction({json: true});
+    await scanAction({json: true, short: true});
     const lcJson3 = getJsonOutput(consoleLogSpy) as Record<string, unknown>;
     const corruptions3 = lcJson3.corruptions as Array<Record<string, unknown>>;
     expect(corruptions3.length).toBe(corruptions2.length);

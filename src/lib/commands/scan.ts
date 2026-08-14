@@ -38,7 +38,13 @@ Reads the _index.json and all task directories, cross-references entries,
 and reports any corruption found. Shows recoverability estimates and
 entry counts (ACH/UIM) for each corrupted task. Use --verify-ui-sync
 for deep ui_messages.json comparison against ACH-derived reconstruction.
-With --json, outputs machine-parseable JSON instead of formatted text.`
+With --json, outputs machine-parseable JSON instead of formatted text.
+With --short, lists only corrupted task ids (compact one-line format).`
+
+export const usage = `[--short] [--verify-ui-sync] [--json] [--quiet] [--no-summary] [--no-warnings]
+
+Modes: scan          # full report with per-task corruption detail
+       scan --short  # compact one-line list of corrupted task ids`
 
 export const additionalHelp = `
 Corruption reasons detected by scan:
@@ -60,6 +66,7 @@ ${ABBREV_HELP}`
 export const options: Array<[string, string, unknown]> = [
     ["--verify-ui-sync", `Compare ${UI_MESSAGES_NAME} against ACH-derived reconstruction`, false],
     ["--json", "Output machine-parseable JSON", false],
+    ["--short", "List only corrupted task ids (compact one-line format)", false],
     ["--quiet", "Suppress per-task detail lines (summary only)", false],
     ["--no-summary", "Suppress header summary block", true],
     ["--no-warnings", "Suppress warning-level corruption reasons", true],
@@ -68,6 +75,7 @@ export const options: Array<[string, string, unknown]> = [
 export async function action(cmdOpts: {
     verifyUiSync?: boolean;
     json?: boolean;
+    short?: boolean;
     quiet?: boolean;
     summary?: boolean;
     warnings?: boolean;
@@ -77,6 +85,39 @@ export async function action(cmdOpts: {
         verifyUiSync: !!cmdOpts.verifyUiSync,
         showWarnings: cmdOpts.warnings !== false,
     })
+
+    if (cmdOpts.short) {
+        if (cmdOpts.json) {
+            const out = {
+                version: getVersionBanner().trim().replace("Zoo Code History Repair, v", ""),
+                corruptions: result.corruptions.map(c => ({
+                    taskId: c.taskId,
+                    recoverability: recoverabilityScore(c),
+                    reasons: c.reasons.map(r => ({reason: r.reason, source: r.source})),
+                })),
+            }
+            console.log(JSON.stringify(out))
+            const exitCode = Math.min(result.corruptions.length, 255)
+            if (exitCode > 0) process.exit(exitCode)
+            return
+        }
+
+        console.log(getVersionBanner())
+        for (const c of result.corruptions) {
+            const score = recoverabilityScore(c)
+            console.log(`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons.map(r => `${r.reason}(${r.source})`).join(",")}`)
+        }
+
+        if (cmdOpts.summary !== false) {
+            const corruptCount = result.corruptions.length
+            console.log(`\n${result.filesChecked} files checked, ${corruptCount} corrupted, ${result.totalErrorCount} errors, ${result.totalWarningCount} warnings`)
+        }
+
+        const exitCode = Math.min(result.corruptions.length, 255)
+        if (exitCode > 0) process.exit(exitCode)
+        return
+    }
+
     const fullIndex = new Map(result.indexItems.map(i => [i.id, i as Record<string, unknown>]))
 
     if (cmdOpts.json) {

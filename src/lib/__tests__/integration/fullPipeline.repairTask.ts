@@ -1,10 +1,10 @@
 /**
- * Integration test: repair-task → index update preserves all entries.
+ * Integration test: repair <taskId> → index update preserves all entries.
  *
- * Validates that after repair-task --force on a single corrupt task,
+ * Validates that after repair <taskId> --force on a single corrupt task,
  * the _index.json still contains all original entries (not just the repaired one).
  *
- * Workflow: list-corrupt → validate → repair-task --force → list-corrupt → validate
+ * Workflow: scan --short → validate → repair <taskId> --force → scan --short → validate
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -12,9 +12,9 @@ import {
     expect,
     vi
 } from "vitest";
-import {action as repairTaskAction} from "../../commands/repairTask.js";
+import {action as repairAction} from "../../commands/repair.js";
 import {action as validateAction} from "../../commands/validate.js";
-import {action as listCorruptAction} from "../../commands/listCorrupt.js";
+import {action as scanAction} from "../../commands/scan.js";
 import {contentHash} from "../../file.js";
 import {HISTORY_ITEM_NAME} from "../../paths.js";
 import {listBackupFiles} from "../testHelpers.js";
@@ -39,11 +39,11 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     const uiHashBefore = await contentHash(uiPath);
     const indexHashBefore = await contentHash(indexPath);
 
-    // --- Phase 1: list-corrupt before repair ---
-    await listCorruptAction({});
+    // --- Phase 1: scan --short before repair ---
+    await scanAction({short: true});
     const lc1 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     const lc1task = lc1.split("\n").find(l => l.startsWith(TASK_ID));
-    expect(lc1task, "task must appear in pre-repair list-corrupt").toBeDefined();
+    expect(lc1task, "task must appear in pre-repair scan --short").toBeDefined();
     expect(lc1task).toContain("70%");
     expect(lc1task).toContain("placeholder_task_name(hi,idx)");
     expect(lc1task).toContain("zero_tokens(hi)");
@@ -67,7 +67,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
 
     // --- Phase 3: Repair the task (with backups) ---
     consoleLogSpy.mockClear();
-    await repairTaskAction(TASK_ID, {force: true, backup: true});
+    await repairAction(TASK_ID, {force: true, backup: true});
     const rOut = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(rOut).toContain(`${TASK_ID}: repaired ui(ach→uim), task(ach→hi), size(calc→hi), tokens(estimate→hi), ach(interrupted→ach)`);
     expect(rOut).toContain("Backups:");
@@ -91,12 +91,12 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     expect(rOut).toContain(idxBak!);
     expect(await contentHash(path.join(tasksDir, idxBak!)), "index backup checksum").toBe(indexHashBefore);
 
-    // --- Phase 4: list-corrupt after repair (reasons reduced) ---
+    // --- Phase 4: scan --short after repair (reasons reduced) ---
     consoleLogSpy.mockClear();
-    await listCorruptAction({});
+    await scanAction({short: true});
     const lc2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     const lc2task = lc2.split("\n").find(l => l.startsWith(TASK_ID));
-    // Task may be fully repaired (no longer in list-corrupt)
+    // Task may be fully repaired (no longer in scan --short)
     if (lc2task) {
         expect(lc2task).not.toContain("placeholder_task_name");
         expect(lc2task).not.toContain("zero_size");
@@ -141,7 +141,7 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     const v2Before = v2;
 
     consoleLogSpy.mockClear();
-    await repairTaskAction(TASK_ID, {force: true, backup: true});
+    await repairAction(TASK_ID, {force: true, backup: true});
     const rOut2 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     // Second repair must not report any changes
     expect(rOut2).not.toContain("repaired");
@@ -156,9 +156,9 @@ export default (tasksDir: string, consoleLogSpy: ReturnType<typeof vi.spyOn>) =>
     expect(await contentHash(uiPath)).toBe(uiHashAfter);
     expect(await contentHash(indexPath)).toBe(indexHashAfter);
 
-    // list-corrupt output unchanged
+    // scan --short output unchanged
     consoleLogSpy.mockClear();
-    await listCorruptAction({});
+    await scanAction({short: true});
     const lc3 = consoleLogSpy.mock.calls.map(c => c[0]).join("\n");
     expect(lc3).toBe(lc2Before);
 

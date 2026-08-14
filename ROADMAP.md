@@ -13,7 +13,7 @@ The following failure modes are documented in the Roo Code / Zoo Code ecosystem 
 | `history_item.json` `task` field lost/placeholder    | ✔️ Reconstruct from ACH                             |
 | `history_item.json` `size` field incorrect           | ✔️ Recompute                                        |
 | `_index.json` structure mismatch                     | ✔️ Fixed read + write                               |
-| History disappearing from UI (index missing entries) | ✔️ `rebuild-index` + `folder_orphan` detection      |
+| History disappearing from UI (index missing entries) | ✔️ `repair --index` + `folder_orphan` detection      |
 | Cancel / resume race conditions (interrupted tasks)  | ✔️ `interrupted_task` detection                     |
 | Gray-screen / unusable UI after large JSON           | ⚠️ Not yet addressed (needs Zoo Code-side fix)      |
 | Schema-level validation (30+ checks, 5 file types)   | ✔️ `validate` command + auto-registered validators   |

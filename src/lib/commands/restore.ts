@@ -23,13 +23,15 @@ export const summary = "List, restore, or delete task backup files"
 
 export const description = `${summary}.
 
-Without arguments, lists all task directories that have .bak.json backup files.
-With a task ID, restores the newest backup for that task.
-With a task ID and timestamp, restores that specific backup.
-With only a timestamp, restores all tasks matching that timestamp.
-Use --delete to remove backups instead of restoring.
 Restore creates a safety backup of the current file before overwriting.
-By default runs in dry-run mode. Use --force to actually write.`
+All write operations default to dry-run; pass --force to actually write.`
+
+export const usage = `[taskId] [timestamp] [--delete] [--diff] [--force] [--type <t>]
+
+Modes: restore                      # list all task backups
+       restore <taskId> [--force]   # restore newest backup (dry-run by default)
+       restore --delete <taskId>    # delete backups (--force to apply)
+       restore --diff <taskId> <ts> # field-by-field diff without restoring`
 
 export const options = [
     ["--delete", "Delete backup files instead of restoring", false],

@@ -102,8 +102,8 @@ Integration tests run against scrambled real-world task data in [`tests/fixtures
 
 - Scramble fixtures: `npx tsx scripts/scramble-fixture.ts [<source-dir>] <taskId> [taskId...]`
 - Regenerate scan/repair expectation fixtures: `npx tsx scripts/regenerate-fixtures.ts`
-  (writes `tests/fixtures/scan.before.json`, `list-corrupt.before.json`, `scan.after.json`,
-  `list-corrupt.after.json`, `_index.rebuilt.json`).
+  (writes `tests/fixtures/scan.before.json`, `scan.short.before.json`, `scan.after.json`,
+  `scan.short.after.json`, `_index.rebuilt.json`).
 
 > When `scan --json` output changes shape, regenerate `tests/fixtures/scan.before.json` /
 > `scan.after.json` rather than hand-editing them — the full-pipeline test compares
