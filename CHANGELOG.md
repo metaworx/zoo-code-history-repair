@@ -7,16 +7,78 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-14
+
+### Added
+
+- **`SPECIFICATION.md`** — new root-level consolidated specification (commands, repair/recovery algorithms,
+  backup/restore model, detection model, file I/O and validation models, per-field recoverability format),
+  including the architecture flowcharts moved out of [`README.md`](README.md); README slimmed to a concise
+  overview with a link to the spec.
+- **`--force-rebuild-hi`** — rebuilds a missing `history_item.json` from ACH + backups instead of returning
+  "cannot repair" (`id` from the task dir, `ts`/`task`/`size` recovered, remaining fields via backup-source recovery).
+- **Structured per-field recoverability** — `scan`/`list-corrupt` now report `{source, confidence, estimatedValue}`
+  per recoverable field (sources: `ach` | `index` | `backup` | `default` | `none`) in `scan --json` and as a compact
+  human summary, replacing the coarse recoverability percentage.
+- **`invalid_json` / `missing_task_dir` detection** — the two previously-dead corruption reasons are now emitted:
+  `invalid_json` when a task file (`history_item.json`, `ui_messages.json`, `api_conversation_history.json`,
+  `task_metadata.json`, or `_index.json`) fails to parse; `missing_task_dir` when an `_index.json` entry references
+  a task ID with no on-disk directory.
+- **`--verify-ui-sync` on `rebuild-index`** — the UI-sync cross-check now runs during index rebuild, achieving
+  parity with `scan`/`repair-all`.
+- **Reference-field recovery** (`resolveReferences`) — recovers corrupted `parentTaskId`/`delegatedToId`/
+  `childIds`/`awaitingChildId` from own ACH → cross-task index → backups → unset, with status reconciliation that
+  marks incomplete delegated tasks as `interrupted`.
+- **Interrupted-task repair** — appends a synthetic failed `tool_result` for interrupted tasks, strips
+  `environment_details`, maps failed results to `say error`, skips successful results, and emits `newTask` rows so
+  View-task links survive the `ui_messages` rebuild.
+- **`restore` enhancements** — `--type` filter (`history_item`, `ui_messages`, `api_conversation_history`,
+  `task_metadata`, `_index`, `_index.task`, `all`); `_index.task.{ts}.bak.json` restores to `history_item.json`
+  (stripping `_removedReason`/`_removedAt`); `--diff` flag for field-by-field JSON diff; safety backup for
+  `history_item` restores; restored entries re-added to the global index.
+- **Backup deduplication** — `consolidateBackups()` removes backups identical to the target file or duplicate backups
+  via content hash.
+- **`zod` dependency declared** — `zod` 3.25.76 added to `dependencies` with a version-parity test against
+  `@roo-code/types` (`deps.spec.ts`).
+- **AI agent guidance + test tooling** — `AGENTS.md`/`.aiassistant/` docs and `tests/npm-test-tail.mjs`,
+  `tests/jsdoc-fix-header.mjs` tooling with `test:tail`/`header:check`/`header:fix` scripts.
+
 ### Changed
 
 - **Unified `repair` command** — merged `rebuild-index`, `repair-task`, and `repair-all` into a single
   `repair` command with mode selectors `repair --index`, `repair <taskId>`, and `repair --all`. Exactly one
   mode selector is required; any other combination errors with usage.
 - **`scan --short`** — folded `list-corrupt` into `scan` as `scan --short` (compact task-id lines and JSON mode).
+- **Backup naming formalized** — `_index.task.{ts}.bak.json` for per-task index-entry extracts and
+  `_index.json.{ts}.bak.json` for the full index-file backup; `restore --type` help now enumerates these values.
+- **Warnings polarity** — warnings are now shown by default everywhere; `--no-warnings` hides them (`validate`
+  inverted from the old opt-in `--warnings`).
+- **`IndexTransaction.repair`** — rewritten around a unified merge algorithm (spec v4 decision matrix); the
+  `--from-disk` flag was removed and cross-reference cleanup nullifies dangling refs instead of removing entries.
+- **Field recovery with defaults** — missing/zero fields now search backup sources in priority order (index entry →
+  task backups → root index backups) and fall back to defaults (`mode: "unknown"`, `workspace: os.homedir()`,
+  `apiConfigName: "unknown"`, `number: 1`).
+- **Dropped bogus `parentTaskId` requirement** — top-level completed tasks and abandoned interrupted children are no
+  longer flagged by incorrect repair heuristics.
+- **`_index.task` backups** — routed through `consolidateBackups` so duplicate index-entry backups are deduplicated.
+
+### Fixed
+
+- **`validateIndex` auto-registration** — `IndexTransaction` no longer suppresses the index validator with a `[]`
+  validators argument, restoring automatic `_index.json` validation.
+- **Backup rename propagation** — `JsonFileTransaction._write()` mutated a copied options object, leaving backups as
+  `.bak_*.tmp`; it now mutates in place so the `.bak.json` rename and consolidation propagate correctly.
+- **`rebuild-index` backup path printout** — now prints the actual `backupTimestamp`-derived path instead of a
+  freshly-generated timestamp.
+- **`_nullifyRef` status-clear** — nullifying a dangling `parentTaskId` now nullifies the reference only and keeps
+  the entry's status.
+- **Fixture scrambling** — UUID values are now preserved (detected by value, not just by key name) so fixture ACH can
+  exercise reference recovery; fixtures regenerated with a valid `awaitingChildId`.
 
 ### Removed
 
 - `rebuild-index`, `repair-task`, `repair-all`, and `list-corrupt` command names (no backwards compatibility).
+- `--from-disk` flag on index repair (superseded by the unified merge algorithm).
 
 ## [0.7.1] — 2026-08-11
 
