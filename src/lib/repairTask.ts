@@ -13,10 +13,10 @@ import { readPartialJsonArray } from "./io/readJson.js"
 import { rebuildUiMessages } from "./rebuildUiMessages.js"
 import { extractTaskFromApiHistory } from "./rebuildTaskField.js"
 import {
+	type FieldSource,
+	readBackupEntries,
 	recoverFields,
 	recoverTokens,
-	readBackupEntries,
-	type FieldSource,
 	type ReferenceSource,
 	resolveReferences,
 } from "./resolveReferences.js"
@@ -197,8 +197,11 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 	// --- 0. §9.1 synthetic failed tool_result for interrupted tasks ---
 	const interruptedToolUseId = lastUnansweredToolUseId(apiHistory)
 	if (interruptedToolUseId !== null) {
+		const interruptedTurn = apiHistory[apiHistory.length - 1] as Record<string, unknown> | null
+		const interruptedTs = interruptedTurn && typeof interruptedTurn.ts === "number" ? interruptedTurn.ts : undefined
 		apiHistory.push({
 			role: "user",
+			...(interruptedTs !== undefined ? { ts: interruptedTs + 1 } : {}),
 			content: [
 				{
 					type: "tool_result",
@@ -252,6 +255,7 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 		const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0], {
 			childIds: historyItem?.childIds as string[] | undefined,
 			delegatedToId: historyItem?.delegatedToId as string | undefined,
+			status: historyItem?.status,
 		})
 		if (newUi.length > 0) {
 			if (!options.dryRun) {

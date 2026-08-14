@@ -25,13 +25,21 @@
  * newTask rows resolve taskId by order-matching parent childIds + delegatedToId.
  */
 
-export interface UiMessageEvent {
+export interface UiSayEvent {
 	ts: number
 	type: "say"
 	say: "text" | "reasoning" | "tool" | "error"
 	text: string
 	partial?: boolean
 }
+
+export interface UiAskEvent {
+	ts: number
+	type: "ask"
+	ask: "resume_task" | "resume_completed_task"
+}
+
+export type UiMessageEvent = UiSayEvent | UiAskEvent
 
 interface AchTurn {
 	role: "user" | "assistant"
@@ -124,8 +132,31 @@ function buildImagePlaceholder(block: AchBlock): string {
 const ENV_DETAILS_RE = /<environment_details>[\s\S]*?<\/environment_details>/g
 
 /** Remove the injected <environment_details>…</environment_details> block from text. */
-function stripEnvironmentDetails(text: string): string {
+function stripEnvironmentDetails(text: string | undefined): string | undefined {
+	if (text === undefined) return undefined
 	return text.replace(ENV_DETAILS_RE, "").trim()
+}
+
+const ERROR_TOOL_REMINDER_MARKER = "[ERROR] You did not use a tool in your previous response!"
+const ERROR_TOOL_REMINDER_JSON_PREFIX = '{"role":"user","content":[{"type":"text","text":"' + ERROR_TOOL_REMINDER_MARKER
+
+/**
+ * True when the raw user text is the injected "[ERROR] You did not use a tool…"
+ * reminder message (plain or JSON-enveloped form). Such messages must never be
+ * emitted as a UI event.
+ */
+function isErrorToolReminder(text: string | undefined): boolean {
+	if (text === undefined) return false
+	return text.startsWith(ERROR_TOOL_REMINDER_MARKER) || text.startsWith(ERROR_TOOL_REMINDER_JSON_PREFIX)
+}
+
+const USER_MESSAGE_OPEN_RE = /^\s*<user_message>\s*/
+const USER_MESSAGE_CLOSE_RE = /\s*<\/user_message>\s*$/
+
+/** Remove the leading `<user_message>` and trailing `</user_message>` wrapper (plus surrounding whitespace). */
+function stripUserMessageWrapper(text: string | undefined): string | undefined {
+	if (text === undefined) return undefined
+	return text.replace(USER_MESSAGE_OPEN_RE, "").replace(USER_MESSAGE_CLOSE_RE, "")
 }
 
 function isNewTaskBlock(block: AchBlock): boolean {
@@ -149,6 +180,8 @@ export interface RebuildUiContext {
 	childIds?: string[]
 	/** Parent task's delegatedToId — the currently-awaiting (last) child. */
 	delegatedToId?: string
+	/** Task status from history_item.json — drives the trailing resume ask. */
+	status?: string
 }
 
 function countNewTaskBlocks(apiHistory: AchTurn[]): number {
@@ -194,7 +227,8 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 
 			if (role === "user") {
 				if (bt === "text") {
-					const tc = stripEnvironmentDetails(block.text ?? "")
+					if (isErrorToolReminder(block.text)) continue
+					const tc = stripEnvironmentDetails(stripUserMessageWrapper(block.text))
 					if (!tc) continue
 					events.push({
 						ts: baseTs + counter,
@@ -206,7 +240,7 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 					counter++
 				} else if (bt === "tool_result") {
 					if (block.is_error) {
-						const rt = buildToolResultText(block)
+						const rt = stripUserMessageWrapper(buildToolResultText(block))
 						if (!rt) continue
 						events.push({
 							ts: baseTs + counter,
@@ -229,7 +263,7 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 				}
 			} else if (role === "assistant") {
 				if (bt === "reasoning") {
-					const tc = block.text ?? ""
+					const tc = stripUserMessageWrapper(block.text)
 					if (!tc) continue
 					events.push({
 						ts: baseTs + counter,
@@ -240,7 +274,7 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 					})
 					counter++
 				} else if (bt === "text") {
-					const tc = stripEnvironmentDetails(block.text ?? "")
+					const tc = stripEnvironmentDetails(stripUserMessageWrapper(block.text))
 					if (!tc) continue
 					events.push({
 						ts: baseTs + counter,
@@ -279,6 +313,19 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 				}
 			}
 		}
+	}
+
+	// Resume ask — mirrors Zoo-Code Task#resumeTaskFromHistory:
+	//   initialStatus === "completed" → resume_completed_task, else resume_task.
+	// Only emitted when the caller supplies the task status (repair pipeline);
+	// the pure ACH→UIM reconstruction used by validation omits it.
+	if (context.status !== undefined && events.length > 0) {
+		const ask: UiAskEvent["ask"] = context.status === "completed" ? "resume_completed_task" : "resume_task"
+		events.push({
+			ts: events[events.length - 1].ts + 1,
+			type: "ask",
+			ask,
+		})
 	}
 
 	return events

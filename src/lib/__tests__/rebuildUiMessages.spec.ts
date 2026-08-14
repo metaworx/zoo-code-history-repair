@@ -501,4 +501,190 @@ describe("rebuildUiMessages", () => {
 		expect(JSON.parse(events[0].text)).toMatchObject({ tool: "newTask", taskId: "child-1" })
 		expect(JSON.parse(events[1].text)).toMatchObject({ tool: "newTask", taskId: "awaiting-child" })
 	})
+
+	it("omits the [ERROR] you-did-not-use-a-tool reminder user message", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "[ERROR] You did not use a tool in your previous response! Please retry with a tool use.\n\n# Reminder: Instructions for Tool Use\n\nUse a tool.",
+					},
+				],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(0)
+	})
+
+	it("omits the JSON-enveloped [ERROR] reminder user message", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '{"role":"user","content":[{"type":"text","text":"[ERROR] You did not use a tool in your previous response! Please retry with a tool use.\n\n# Reminder: Instructions for Tool Use\n\nUse a tool.',
+					},
+				],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(0)
+	})
+
+	it("Does not omit a <user_message>-wrapped [ERROR] reminder message", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "<user_message>\n[ERROR] You did not use a tool in your previous response! Please retry with a tool use.\n</user_message>",
+					},
+				],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toContain("[ERROR] You did not use a tool")
+	})
+
+	it("does not omit text that merely contains the [ERROR] marker mid-string", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "Note: [ERROR] You did not use a tool in your previous response! is a reminder.",
+					},
+				],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toContain("[ERROR] You did not use a tool")
+	})
+
+	it("strips <user_message> wrapping from emitted user text", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [{ type: "text", text: "<user_message>\nFix the bug\n</user_message>" }],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toBe("Fix the bug")
+	})
+
+	it("strips <user_message> wrapping with surrounding whitespace", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [{ type: "text", text: "  <user_message>\nHello\n</user_message>  " }],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toBe("Hello")
+	})
+
+	it("strips <user_message> wrapping from assistant text", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "<user_message>\nDone\n</user_message>" }],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toBe("Done")
+	})
+
+	it("strips <user_message> wrapping from reasoning text", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "assistant",
+				content: [{ type: "reasoning", text: "<user_message>\nThink\n</user_message>" }],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toBe("Think")
+	})
+
+	it("strips <user_message> wrapping from error text", () => {
+		const events = rebuildUiMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tu1",
+						is_error: true,
+						content: [{ type: "text", text: "<user_message>\nboom\n</user_message>" }],
+					},
+				],
+				ts: 100,
+			},
+		])
+		expect(events).toHaveLength(1)
+		expect(events[0].text).toBe("boom")
+	})
+
+	it("appends a resume_task ask after events when status is active", () => {
+		const events = rebuildUiMessages(
+			[
+				{
+					role: "user",
+					content: [{ type: "text", text: "<user_message>\nHello\n</user_message>" }],
+					ts: 100,
+				},
+			],
+			{ status: "active" },
+		)
+		expect(events).toHaveLength(2)
+		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_task" })
+		expect(events[1].ts).toBe(events[0].ts + 1)
+	})
+
+	it("appends a resume_completed_task ask when status is completed", () => {
+		const events = rebuildUiMessages(
+			[
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "Done" }],
+					ts: 500,
+				},
+			],
+			{ status: "completed" },
+		)
+		expect(events).toHaveLength(2)
+		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_completed_task" })
+		expect(events[1].ts).toBe(events[0].ts + 1)
+	})
+
+	it("treats interrupted status as resume_task", () => {
+		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "Hi" }], ts: 10 }], {
+			status: "interrupted",
+		})
+		expect(events).toHaveLength(2)
+		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_task" })
+	})
+
+	it("does not append a resume ask when status is not provided", () => {
+		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "Hi" }], ts: 10 }])
+		expect(events).toHaveLength(1)
+		expect(events[0]).toMatchObject({ type: "say", say: "text" })
+	})
+
+	it("does not append a resume ask when no events were produced", () => {
+		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "   " }] }], {
+			status: "active",
+		})
+		expect(events).toHaveLength(0)
+	})
 })

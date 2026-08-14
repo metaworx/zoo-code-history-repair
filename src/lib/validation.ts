@@ -242,7 +242,9 @@ export async function inspectTaskDir(
 		Array.isArray(ui) &&
 		ui.length > 0
 	) {
-		const reconstructed = rebuildUiMessages(api as Parameters<typeof rebuildUiMessages>[0])
+		const reconstructed = rebuildUiMessages(api as Parameters<typeof rebuildUiMessages>[0], {
+			status: diskItem?.status,
+		})
 		if (reconstructed.length > 0) {
 			const syncResult = validateUiSync(ui, reconstructed)
 			for (const issue of syncResult.issues) {
@@ -394,8 +396,8 @@ export async function validatePath(target: string | undefined): Promise<Validate
 				const indexData = indexTx.getData() as
 					| Array<{ id: string }>
 					| {
-							entries: Array<{ id: string }>
-					  }
+					entries: Array<{ id: string }>
+				}
 					| null
 				const entries: Array<Record<string, unknown>> = Array.isArray(indexData)
 					? (indexData as Array<Record<string, unknown>>)

@@ -212,6 +212,36 @@ describe("repairTaskDir", () => {
 		})
 	})
 
+	it("rebuilds interrupted UIM with a real error timestamp and trailing resume ask", async () => {
+		writeJson("api_conversation_history.json", [
+			{
+				role: "user",
+				content: [{ type: "text", text: "<user_message>Interrupted task</user_message>" }],
+				ts: 1000,
+			},
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", name: "read_file", id: "toolu_1", input: { path: "/x" } }],
+				ts: 2000,
+			},
+		])
+		writeJson("history_item.json", { id: "task-abc", task: "Real task", size: 100, ts: 1, status: "active" })
+		writeJson("ui_messages.json", [])
+		writeJson("task_metadata.json", {})
+
+		const result = await repairTaskDir(taskDir, { backup: false })
+		expect(result.interruptedRepaired).toBe(true)
+		expect(result.uiRepaired).toBe(true)
+
+		const ui = readJson("ui_messages.json") as Array<Record<string, unknown>>
+		const last = ui[ui.length - 1]
+		expect(last).toMatchObject({ type: "ask", ask: "resume_task" })
+
+		const err = ui.find((e) => e.type === "say" && e.say === "error")
+		expect(err).toBeDefined()
+		expect(err!.ts as number).toBeGreaterThan(2000)
+	})
+
 	it("reports error when task cannot be extracted from ACH", async () => {
 		writeJson("api_conversation_history.json", [
 			{ role: "user", content: [{ type: "text", text: "No user_message tag here" }], ts: 100 },
