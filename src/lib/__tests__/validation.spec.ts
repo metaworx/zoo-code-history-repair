@@ -121,7 +121,10 @@ describe("inspectTaskDir", () => {
 			mode: "code",
 			apiConfigName: "default",
 		})
-		writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+		writeJson("ui_messages.json", [
+			{ type: "say", say: "text", text: "hi" },
+			{ type: "ask", ask: "resume_task" },
+		])
 		writeJson("api_conversation_history.json", [{ role: "user", content: "hi" }])
 
 		const result = await inspectTaskDir("abc", tmp, null)
@@ -208,7 +211,10 @@ describe("inspectTaskDir", () => {
 	describe("interrupted_task", () => {
 		it("does NOT flag unanswered attempt_completion (Trigger A removed — normal child-task behavior)", async () => {
 			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
-			writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+			writeJson("ui_messages.json", [
+				{ type: "say", say: "text", text: "hi" },
+				{ type: "ask", ask: "resume_task" },
+			])
 			writeJson("api_conversation_history.json", [
 				{
 					role: "assistant",
@@ -222,7 +228,10 @@ describe("inspectTaskDir", () => {
 
 		it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", async () => {
 			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
-			writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+			writeJson("ui_messages.json", [
+				{ type: "say", say: "text", text: "hi" },
+				{ type: "ask", ask: "resume_task" },
+			])
 			writeJson("api_conversation_history.json", [
 				{
 					role: "assistant",
@@ -236,7 +245,10 @@ describe("inspectTaskDir", () => {
 
 		it("gates interrupted_task when solo (co-occurrence required)", async () => {
 			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
-			writeJson("ui_messages.json", [{ type: "say", say: "text", text: "hi" }])
+			writeJson("ui_messages.json", [
+				{ type: "say", say: "text", text: "hi" },
+				{ type: "ask", ask: "resume_task" },
+			])
 			writeJson("api_conversation_history.json", [
 				{ role: "user", content: [{ type: "text", text: "Do X" }] },
 				{

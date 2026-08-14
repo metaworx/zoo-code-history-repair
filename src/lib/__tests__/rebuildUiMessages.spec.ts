@@ -644,7 +644,7 @@ describe("rebuildUiMessages", () => {
 					ts: 100,
 				},
 			],
-			{ status: "active" },
+			{ status: "active", resumeAsk: true },
 		)
 		expect(events).toHaveLength(2)
 		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_task" })
@@ -660,7 +660,7 @@ describe("rebuildUiMessages", () => {
 					ts: 500,
 				},
 			],
-			{ status: "completed" },
+			{ status: "completed", resumeAsk: true },
 		)
 		expect(events).toHaveLength(2)
 		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_completed_task" })
@@ -670,12 +670,21 @@ describe("rebuildUiMessages", () => {
 	it("treats interrupted status as resume_task", () => {
 		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "Hi" }], ts: 10 }], {
 			status: "interrupted",
+			resumeAsk: true,
 		})
 		expect(events).toHaveLength(2)
 		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_task" })
 	})
 
-	it("does not append a resume ask when status is not provided", () => {
+	it("defaults to resume_task when resumeAsk is true and status is missing", () => {
+		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "Hi" }], ts: 10 }], {
+			resumeAsk: true,
+		})
+		expect(events).toHaveLength(2)
+		expect(events[1]).toMatchObject({ type: "ask", ask: "resume_task" })
+	})
+
+	it("does not append a resume ask when resumeAsk is not set", () => {
 		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "Hi" }], ts: 10 }])
 		expect(events).toHaveLength(1)
 		expect(events[0]).toMatchObject({ type: "say", say: "text" })
@@ -683,7 +692,7 @@ describe("rebuildUiMessages", () => {
 
 	it("does not append a resume ask when no events were produced", () => {
 		const events = rebuildUiMessages([{ role: "user", content: [{ type: "text", text: "   " }] }], {
-			status: "active",
+			resumeAsk: true,
 		})
 		expect(events).toHaveLength(0)
 	})

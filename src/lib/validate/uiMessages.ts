@@ -208,3 +208,41 @@ export function validateUiSync(existingUi: unknown[], reconstructed: unknown[]):
 
 	return validationOk()
 }
+
+/**
+ * A persisted task's ui_messages must end with a terminal "ask" event (the
+ * resume_task / resume_completed_task / completion_result / followup / tool /
+ * command / … marker the webview uses to render a waiting-for-user state).
+ * When the last event is a "say", the terminal ask is missing.
+ */
+export function validateUiResumeAsk(data: unknown): ValidationResult {
+	if (!Array.isArray(data) || data.length === 0) return validationOk()
+
+	const last = data[data.length - 1] as Record<string, unknown> | null
+	if (last && typeof last === "object" && last.type === "ask") return validationOk()
+
+	return {
+		valid: false,
+		issues: [error("MISSING_RESUME_ASK", "", "ui_messages does not end with a terminal ask")],
+		errorCount: 1,
+		warningCount: 0,
+	}
+}
+
+const MIN_PLAUSIBLE_EPOCH_MS = 1_000_000_000_000
+
+/** Flag ui_messages events whose `ts` is not a plausible epoch-millisecond timestamp. */
+export function validateUiTimestamps(data: unknown): ValidationResult {
+	if (!Array.isArray(data)) return validationOk()
+
+	const issues: ReturnType<typeof warning>[] = []
+	for (let i = 0; i < data.length; i++) {
+		const event = data[i] as Record<string, unknown> | null
+		if (!event || typeof event !== "object") continue
+		if (typeof event.ts === "number" && event.ts < MIN_PLAUSIBLE_EPOCH_MS) {
+			issues.push(warning("INVALID_UI_TIMESTAMP", `[${i}].ts`, `timestamp ${event.ts} is not a plausible epoch (ms)`))
+		}
+	}
+
+	return { valid: true, issues, errorCount: 0, warningCount: issues.length }
+}

@@ -7,6 +7,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-08-14
+
+### Added
+
+- **`missing_resume_ask` detection** — `scan` now flags a non-empty `ui_messages.json` whose last event is a `say`
+  instead of a terminal `ask`; `repair` rebuilds it and appends the correct resume ask via a new `resumeAsk` flag
+  (a missing `status` defaults to `resume_task`, matching Zoo-Code).
+- **`invalid_ui_timestamp` warning** — `scan` warns when a `ui_messages.json` event carries an implausible
+  (non-epoch-millisecond) `ts`, and `repair` treats it as a rebuild candidate.
+
 ## [0.8.2] — 2026-08-14
 
 ### Fixed

@@ -249,13 +249,19 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 	await uiTx.load(false)
 	const existingUi = uiTx.getData() as unknown[] | null
 	const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
-	const shouldRebuildUi = existingIsEmpty || options.forceUim || reasonSet.has("empty_ui_messages")
+	const shouldRebuildUi =
+		existingIsEmpty ||
+		options.forceUim ||
+		reasonSet.has("empty_ui_messages") ||
+		reasonSet.has("missing_resume_ask") ||
+		reasonSet.has("invalid_ui_timestamp")
 
 	if (shouldRebuildUi) {
 		const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0], {
 			childIds: historyItem?.childIds as string[] | undefined,
 			delegatedToId: historyItem?.delegatedToId as string | undefined,
 			status: historyItem?.status,
+			resumeAsk: true,
 		})
 		if (newUi.length > 0) {
 			if (!options.dryRun) {

@@ -83,6 +83,10 @@ export function recoverabilityScore(c: TaskCorruption): string {
 			case "folder_orphan":
 				recoverable += hasIndex ? 1 : 0
 				break
+			case "missing_resume_ask":
+			case "invalid_ui_timestamp":
+				recoverable += hasAch ? 1 : 0
+				break
 			default:
 				recoverable += 0
 		}

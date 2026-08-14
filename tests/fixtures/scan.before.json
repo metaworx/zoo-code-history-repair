@@ -436,11 +436,15 @@
                     "source": "ach"
                 },
                 {
+                    "reason": "missing_resume_ask",
+                    "source": "uim"
+                },
+                {
                     "reason": "zero_size",
                     "source": "idx"
                 }
             ],
-            "recoverability": "50%",
+            "recoverability": "63%",
             "fields": {
                 "tokensIn": {
                     "source": "ach",
@@ -588,11 +592,19 @@
             "dir": "tests\\fixtures\\tasks\\019fde29-32cc-76c3-a156-e5287fc5fd2c",
             "reasons": [
                 {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                },
+                {
+                    "reason": "missing_resume_ask",
+                    "source": "uim"
+                },
+                {
                     "reason": "folder_orphan",
                     "source": "hi"
                 }
             ],
-            "recoverability": "0%",
+            "recoverability": "33%",
             "fields": {
                 "tokensIn": {
                     "source": "none",

@@ -59,8 +59,9 @@ describe("repairTaskDir", () => {
 		expect(result.errors).toEqual([])
 
 		const ui = readJson("ui_messages.json") as Array<Record<string, unknown>>
-		expect(ui).toHaveLength(1)
+		expect(ui).toHaveLength(2)
 		expect(ui[0]).toMatchObject({ say: "text", text: "Hello" })
+		expect(ui[1]).toMatchObject({ type: "ask", ask: "resume_task" })
 	})
 
 	it("repairs placeholder task text from ACH", async () => {
@@ -150,7 +151,7 @@ describe("repairTaskDir", () => {
 		const bakFiles = files.filter((f) => /\.\d{8}-\d{6}\.bak\.json$/.test(f))
 		expect(bakFiles.length).toBeGreaterThanOrEqual(1)
 		const ui = readJson("ui_messages.json") as Array<unknown>
-		expect(ui).toHaveLength(1)
+		expect(ui).toHaveLength(2)
 	})
 
 	it("handles all three repairs combined", async () => {
@@ -176,7 +177,27 @@ describe("repairTaskDir", () => {
 		expect(hi.size).toBeGreaterThan(0)
 
 		const ui = readJson("ui_messages.json") as Array<unknown>
-		expect(ui).toHaveLength(1)
+		expect(ui).toHaveLength(2)
+	})
+
+	it("rebuilds a UIM missing the trailing resume ask", async () => {
+		writeJson("api_conversation_history.json", [
+			{
+				role: "user",
+				content: [{ type: "text", text: "<user_message>Ask me</user_message>" }],
+				ts: 1786731830000
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Sure" }], ts: 1786731831000 },
+		])
+		writeJson("history_item.json", { id: "task-abc", task: "Real task", size: 100, ts: 1, status: "active" })
+		writeJson("ui_messages.json", [{ ts: 1786731830000, type: "say", say: "text", text: "stale" }])
+		writeJson("task_metadata.json", {})
+
+		const result = await repairTaskDir(taskDir, { backup: false })
+		expect(result.uiRepaired).toBe(true)
+
+		const ui = readJson("ui_messages.json") as Array<Record<string, unknown>>
+		expect(ui[ui.length - 1]).toMatchObject({ type: "ask", ask: "resume_task" })
 	})
 
 	it("appends a synthetic failed tool_result for interrupted tasks", async () => {

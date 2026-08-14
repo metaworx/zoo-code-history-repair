@@ -20,7 +20,7 @@ import { rebuildUiMessages } from "./rebuildUiMessages.js"
 import { validateIndex } from "./validate/index.js"
 import { validateHistoryItem } from "./validate/historyItem.js"
 import { validateApiConversationHistory, validateInterruptedTask } from "./validate/apiConversationHistory.js"
-import { validateUiMessages, validateUiSync } from "./validate/uiMessages.js"
+import { validateUiMessages, validateUiResumeAsk, validateUiSync, validateUiTimestamps } from "./validate/uiMessages.js"
 import { validateTaskMetadata } from "./validate/taskMetadata.js"
 import { resolveRoot } from "./cliContext.js"
 
@@ -81,6 +81,8 @@ function issueToReason(issue: { code: string; field?: string }): CorruptionReaso
 		EMPTY_ARRAY: "empty_ui_messages",
 		INTERRUPTED_TASK: "interrupted_task",
 		UI_SYNC_MISMATCH: "ui_sync_mismatch",
+		MISSING_RESUME_ASK: "missing_resume_ask",
+		INVALID_UI_TIMESTAMP: "invalid_ui_timestamp",
 		// Zod built-in codes mapped to reasons when on specific fields
 		invalid_type: "missing_task_text", // when field is "task", treated as missing_task_text
 	}
@@ -244,6 +246,7 @@ export async function inspectTaskDir(
 	) {
 		const reconstructed = rebuildUiMessages(api as Parameters<typeof rebuildUiMessages>[0], {
 			status: diskItem?.status,
+			resumeAsk: true,
 		})
 		if (reconstructed.length > 0) {
 			const syncResult = validateUiSync(ui, reconstructed)
@@ -264,6 +267,28 @@ export async function inspectTaskDir(
 			else warningCount++
 			const reason = issueToReason(issue)
 			if (reason) add(reason, "ach")
+		}
+	}
+
+	// Missing terminal resume ask (error-level)
+	if (Array.isArray(ui) && ui.length > 0) {
+		const resumeResult = validateUiResumeAsk(ui)
+		for (const issue of resumeResult.issues) {
+			if (issue.severity === "error") errorCount++
+			else warningCount++
+			const reason = issueToReason(issue)
+			if (reason) add(reason, "uim")
+		}
+	}
+
+	// Invalid UI timestamps (warning-level)
+	if (showWarnings && Array.isArray(ui) && ui.length > 0) {
+		const tsResult = validateUiTimestamps(ui)
+		for (const issue of tsResult.issues) {
+			if (issue.severity === "error") errorCount++
+			else warningCount++
+			const reason = issueToReason(issue)
+			if (reason) add(reason, "uim")
 		}
 	}
 
@@ -396,8 +421,8 @@ export async function validatePath(target: string | undefined): Promise<Validate
 				const indexData = indexTx.getData() as
 					| Array<{ id: string }>
 					| {
-					entries: Array<{ id: string }>
-				}
+							entries: Array<{ id: string }>
+					  }
 					| null
 				const entries: Array<Record<string, unknown>> = Array.isArray(indexData)
 					? (indexData as Array<Record<string, unknown>>)

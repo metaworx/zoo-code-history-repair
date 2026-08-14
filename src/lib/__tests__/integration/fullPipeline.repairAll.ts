@@ -52,9 +52,9 @@ const CORRUPT_REASONS: Record<string, string[]> = {
 		"empty_ui_messages",
 		"interrupted_task",
 	],
-	"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": ["zero_tokens", "zero_size", "interrupted_task"],
+	"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": ["zero_tokens", "zero_size", "interrupted_task", "missing_resume_ask"],
 	"019fddaa-5136-7106-abef-adac81fd56a3": ["zero_tokens"],
-	"019fde29-32cc-76c3-a156-e5287fc5fd2c": ["folder_orphan"],
+	"019fde29-32cc-76c3-a156-e5287fc5fd2c": ["folder_orphan", "interrupted_task", "missing_resume_ask"],
 }
 
 /** Healthy tasks (from scan.fixtures.spec.ts). */

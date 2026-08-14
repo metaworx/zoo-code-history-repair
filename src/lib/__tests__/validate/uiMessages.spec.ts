@@ -4,7 +4,7 @@
 
 /// <reference types="vitest" />
 import { describe, it, expect } from "vitest"
-import { validateUiMessages } from "../../validate/uiMessages.js"
+import { validateUiMessages, validateUiResumeAsk, validateUiTimestamps } from "../../validate/uiMessages.js"
 
 describe("validateUiMessages", () => {
 	it("null/undefined → error", () => {
@@ -54,5 +54,46 @@ describe("validateUiMessages", () => {
 		])
 		expect(r.valid).toBe(true)
 		expect(r.errorCount).toBe(0)
+	})
+})
+
+describe("validateUiResumeAsk", () => {
+	it("ok for empty or non-array input", () => {
+		expect(validateUiResumeAsk([]).valid).toBe(true)
+		expect(validateUiResumeAsk(null).valid).toBe(true)
+	})
+
+	it("ok when the last event is an ask", () => {
+		const r = validateUiResumeAsk([{ ts: 1, type: "ask", ask: "resume_task" }])
+		expect(r.valid).toBe(true)
+		expect(r.errorCount).toBe(0)
+	})
+
+	it("error when the last event is a say", () => {
+		const r = validateUiResumeAsk([{ ts: 1, type: "say", say: "text", text: "hi" }])
+		expect(r.valid).toBe(false)
+		expect(r.issues.some((i) => i.code === "MISSING_RESUME_ASK")).toBe(true)
+	})
+})
+
+describe("validateUiTimestamps", () => {
+	it("ok when empty", () => {
+		expect(validateUiTimestamps([]).valid).toBe(true)
+	})
+
+	it("ok for plausible epoch timestamps", () => {
+		const r = validateUiTimestamps([{ ts: 1786731830900, type: "ask", ask: "resume_task" }])
+		expect(r.warningCount).toBe(0)
+	})
+
+	it("warns on an implausible timestamp", () => {
+		const r = validateUiTimestamps([{ ts: 247, type: "say", say: "error", text: "x" }])
+		expect(r.warningCount).toBe(1)
+		expect(r.issues.some((i) => i.code === "INVALID_UI_TIMESTAMP")).toBe(true)
+	})
+
+	it("ignores events without a numeric ts", () => {
+		const r = validateUiTimestamps([{ type: "say", say: "text", text: "no ts" }])
+		expect(r.warningCount).toBe(0)
 	})
 })

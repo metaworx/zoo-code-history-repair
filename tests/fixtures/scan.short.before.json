@@ -83,7 +83,7 @@
         },
         {
             "taskId": "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e",
-            "recoverability": "50%",
+            "recoverability": "63%",
             "reasons": [
                 {
                     "reason": "zero_tokens",
@@ -92,6 +92,10 @@
                 {
                     "reason": "interrupted_task",
                     "source": "ach"
+                },
+                {
+                    "reason": "missing_resume_ask",
+                    "source": "uim"
                 },
                 {
                     "reason": "zero_size",
@@ -111,8 +115,16 @@
         },
         {
             "taskId": "019fde29-32cc-76c3-a156-e5287fc5fd2c",
-            "recoverability": "0%",
+            "recoverability": "33%",
             "reasons": [
+                {
+                    "reason": "interrupted_task",
+                    "source": "ach"
+                },
+                {
+                    "reason": "missing_resume_ask",
+                    "source": "uim"
+                },
                 {
                     "reason": "folder_orphan",
                     "source": "hi"

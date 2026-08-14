@@ -45,6 +45,8 @@ export type CorruptionReason =
 	| "ui_sync_mismatch" // ui_messages.json differs from ACH-derived reconstruction
 	| "interrupted_task" // task appears interrupted (last turn ends with tool_use, co-occurs with other corruption)
 	| "zero_tokens" // tokensIn==0 && tokensOut==0 && totalCost==0 but ACH has entries
+	| "missing_resume_ask" // ui_messages.json is non-empty but doesn't end with a terminal ask
+	| "invalid_ui_timestamp" // ui_messages.json event ts is not a plausible epoch (ms)
 
 export interface TaskCorruption {
 	taskId: string

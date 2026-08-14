@@ -29,9 +29,9 @@ const EXPECTED: Record<string, string[]> = {
 		"empty_ui_messages",
 		"interrupted_task",
 	],
-	"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": ["zero_tokens", "zero_size", "interrupted_task"],
+	"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": ["zero_tokens", "zero_size", "interrupted_task", "missing_resume_ask"],
 	"019fddaa-5136-7106-abef-adac81fd56a3": ["zero_tokens"],
-	"019fde29-32cc-76c3-a156-e5287fc5fd2c": ["folder_orphan"],
+	"019fde29-32cc-76c3-a156-e5287fc5fd2c": ["folder_orphan", "interrupted_task", "missing_resume_ask"],
 }
 
 // Healthy task IDs that should have zero corruption
@@ -139,9 +139,9 @@ describe("scan output helpers against fixtures (integration)", async () => {
 			"019f0f12-02f9-70df-a35e-2b110efe4107": "33%",
 			"019fb786-503a-76ca-8708-fee1243c878d": "50%",
 			"019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": "70%",
-			"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": "50%",
+			"019fdcf5-64ad-709f-a1d1-00d1a59c6f8e": "63%",
 			"019fddaa-5136-7106-abef-adac81fd56a3": "50%",
-			"019fde29-32cc-76c3-a156-e5287fc5fd2c": "0%",
+			"019fde29-32cc-76c3-a156-e5287fc5fd2c": "33%",
 		}
 		for (const c of result.corruptions) {
 			const expected = EXPECTED_SCORES[c.taskId]

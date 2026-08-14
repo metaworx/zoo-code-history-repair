@@ -255,10 +255,13 @@ the backup metadata is stripped before comparison.
 issue codes are mapped to `CorruptionReason`s via
 [`issueToReason()`](src/lib/validation.ts:71), each annotated with a source
 abbreviation (`hi` / `idx` / `uim` / `ach` / `tmd` / `uim,ach`). Cross-file checks
-(`ui_sync_mismatch`, `interrupted_task`) are validators. A solo `interrupted_task`
-with no co-occurring corruption is suppressed.
+(`ui_sync_mismatch`, `interrupted_task`, `missing_resume_ask`,
+`invalid_ui_timestamp`) are validators. `missing_resume_ask` is error-level and
+always reported; `invalid_ui_timestamp` is warning-level (suppressed by
+`--no-warnings`). A solo `interrupted_task` with no co-occurring corruption is
+suppressed.
 
-### 5.1 `CorruptionReason` values (13)
+### 5.1 `CorruptionReason` values (15)
 
 | #   | Reason                  | Source(s)                            | Detection                                                          |
 | --- | ----------------------- | ------------------------------------ | ------------------------------------------------------------------ |
@@ -275,6 +278,8 @@ with no co-occurring corruption is suppressed.
 | 11  | `ui_sync_mismatch`      | `uim,ach`                            | (opt-in) `ui_messages.json` differs from ACH reconstruction        |
 | 12  | `interrupted_task`      | `ach`                                | last turn ends with `tool_use` (gated: solo occurrence suppressed) |
 | 13  | `zero_tokens`           | `hi`                                 | `tokensIn` / `tokensOut` / `totalCost` all 0 but ACH has entries   |
+| 14  | `missing_resume_ask`    | `uim`                                | non-empty `ui_messages.json` doesn't end with a terminal `ask`     |
+| 15  | `invalid_ui_timestamp`  | `uim`                                | an event `ts` < 1e12 (not a plausible epoch-millisecond value)     |
 
 `zero_tokens` requires all three of `ZERO_TOKENS_IN` + `ZERO_TOKENS_OUT` +
 `ZERO_TOTAL_COST` to be present. `zero_size` maps from `ZERO_SIZE` / `MISSING_SIZE`.
@@ -377,6 +382,8 @@ flowchart TB
         V5["validateTaskMetadata — JSON object"]
         V6["validateUiSync — cross-file ui vs ACH"]
         V7["validateInterruptedTask — tool_use pattern"]
+        V8["validateUiResumeAsk — missing terminal ask"]
+        V9["validateUiTimestamps — implausible ts"]
     end
 
     subgraph FileIO["File I/O (src/lib/file.ts)"]
@@ -440,7 +447,9 @@ flowchart TB
         R -->|no| T["skip"]
         S --> T
         T --> U["validateInterruptedTask(ACH)"]
-        U --> V["Check indexItem: placeholder, zero_size"]
+        U --> U1["validateUiResumeAsk(ui) → missing_resume_ask"]
+        U1 --> U2["validateUiTimestamps(ui) → invalid_ui_timestamp"]
+        U2 --> V["Check indexItem: placeholder, zero_size"]
         V --> W["Solo interrupted_task→clear"]
         W --> X["Return TaskCorruption"]
     end

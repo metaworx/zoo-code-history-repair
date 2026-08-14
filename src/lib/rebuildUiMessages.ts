@@ -180,8 +180,10 @@ export interface RebuildUiContext {
 	childIds?: string[]
 	/** Parent task's delegatedToId — the currently-awaiting (last) child. */
 	delegatedToId?: string
-	/** Task status from history_item.json — drives the trailing resume ask. */
+	/** Task status from history_item.json — drives the trailing resume ask type. */
 	status?: string
+	/** When true (repair pipeline), append the trailing resume ask; a missing status defaults to resume_task. */
+	resumeAsk?: boolean
 }
 
 function countNewTaskBlocks(apiHistory: AchTurn[]): number {
@@ -288,9 +290,9 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 					const isNewTask = isNewTaskBlock(block)
 					const toolJson = isNewTask
 						? buildNewTaskDescriptor(
-								block,
-								resolveNewTaskId(newTaskIndex, newTaskCount, childIds, delegatedToId),
-							)
+							block,
+							resolveNewTaskId(newTaskIndex, newTaskCount, childIds, delegatedToId),
+						)
 						: buildToolUseDescriptor(block)
 					if (isNewTask) newTaskIndex++
 					events.push({
@@ -317,9 +319,10 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 
 	// Resume ask — mirrors Zoo-Code Task#resumeTaskFromHistory:
 	//   initialStatus === "completed" → resume_completed_task, else resume_task.
-	// Only emitted when the caller supplies the task status (repair pipeline);
-	// the pure ACH→UIM reconstruction used by validation omits it.
-	if (context.status !== undefined && events.length > 0) {
+	// Only emitted when the caller explicitly requests it (repair pipeline);
+	// the pure ACH→UIM reconstruction used by validation omits it. A missing
+	// status is treated as non-completed → resume_task.
+	if (context.resumeAsk === true && events.length > 0) {
 		const ask: UiAskEvent["ask"] = context.status === "completed" ? "resume_completed_task" : "resume_task"
 		events.push({
 			ts: events[events.length - 1].ts + 1,

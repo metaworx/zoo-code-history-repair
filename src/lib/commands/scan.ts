@@ -54,6 +54,8 @@ Corruption reasons detected by scan:
  11. ui_sync_mismatch       — (opt-in) ${UI_MESSAGES_NAME} differs from ACH-derived reconstruction
  12. interrupted_task       — task appears interrupted (last turn ends with tool_use + other corruption)
  13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries
+ 14. missing_resume_ask     — ${UI_MESSAGES_NAME} is non-empty but doesn't end with a terminal ask
+ 15. invalid_ui_timestamp   — an event ts in ${UI_MESSAGES_NAME} is not a plausible epoch (ms)
 ${ABBREV_HELP}`
 
 export const options: Array<[string, string, unknown]> = [
