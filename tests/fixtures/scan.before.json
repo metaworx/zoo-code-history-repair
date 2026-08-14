@@ -535,9 +535,9 @@
                     "estimatedValue": null
                 },
                 "cacheReads": {
-                    "source": "ach",
-                    "confidence": "medium",
-                    "estimatedValue": 927
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
                 },
                 "cacheWrites": {
                     "source": "default",

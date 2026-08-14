@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/commands/delete.ts
+ *
+ * delete command: remove a task directory and its index entry.
+ */
+
 import { existsSync, rmSync } from "node:fs"
 import path from "node:path"
 import { DEFAULT_INDEX_NAME, resolveTasksDir } from "../paths.js"

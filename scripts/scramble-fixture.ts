@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 /**
+ * @file scripts/scramble-fixture.ts
+ *
+ * Scrambles real task data into fixtures (preserving UUIDs).
+ */
+
+/**
  * scripts/scramble-fixture.ts
  *
  * Copies task directories from Zoo Code source storage, scrambles all text

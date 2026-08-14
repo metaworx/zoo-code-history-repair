@@ -1,4 +1,8 @@
-// src/lib/readJson.ts
+/**
+ * @file src/lib/io/readJson.ts
+ *
+ * Tolerant JSON-array reads with truncated-array salvage.
+ */
 import fs from "node:fs/promises"
 
 export interface PartialArrayResult<T> {

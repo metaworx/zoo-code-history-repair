@@ -1,3 +1,9 @@
+/**
+ * @file src/index.ts
+ *
+ * Library entry point re-exporting the public API.
+ */
+
 export * from "./types.js"
 export { scanStorage } from "./lib/scan.js"
 export type { ScanOptions } from "./lib/scan.js"

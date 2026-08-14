@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/validate/historyItem.spec.ts
+ */
+
 /// <reference types="vitest" />
 import { describe, it, expect } from "vitest"
 import { validateHistoryItem } from "../../validate/historyItem.js"

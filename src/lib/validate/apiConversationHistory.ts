@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/apiConversationHistory.ts
+ *
+ * api_conversation_history.json validation.
+ */
+
 import { z } from "zod"
 import type { ValidationResult } from "../validation.js"
 import { error, validationOk, warning } from "../validation.js"

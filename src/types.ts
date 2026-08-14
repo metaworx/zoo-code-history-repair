@@ -1,4 +1,10 @@
 /**
+ * @file src/types.ts
+ *
+ * Shared type definitions for the repair pipeline.
+ */
+
+/**
  * Loose HistoryItem type used across the repair pipeline.
  *
  * For strict validation, use HistoryItemForRepair from

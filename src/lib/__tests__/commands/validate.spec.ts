@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/commands/validate.spec.ts
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import path from "node:path"
 import { action } from "../../commands/validate.js"

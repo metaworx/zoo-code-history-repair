@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/uiMessages.ts
+ *
+ * ui_messages.json validation.
+ */
+
 import { z } from "zod"
 import type { ValidationResult } from "../validation.js"
 import { error, validationOk, warning } from "../validation.js"

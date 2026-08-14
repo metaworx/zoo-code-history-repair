@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/index.ts
+ *
+ * _index.json validation.
+ */
+
 import { z, ZodIssueCode } from "zod"
 import type { ValidationResult } from "../validation.js"
 import { error } from "../validation.js"

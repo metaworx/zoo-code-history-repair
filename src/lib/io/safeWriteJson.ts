@@ -1,4 +1,10 @@
 /**
+ * @file src/lib/io/safeWriteJson.ts
+ *
+ * Vendored atomic JSON writer with locking (Apache-2.0); see attribution below.
+ */
+
+/**
  * Vendored from Zoo-Code (https://github.com/Zoo-Code-Org/Zoo-Code)
  * File: src/utils/safeWriteJson.ts
  * License: Apache-2.0

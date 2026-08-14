@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/restore.fixtures.spec.ts
+ */
+
+/**
  * Integration tests: restore against scrambled fixture data.
  * Copies fixtures to temp dir, creates .bak.json files, tests restore operations.
  */

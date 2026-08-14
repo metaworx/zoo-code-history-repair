@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/validate/index.spec.ts
+ */
+
 /// <reference types="vitest" />
 import { describe, it, expect } from "vitest"
 import { validateIndex } from "../../validate/index.js"

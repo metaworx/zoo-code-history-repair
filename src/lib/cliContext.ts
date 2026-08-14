@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/cliContext.ts
+ *
+ * CLI context: storage root, version banner, and color toggles.
+ */
+
 import {
 	API_HISTORY_NAME,
 	DEFAULT_INDEX_NAME,

@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/commands/validate.ts
+ *
+ * validate command: schema validation with --json / --no-warnings.
+ */
+
 import path from "node:path"
 import { getVersionBanner, resolveRoot } from "../cliContext.js"
 import { resolveTasksDir } from "../paths.js"

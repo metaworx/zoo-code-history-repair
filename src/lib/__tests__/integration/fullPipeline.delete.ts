@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/fullPipeline.delete.ts
+ */
+
+/**
  * Integration test: delete unrepairable task → scan --short empty → idempotent.
  */
 import { expect, vi } from "vitest"

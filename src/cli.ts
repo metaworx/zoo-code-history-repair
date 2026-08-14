@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+/**
+ * @file src/cli.ts
+ *
+ * CLI entry point: commander program setup and command dispatch.
+ */
+
 import { readFileSync } from "node:fs"
 import { Command } from "commander"
 import "./lib/registerCommandOptions.js"

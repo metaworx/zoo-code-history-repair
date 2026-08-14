@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/restore.ts
+ *
+ * Backup listing, restore, delete, and diff helpers.
+ */
+
 import fs from "node:fs/promises"
 import path from "node:path"
 import {

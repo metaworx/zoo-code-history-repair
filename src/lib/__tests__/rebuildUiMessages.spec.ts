@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/rebuildUiMessages.spec.ts
+ */
+
 import { rebuildUiMessages, snakeToCamel } from "../rebuildUiMessages.js"
 
 describe("snakeToCamel", () => {

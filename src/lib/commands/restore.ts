@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/commands/restore.ts
+ *
+ * restore command: list, restore, and delete backup files.
+ */
+
 import path from "node:path"
 import { resolveTasksDir } from "../paths.js"
 import { getVersionBanner, resolveRoot } from "../cliContext.js"

@@ -1,4 +1,10 @@
 /**
+ * @file src/lib/rebuildTaskField.ts
+ *
+ * Task-field extraction from api_conversation_history.
+ */
+
+/**
  * Extract the `task` field (original user prompt) from the first user turn
  * in an api_conversation_history.json array.
  *

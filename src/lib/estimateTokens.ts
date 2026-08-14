@@ -103,12 +103,12 @@ export function estimateTotalCost(tokensIn: number, tokensOut: number, provider?
 /**
  * Estimate cacheReads from tokensIn.
  * For DeepSeek/default: ≈ 0.97 × tokensIn.
- * For Grok/unknown: returns 0 (prompt caching not supported).
+ * For unknown providers: returns 0 (prompt caching not supported).
  */
 export function estimateCacheReads(tokensIn: number, provider?: string): number {
 	const key = (provider ?? "").toLowerCase()
-	// Grok and unknown providers don't support prompt caching
-	if (key === "grok" || (!key && !PRICING[key])) {
+	// Unknown providers don't support prompt caching
+	if (!PRICING[key]) {
 		return 0
 	}
 	return Math.round(tokensIn * CACHE_READS_RATIO)

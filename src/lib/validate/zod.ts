@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/zod.ts
+ *
+ * Zod-to-ValidationIssue / ValidationResult adapters.
+ */
+
 import type { ZodError, ZodIssue } from "zod"
 import type { ValidationIssue, ValidationResult } from "../validation.js"
 

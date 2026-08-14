@@ -1,4 +1,10 @@
 /**
+ * @file src/lib/__tests__/testHelpers.ts
+ *
+ * Shared test helpers: temp dirs, fixture copying, and JSON assertions.
+ */
+
+/**
  * Shared test utilities for zoo-code-history-repair tests.
  *
  * Extracts common patterns for temp directory lifecycle, fixture copying,

@@ -143,7 +143,7 @@ After editing TypeScript files, run the full quality pipeline via JetBrains MCP
 
 | Version | Date       | Changed sections | Change type | Agent impact |
 |---------|------------|------------------|-------------|--------------|
-| v3.0.1  | 2026-08-14 | 7                | minor       | `regenerate-fixtures.ts` now also regenerates `scan.before.json` / `list-corrupt.before.json`. |
+| v3.0.1  | 2026-08-14 | 7                | minor       | `regenerate-fixtures.ts` now also regenerates `scan.before.json` / `scan.short.before.json` (via `scan --short`). |
 | v3.0.0  | 2026-08-14 | All sections     | major       | Project switch: PHPUnit → zoo-code-history-repair (Vitest/TypeScript). Replaced PHPUnit/WSL/ddev/Cypress with Vitest commands, added `npm run test:tail`, fixture regeneration, and TS testability patterns. |
 | v2.4.0  | 2026-08-06 | 14               | minor       | Added JetBrains MCP Quality Workflow (§14). Author: metaworx. (FCIAS) |
 | v2.3.0  | 2026-08-05 | 1                | minor       | Added --display-warnings note for CI PHPUnit. (FCIAS) |

@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/size.spec.ts
+ */
+
 import { compactSizeBytes, computeTaskSize } from "../size.js"
 import type { HistoryItem } from "../../types.js"
 

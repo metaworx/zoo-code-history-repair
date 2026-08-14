@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/fullPipeline.repairTask.ts
+ */
+
+/**
  * Integration test: repair <taskId> → index update preserves all entries.
  *
  * Validates that after repair <taskId> --force on a single corrupt task,

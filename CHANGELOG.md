@@ -26,6 +26,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`repair --all --verify-ui-sync`** — now propagated to the final index rebuild for parity with `repair --index`.
 - **`validate --no-warnings` in `--json` mode** — warnings are now suppressed in JSON output and summary counts.
 - **Async backup reads** — `resolveReferences` backup parsing now uses `fs/promises` instead of `readFileSync`.
+- **Docs** — corrected the stale fixture reference in `TESTING.md`, removed the un-priced Grok special-case, fixed the
+  `readJson.ts` path header, and added missing `@file` headers.
 
 ## [0.8.0] — 2026-08-14
 

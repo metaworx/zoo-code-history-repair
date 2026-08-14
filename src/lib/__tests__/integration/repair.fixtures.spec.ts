@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/repair.fixtures.spec.ts
+ */
+
+/**
  * Integration tests: repair against scrambled fixture data.
  * Copies fixtures to temp dir, runs repair, verifies output against SHA1 hashes.
  */

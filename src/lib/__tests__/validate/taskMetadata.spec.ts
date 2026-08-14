@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/validate/taskMetadata.spec.ts
+ */
+
 /// <reference types="vitest" />
 import { describe, it, expect } from "vitest"
 import { validateTaskMetadata } from "../../validate/taskMetadata.js"

@@ -1,4 +1,10 @@
 /**
+ * @file src/lib/rebuildUiMessages.ts
+ *
+ * ui_messages.json reconstruction from api_conversation_history.
+ */
+
+/**
  * Reconstruct ui_messages.json from api_conversation_history.json.
  *
  * Mapping rules:

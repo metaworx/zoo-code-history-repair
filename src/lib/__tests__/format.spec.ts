@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/format.spec.ts
+ */
+
 import { describe, expect, it } from "vitest"
 import { taskMatch, truncate } from "../format.js"
 

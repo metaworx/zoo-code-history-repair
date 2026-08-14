@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/historyItem.ts
+ *
+ * history_item.json validation (schema + corruption heuristics).
+ */
+
 import { z, ZodIssueCode } from "zod"
 import { historyItemSchema } from "@roo-code/types"
 import type { ValidationResult } from "../validation.js"

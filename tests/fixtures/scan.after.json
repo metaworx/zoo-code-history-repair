@@ -108,8 +108,8 @@
                 },
                 "cacheReads": {
                     "source": "none",
-                    "confidence": "high",
-                    "estimatedValue": 927
+                    "confidence": "low",
+                    "estimatedValue": null
                 },
                 "cacheWrites": {
                     "source": "none",
@@ -150,7 +150,7 @@
             "achEntries": 1,
             "uimEntries": 3,
             "diskTask": "did not\ndesire war",
-            "sizeDisk": 4769
+            "sizeDisk": 4767
         }
     ]
 }

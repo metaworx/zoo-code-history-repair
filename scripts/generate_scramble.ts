@@ -1,5 +1,11 @@
 #!/usr/bin/env npx tsx
 /**
+ * @file scripts/generate_scramble.ts
+ *
+ * Generates scrambled task fixtures.
+ */
+
+/**
  * generate_scramble.ts – never-repeating mix of Pride & Prejudice + public code
  * Target size: 523 KiB (535_552 bytes)
  * Max chunk size: 1664

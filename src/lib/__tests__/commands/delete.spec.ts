@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/commands/delete.spec.ts
+ */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())

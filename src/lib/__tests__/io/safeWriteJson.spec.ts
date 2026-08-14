@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/io/safeWriteJson.spec.ts
+ */
+
 import * as fsSyncActual from "fs"
 import { Writable } from "stream"
 import * as path from "path"

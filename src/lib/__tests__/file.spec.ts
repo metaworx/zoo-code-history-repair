@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/file.spec.ts
+ */
+
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"

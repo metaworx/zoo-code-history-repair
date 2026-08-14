@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/integration/fullPipeline.spec.ts
+ */
+
 // noinspection SqlNoDataSourceInspection
 
 /**

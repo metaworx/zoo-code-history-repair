@@ -1,3 +1,9 @@
+/**
+ * @file vitest.config.ts
+ *
+ * Vitest configuration (node environment, globals, coverage).
+ */
+
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({

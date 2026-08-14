@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/fullPipeline.rebuildIndex.ts
+ */
+
+/**
  * Integration test: repair --index → scan --short reduces index_orphans, adds folder_orphans.
  *
  * repair --index reads task directories from disk and rebuilds _index.json.

@@ -1,4 +1,8 @@
 /**
+ * @file src/lib/__tests__/integration/fullPipeline.convergence.ts
+ */
+
+/**
  * Integration test: pipeline convergence (repair --index → repairTask →
  * repair --index → repairAll → repair --index).
  *

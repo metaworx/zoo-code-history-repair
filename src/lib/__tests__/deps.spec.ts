@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/deps.spec.ts
+ */
+
 import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"

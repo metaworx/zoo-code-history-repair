@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/validate/taskMetadata.ts
+ *
+ * task_metadata.json validation.
+ */
+
 import { z } from "zod"
 import type { ValidationResult } from "../validation.js"
 import { zodResultToValidationResult } from "./zod.js"

@@ -1,3 +1,7 @@
+/**
+ * @file src/lib/__tests__/commands/restore.spec.ts
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())

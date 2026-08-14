@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/repairTask.ts
+ *
+ * Single-task repair pipeline (ui/task/size/tokens/refs/fields).
+ */
+
 import path from "node:path"
 import type { HistoryItem } from "../types.js"
 import { API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME } from "./paths.js"

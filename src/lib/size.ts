@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/size.ts
+ *
+ * History-item size computation.
+ */
+
 import type { HistoryItem } from "../types.js"
 
 /**

@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/repairAll.ts
+ *
+ * repair --all orchestration: scan, repair every task, rebuild the index.
+ */
+
 import path from "node:path"
 import type { RepairOptions } from "../types.js"
 import { IndexTransaction } from "./IndexTransaction.js"

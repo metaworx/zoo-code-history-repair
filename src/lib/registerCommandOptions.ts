@@ -1,4 +1,10 @@
 /**
+ * @file src/lib/registerCommandOptions.ts
+ *
+ * Registers shared commander options on each command.
+ */
+
+/**
  * Extend commander Command prototype with registerOptions helper.
  * Must be imported once before any command registration.
  */
