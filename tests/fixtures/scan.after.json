@@ -20,6 +20,63 @@
                 }
             ],
             "recoverability": "0%",
+            "fields": {
+                "tokensIn": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheReads": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "unknown"
+                },
+                "workspace": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "C:\\Users\\mdr"
+                },
+                "apiConfigName": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "unknown"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                }
+            },
             "achEntries": 0,
             "uimEntries": 0
         },
@@ -33,6 +90,63 @@
                 }
             ],
             "recoverability": "0%",
+            "fields": {
+                "tokensIn": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 956
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheReads": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 927
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "code"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "meta"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "did not\ndesire war"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                }
+            },
             "achEntries": 1,
             "uimEntries": 3,
             "diskTask": "did not\ndesire war",

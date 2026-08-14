@@ -1,4 +1,17 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from "vitest"
+/**
+ * @file src/lib/__tests__/commands/scan.spec.ts
+ *
+ * Unit tests for the scan command action (JSON and text output).
+ */
+
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeEach,
+    afterEach
+} from "vitest"
 
 const mockSetRoot = vi.hoisted(() => vi.fn())
 const mockSetVersion = vi.hoisted(() => vi.fn())
@@ -11,6 +24,20 @@ const mockAlignSummary = vi.hoisted(() => vi.fn((label: string, value: string) =
 const mockCountEntries = vi.hoisted(() => vi.fn(() => 0))
 const mockTaskMatch = vi.hoisted(() => vi.fn(() => null))
 const mockTruncate = vi.hoisted(() => vi.fn((s: string | undefined) => s ?? ""))
+const mockPerFieldRecoverability = vi.hoisted(() => vi.fn(async () => ({
+    tokensIn: {source: "none", confidence: "high", estimatedValue: null},
+    tokensOut: {source: "none", confidence: "high", estimatedValue: null},
+    totalCost: {source: "none", confidence: "high", estimatedValue: null},
+    cacheReads: {source: "none", confidence: "high", estimatedValue: null},
+    cacheWrites: {source: "none", confidence: "high", estimatedValue: null},
+    number: {source: "none", confidence: "high", estimatedValue: null},
+    mode: {source: "none", confidence: "high", estimatedValue: null},
+    workspace: {source: "none", confidence: "high", estimatedValue: null},
+    apiConfigName: {source: "none", confidence: "high", estimatedValue: null},
+    task: {source: "none", confidence: "high", estimatedValue: null},
+    refs: {source: "none", confidence: "high", estimatedValue: null},
+})))
+const mockFormatPerFieldSummary = vi.hoisted(() => vi.fn(() => ""))
 
 vi.mock("../../cliContext.js", () => ({
     setRoot: mockSetRoot,
@@ -29,6 +56,8 @@ vi.mock("../../scanOutput.js", () => ({
     alignSummary: mockAlignSummary,
     countEntries: mockCountEntries,
     recoverabilityScore: mockRecoverabilityScore,
+    perFieldRecoverability: mockPerFieldRecoverability,
+    formatPerFieldSummary: mockFormatPerFieldSummary,
 }))
 
 vi.mock("../../paths.js", () => ({
@@ -60,8 +89,10 @@ describe("scan command", () => {
     }
 
     beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
-        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any)
+        consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {
+        })
+        exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+        }) as any)
         mockResolveRoot.mockReturnValue("/fake/root")
     })
 
@@ -73,7 +104,13 @@ describe("scan command", () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
-                {taskId: "c1", dir: "/fake/root/tasks/c1", reasons: [{reason: "zero_size", source: "hi,idx"}], indexItem: null, diskItem: {task: "Real", size: 0}},
+                {
+                    taskId: "c1",
+                    dir: "/fake/root/tasks/c1",
+                    reasons: [{reason: "zero_size", source: "hi,idx"}],
+                    indexItem: null,
+                    diskItem: {task: "Real", size: 0}
+                },
             ],
         })
 
@@ -84,6 +121,29 @@ describe("scan command", () => {
         expect(parsed.corruptions).toHaveLength(1)
         expect(parsed.corruptions[0].taskId).toBe("c1")
         expect(parsed.corruptions[0].reasons).toEqual([{reason: "zero_size", source: "hi,idx"}])
+    })
+
+    it("JSON mode: includes per-field recoverability structure", async () => {
+        mockScanStorage.mockReturnValue({
+            ...baseResult,
+            corruptions: [
+                {
+                    taskId: "c1",
+                    dir: "/fake/root/tasks/c1",
+                    reasons: [{reason: "zero_size", source: "hi,idx"}],
+                    indexItem: null,
+                    diskItem: {task: "Real", size: 0}
+                },
+            ],
+        })
+
+        await action({json: true})
+
+        const output = consoleLogSpy.mock.calls.map(c => c[0]).join("")
+        const parsed = JSON.parse(output)
+        expect(parsed.corruptions[0].fields.tokensIn.source).toBe("none")
+        expect(parsed.corruptions[0].fields.tokensIn.confidence).toBe("high")
+        expect(parsed.corruptions[0].fields.refs.source).toBe("none")
     })
 
     it("JSON mode, no corruptions: no exit", async () => {
@@ -112,7 +172,13 @@ describe("scan command", () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
-                {taskId: "c1", dir: "/fake/root/tasks/c1", reasons: [{reason: "zero_size", source: "hi"}], indexItem: null, diskItem: null},
+                {
+                    taskId: "c1",
+                    dir: "/fake/root/tasks/c1",
+                    reasons: [{reason: "zero_size", source: "hi"}],
+                    indexItem: null,
+                    diskItem: null
+                },
             ],
         })
 
@@ -122,13 +188,20 @@ describe("scan command", () => {
         expect(output).toContain("c1")
         expect(output).toContain("reasons:")
         expect(output).toContain("recoverability:")
+        expect(output).toContain("fields:")
     })
 
     it("quiet mode: suppresses per-task details but shows summary", async () => {
         mockScanStorage.mockReturnValue({
             ...baseResult,
             corruptions: [
-                {taskId: "c1", dir: "/fake/root/tasks/c1", reasons: [{reason: "zero_size", source: "hi"}], indexItem: null, diskItem: null},
+                {
+                    taskId: "c1",
+                    dir: "/fake/root/tasks/c1",
+                    reasons: [{reason: "zero_size", source: "hi"}],
+                    indexItem: null,
+                    diskItem: null
+                },
             ],
         })
 

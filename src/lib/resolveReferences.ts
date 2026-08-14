@@ -1,3 +1,9 @@
+/**
+ * @file src/lib/resolveReferences.ts
+ *
+ * Reference-field and backup-source field recovery for corrupted history items.
+ */
+
 import fs from "node:fs"
 import os from "node:os"
 
@@ -370,11 +376,11 @@ export function readBackupEntries(paths: string[] | undefined): Array<Record<str
     return out
 }
 
-function positiveNumber(v: unknown): number | null {
+export function positiveNumber(v: unknown): number | null {
     return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null
 }
 
-function nonEmptyString(v: unknown): string | null {
+export function nonEmptyString(v: unknown): string | null {
     return typeof v === "string" && v.trim() !== "" ? v : null
 }
 

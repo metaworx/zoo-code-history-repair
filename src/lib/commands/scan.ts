@@ -1,8 +1,34 @@
+/**
+ * @file src/lib/commands/scan.ts
+ *
+ * scan command: cross-reference _index.json against task directories and
+ * report corruption with recoverability detail.
+ */
+
 import {scanStorage} from "../scan.js"
-import {taskMatch, truncate} from "../format.js"
-import {align, alignSummary, countEntries, recoverabilityScore} from "../scanOutput.js"
-import {API_HISTORY_NAME, DEFAULT_INDEX_NAME, HISTORY_ITEM_NAME, UI_MESSAGES_NAME} from "../paths.js"
-import {ABBREV_HELP, getVersionBanner, resolveRoot} from "../cliContext.js"
+import {
+    taskMatch,
+    truncate
+} from "../format.js"
+import {
+    align,
+    alignSummary,
+    countEntries,
+    formatPerFieldSummary,
+    perFieldRecoverability,
+    recoverabilityScore,
+} from "../scanOutput.js"
+import {
+    API_HISTORY_NAME,
+    DEFAULT_INDEX_NAME,
+    HISTORY_ITEM_NAME,
+    UI_MESSAGES_NAME
+} from "../paths.js"
+import {
+    ABBREV_HELP,
+    getVersionBanner,
+    resolveRoot
+} from "../cliContext.js"
 
 export const name = "scan"
 export const summary = `Scan _index.json + task directories for corruption`
@@ -51,8 +77,24 @@ export async function action(cmdOpts: {
         verifyUiSync: !!cmdOpts.verifyUiSync,
         showWarnings: cmdOpts.warnings !== false,
     })
+    const fullIndex = new Map(result.indexItems.map(i => [i.id, i as Record<string, unknown>]))
 
     if (cmdOpts.json) {
+        const corruptions = await Promise.all(result.corruptions.map(async c => ({
+            taskId: c.taskId,
+            dir: c.dir,
+            reasons: c.reasons.map(r => ({reason: r.reason, source: r.source})),
+            recoverability: recoverabilityScore(c),
+            fields: await perFieldRecoverability(c, fullIndex),
+            achEntries: countEntries(c.dir, API_HISTORY_NAME),
+            uimEntries: countEntries(c.dir, UI_MESSAGES_NAME),
+            indexTask: truncate(c.indexItem?.task, 200) || undefined,
+            diskTask: truncate(c.diskItem?.task, 200) || undefined,
+            taskMatch: taskMatch(c.indexItem?.task, c.diskItem?.task) ?? undefined,
+            sizeIndex: c.indexItem?.size,
+            sizeDisk: c.diskItem?.size,
+        })))
+
         const out: Record<string, unknown> = {
             version: getVersionBanner().trim().replace("Zoo Code History Repair, v", ""),
             storageRoot: result.storageRoot,
@@ -60,19 +102,7 @@ export async function action(cmdOpts: {
             indexPath: result.indexPath,
             indexItemCount: result.indexItems.length,
             taskDirCount: result.taskDirs.length,
-            corruptions: result.corruptions.map(c => ({
-                taskId: c.taskId,
-                dir: c.dir,
-                reasons: c.reasons.map(r => ({reason: r.reason, source: r.source})),
-                recoverability: recoverabilityScore(c),
-                achEntries: countEntries(c.dir, API_HISTORY_NAME),
-                uimEntries: countEntries(c.dir, UI_MESSAGES_NAME),
-                indexTask: truncate(c.indexItem?.task, 200) || undefined,
-                diskTask: truncate(c.diskItem?.task, 200) || undefined,
-                taskMatch: taskMatch(c.indexItem?.task, c.diskItem?.task) ?? undefined,
-                sizeIndex: c.indexItem?.size,
-                sizeDisk: c.diskItem?.size,
-            })),
+            corruptions,
         }
         console.log(JSON.stringify(out))
         const exitCode = Math.min(result.corruptions.length, 255)
@@ -99,10 +129,12 @@ export async function action(cmdOpts: {
             const achCount = countEntries(c.dir, API_HISTORY_NAME)
             const uimCount = countEntries(c.dir, UI_MESSAGES_NAME)
             const score = recoverabilityScore(c)
+            const fields = await perFieldRecoverability(c, fullIndex)
 
             console.log(`- ${c.taskId}`)
             console.log(align("reasons:", c.reasons.map(r => `${r.reason}(${r.source})`).join(", ")))
             console.log(align("recoverability:", score))
+            console.log(align("fields:", formatPerFieldSummary(fields)))
             console.log(align("entries.ACH:", String(achCount)))
             console.log(align("entries.UIM:", String(uimCount)))
             console.log(align("task.index:", JSON.stringify(truncate(c.indexItem?.task, 200))))

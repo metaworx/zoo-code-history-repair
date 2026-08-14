@@ -20,6 +20,63 @@
                 }
             ],
             "recoverability": "0%",
+            "fields": {
+                "tokensIn": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheReads": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "unknown"
+                },
+                "workspace": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "C:\\Users\\mdr"
+                },
+                "apiConfigName": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": "unknown"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                }
+            },
             "achEntries": 0,
             "uimEntries": 0
         },
@@ -37,6 +94,76 @@
                 }
             ],
             "recoverability": "50%",
+            "fields": {
+                "tokensIn": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 10746216
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 14096
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1.90304496
+                },
+                "cacheReads": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 10560768
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "orchestrator"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-proje"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "deepseek"
+                },
+                "task": {
+                    "source": "ach",
+                    "confidence": "high",
+                    "estimatedValue": "arent);\r\n                    }\r\n                    // Exported members/ambient module elements (exception import declaration) are visible if parent is visible\r\n                    return isDeclarationVisible(parent);\r\n\r\n                case SyntaxKind.PropertyDeclaration:\r\n                case SyntaxKind.PropertySignature:\r\n                case SyntaxKind.GetAccessor:\r\n                case SyntaxKind.SetAccessor:\r\n                case SyntaxKind.MethodDeclaration:\r\n                case SyntaxKind.MethodSignature:\r\n                    if (hasEffectiveModifier(node, ModifierFlags.Private | ModifierFlags.Protected)) {\r\n                        // Private/protected properties/methods are not visible\r\n                        return false;\r\n                    }\r\n                    // Public properties/methods are visible if its parents are visible, so:\r\n                    // falls through\r\n\r\n                case SyntaxKind.Constructor:\r\n                case SyntaxKind.ConstructSignature:\r\n                case SyntaxKind.CallSignature:\r\n                case SyntaxKind.IndexSignature:\r\n                case SyntaxKind.Parameter:\r\n                case SyntaxKind.ModuleBlock:\r\n                case\nisAliasableOrJsExpression((node as PropertyAssignment).initializer)\r\n            || node.kind === SyntaxKind.VariableDeclaration && isVariableDeclarationInitializedToBareOrAccessedRequire(node)\r\n            || node.kind === SyntaxKind.BindingElement && isVariableDeclarationInitializedToBareOrAccessedRequire(nod"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": {
+                        "childIds": [
+                            "019f123b-23cd-744a-a1a6-a9f34bfb0841",
+                            "019f126f-49fa-73e1-82ef-8b0fa0d34850",
+                            "019f16f4-99de-70db-9f06-dd013c9dd1f3",
+                            "019f18ed-6671-761d-b79f-5d76e306a758",
+                            "019f18fc-2d40-72a1-a3b5-0dc9b5663cca",
+                            "019f199e-e476-7186-8289-754e1374b4c9",
+                            "019f1f98-0c69-7699-8173-b2e9c8415261",
+                            "019f201d-6b62-77e0-aa9b-b4618c66ad8f"
+                        ],
+                        "completedByChildId": "019f201d-6b62-77e0-aa9b-b4618c66ad8f",
+                        "delegatedToId": "019f201d-6b62-77e0-aa9b-b4618c66ad8f"
+                    }
+                }
+            },
             "achEntries": 256,
             "uimEntries": 113,
             "indexTask": "Task #1 (Incomplete)",
@@ -63,6 +190,130 @@
                 }
             ],
             "recoverability": "67%",
+            "fields": {
+                "tokensIn": {
+                    "source": "index",
+                    "confidence": "high",
+                    "estimatedValue": 51624948
+                },
+                "tokensOut": {
+                    "source": "index",
+                    "confidence": "high",
+                    "estimatedValue": 97304
+                },
+                "totalCost": {
+                    "source": "index",
+                    "confidence": "high",
+                    "estimatedValue": 7.680040362
+                },
+                "cacheReads": {
+                    "source": "index",
+                    "confidence": "high",
+                    "estimatedValue": 50489088
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "orchestrator"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/file.ext/file.ext/file.ext/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "deepseek"
+                },
+                "task": {
+                    "source": "ach",
+                    "confidence": "high",
+                    "estimatedValue": "egan in a mild voice such as children use when they wish to be\npraised. “We have had an explanation today.”\n\n“Well, what happened? What did he say? Natásha, how glad I am\nyou’re not angry with me! Tell me everything—the whole truth. What\ndid he say?”\n\nNatásha became thoughtful.\n\n“Oh, Sónya, if you knew him as I do! He said... He asked me what I\nhad promised Bolkónski. He was glad I was free to ref"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": {
+                        "childIds": [
+                            "019fb790-ae07-70b9-89e8-780aa5aa9186",
+                            "019fb8d5-70ff-739e-8c84-8f71d291c9b2",
+                            "019fb963-6fd2-72af-925e-2a61a3756d33",
+                            "019fc8af-4ab5-7533-82e6-ce59eac7fbad",
+                            "019fcc29-3b15-7534-9fea-011fd24763cb",
+                            "019fcced-a628-7784-96a2-064b3fb6f6f7",
+                            "019fcec4-fab4-721e-9de7-f260f436d774",
+                            "019fcef0-c0a6-7797-b3a0-ed681a508c90",
+                            "019fcf26-caa8-7395-834d-77f2b1747bc7",
+                            "019fcf2e-fa89-75e8-a090-fc8f43ef3fc3",
+                            "019fcf89-0504-7228-82e0-a599ca0ae79a",
+                            "019fcfa7-8b06-728b-82af-1ef25e77fc3d",
+                            "019fcfaf-3a5a-72d9-886f-00ce7bdf8953",
+                            "019fd016-ce41-7769-a833-375969fa4448",
+                            "019fd022-f164-72f9-a6f3-ede0ba9ea4ab",
+                            "019fd02e-df81-70b9-b102-ab68e100a3fc",
+                            "019fd1d4-94e3-730c-8744-a4db3c06e4ca",
+                            "019fd1f0-1057-74cb-a88e-7022bd49e0f8",
+                            "019fd220-2728-7509-9fec-8d3fa1554f43",
+                            "019fd29b-9b85-70dc-b093-98b839d20b92",
+                            "019fd2a5-7dc5-715c-8575-98068b8f5efa",
+                            "019fd2a9-2eed-711f-ac5c-3dfbd931a055",
+                            "019fd4fb-58f4-729b-856e-f00b634ca2a3",
+                            "019fd50f-6ab4-7729-8632-6b688d447d5c",
+                            "019fd519-5645-738e-8de6-b20d65cd916b",
+                            "019fd528-9836-777f-acd4-a00e51d60cd4",
+                            "019fd533-a290-7329-ac5a-31b212371ad1",
+                            "019fd591-5c38-77e9-87fc-5a104792d137",
+                            "019fd5c0-4209-7594-aa74-b675f667445e",
+                            "019fd7c9-0aa5-734b-9caf-e659c6441989",
+                            "019fd7f7-82c1-756d-a812-d0fccc6bcd47",
+                            "019fd823-0302-731d-a346-7d491af256a2",
+                            "019fd899-3137-71fd-b28b-057957cc7c31",
+                            "019fd8aa-e956-75ae-9242-8ebd95ddf8df",
+                            "019fd91d-d695-75b3-90ad-f65411c2a0ac",
+                            "019fd93c-a5c3-7209-aba8-f439dad04697",
+                            "019fd971-9cfe-717b-9df5-3e83b0343195",
+                            "019fd978-899b-74cb-8a0b-302eb1ce89cf",
+                            "019fd981-64f2-76a5-980f-1ad42f4af361",
+                            "019fd9a5-fc31-77ce-8e1e-aafacbeea582",
+                            "019fd9cc-113c-71f0-99c9-782149f15ec8",
+                            "019fd9ea-2609-71d8-af9d-16331b138281",
+                            "019fd9f1-a361-73a5-95f5-30953f49e97b",
+                            "019fda01-1b6c-7458-8cc6-4c2b1680b659",
+                            "019fdb53-4e18-7557-9373-ec3498e34214",
+                            "019fdb69-8832-7673-974d-09ab7fb87116",
+                            "019fdb76-0461-77ae-bdb3-61a3289e1635",
+                            "019fdba9-dfd0-72c4-95c5-b9b0b85ced0f",
+                            "019fdbba-435e-71a9-90ad-7b9caf343c3a",
+                            "019fdbc6-a598-73ce-923c-94d2d14a20c0",
+                            "019fdbcd-65df-74db-b36b-c8306873e15b",
+                            "019fdbd3-8d3a-7378-ac8e-3675f5ce4cca",
+                            "019fdbdc-da8a-748b-a8e2-41d260e57622",
+                            "019fdbe8-3040-761a-abd1-c40cedf18166",
+                            "019fdc0d-2c8b-76e9-abe0-c1564173bd36",
+                            "019fdc1c-3bdd-73ba-bf94-5fb5606a828a",
+                            "019fdc26-dc6c-70cf-815b-11e117d4032e",
+                            "019fdc34-a861-708d-8104-7a367b8214da",
+                            "019fdc9c-a59f-75d9-bf05-4fd3d4fe4913",
+                            "019fdcba-5173-74cd-a9c3-9663d7917aa2",
+                            "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e"
+                        ],
+                        "completedByChildId": "019fdcba-5173-74cd-a9c3-9663d7917aa2",
+                        "delegatedToId": "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e",
+                        "awaitingChildId": "019fdcf5-64ad-709f-a1d1-00d1a59c6f8e"
+                    }
+                }
+            },
             "achEntries": 516,
             "uimEntries": 1,
             "indexTask": "egan in a mild voice such as children use when they wish to be\npraised. “We have had an explanation today.”\n\n“Well, what happened? What did he say? Natásha, how glad I am\nyou’re not angry with me! Tel...",
@@ -97,6 +348,65 @@
                 }
             ],
             "recoverability": "70%",
+            "fields": {
+                "tokensIn": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 96135
+                },
+                "tokensOut": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 37886
+                },
+                "totalCost": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 0.02406698
+                },
+                "cacheReads": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 93251
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "code"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/file.ext/file.ext/file.ext/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "deepseek"
+                },
+                "task": {
+                    "source": "ach",
+                    "confidence": "high",
+                    "estimatedValue": "ementAccessExpression).expression;\r\n                if (isMatchingReference(reference, getReferenceCandidate(expr))) {\r\n                    const flowType = getTypeAtFlowNode(flow.antecedent);\r\n                    const type = getTypeFromFlowType(flowType);\r\n                    if (getObjectFlags(type) & ObjectFlags.EvolvingArray) {\r\n                        let evolvedType = type as EvolvingArrayType;\r\n                        if (node.kind === SyntaxKind.CallExpression) {\r\n                            for (const arg of node.arguments) {\r\n                                evolvedType = addEvolvingArrayElementType(evolvedType, arg);\r\n                            }\nDiagnostics.An_accessor_property_cannot_be_declared_optional)) {\r\n                return true;\r\n            }\r\n        }\r\n        else if (node.parent.kind === SyntaxKind.InterfaceDeclaration) {\r\n            if (checkGrammarForInvalidDynamicName(node.name, Diagnostics.A_computed_property_name_in_an_interface_must_refer_to_an_expression_whose_type_is_a_literal_type_or_a_unique_symbol_type)) {\r\n                return true;\r\n            }\r\n\r\n            // Interfaces cannot contain property declarations\r\n            Debug.assertNode(node, isPropertySignature);\r\n            if (node.initializer) {\r\n                return grammarErrorOnNode(node.initializer,\nsetTextRange(\r\n                        context,\r\n                        factory.createClassDeclaration(\r\n                            /*modifiers*/ undefined,\r\n                            localName,\r\n                            typeParamDecls,\r\n                            heritageClauses,\r\n                            [...indexSignatures, ...staticMembers, ...constructors, ...publicProperties, ...privateProperties],\r\n                        ),\r\n                        symbol.declarations && filter(symbol.declarations, d => isClassDeclaration(d) || isClassExpression(d))[0],\r\n                    ),\r\n                    modifierFlags,\r\n                );\r\n            }\r\n\r\n            function getSomeTargetNameFromDeclarations(declarations: Declaration[] | undefined) {\r\n                return\noccurs at character"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": {
+                        "parentTaskId": "019fb786-503a-76ca-8708-fee1243c878d"
+                    }
+                }
+            },
             "achEntries": 142,
             "uimEntries": 0,
             "indexTask": "Task #1 (No messages)",
@@ -123,6 +433,65 @@
                 }
             ],
             "recoverability": "50%",
+            "fields": {
+                "tokensIn": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 114517
+                },
+                "tokensOut": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 51206
+                },
+                "totalCost": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 0.03037006
+                },
+                "cacheReads": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 111081
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "debug"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/file.ext/file.ext/file.ext/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "deepseek"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "<user_message>nJSPropertyAccess(node);\r\n        if (commonJSPropertyAccess) {\r\n            const name = (getLeftmostAccessExpression(commonJSPropertyAccess.expression) as CallExpression).arguments[0] as StringLiteral;\r\n            return isIdentifier(commonJSPropertyAccess.name)\r\n                ? resolveSymbol(getPropertyOfType(resolveExternalModuleTypeByLiteral(name), commonJSPropertyAccess.name.escapedText))\r\n                : undefined;\r\n        }\r\n        if (isVariableDeclaration(node) || node.moduleReference.kind === SyntaxKind.ExternalModuleReference) {\r\n            const immediate =\nuniform stood in front of the castle, as well as\na guard of honor of the Semënov regiment.\n\nA courier who galloped to the castle in advance, in a troyka with three\nfoam-flecked horses, shouted “Coming!” and Konovnítsyn rushed into the\nvestibule to inform Kutúzov, who was waiting in the hall porter’s little\nlodge.\n\nA minute later the old man’s large stout figure in full-dress uniform,\nhis chest covered with orders and a scarf drawn round his stomach,\nwaddled out into the porch. He put on his hat with its peaks to the\nsides and, holding his gloves in his hand and walking with an effort\nsideways down the steps to the level of the street, took in his hand the\nreport he had prepared for the Emperor.\n\nThere was running to and fro and whispering; another troyka flew\nfuriously up, and then all eyes were turned on an\nand\napproached Bolkónski with a slight bow. Bolkónski made room for him on\nthe bench and the lieutenant colonel sat down beside him.\n\n“You’re also waiting for the commander in chief?” said he. “They say he\nweceives evewyone, thank God!... It’s awful with those sausage eaters!\nErmólov had weason to ask to be pwomoted to be a German! Now p’waps\nWussians will get</user_message>"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": {
+                        "parentTaskId": "019fb786-503a-76ca-8708-fee1243c878d"
+                    }
+                }
+            },
             "achEntries": 178,
             "uimEntries": 438,
             "indexTask": "<user_message>nJSPropertyAccess(node);\r\n        if (commonJSPropertyAccess) {\r\n            const name = (getLeftmostAccessExpression(commonJSPropertyAccess.expression) as CallExpression).arguments[0] ...",
@@ -141,6 +510,63 @@
                 }
             ],
             "recoverability": "50%",
+            "fields": {
+                "tokensIn": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 956
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "cacheReads": {
+                    "source": "ach",
+                    "confidence": "medium",
+                    "estimatedValue": 927
+                },
+                "cacheWrites": {
+                    "source": "default",
+                    "confidence": "low",
+                    "estimatedValue": 0
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "code"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "meta"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "did not\ndesire war"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                }
+            },
             "achEntries": 1,
             "uimEntries": 3,
             "indexTask": "did not\ndesire war",
@@ -159,6 +585,65 @@
                 }
             ],
             "recoverability": "0%",
+            "fields": {
+                "tokensIn": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 2871167
+                },
+                "tokensOut": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 28495
+                },
+                "totalCost": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 0.03499540200000001
+                },
+                "cacheReads": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 2815104
+                },
+                "cacheWrites": {
+                    "source": "none",
+                    "confidence": "low",
+                    "estimatedValue": null
+                },
+                "number": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": 1
+                },
+                "mode": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "code"
+                },
+                "workspace": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "/home/user/projects/generic-project/file.ext/file.ext/file.ext/x"
+                },
+                "apiConfigName": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "deepseek"
+                },
+                "task": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": "her and that she loved both and was\nafraid of grieving either.\n\nA rumor immediately spread in Petersburg, not that Hélène wanted to\nbe divorced from her husband (had such a report spread many would have\nopposed so illegal an intention) but simply that the unfortunate and\ninteresting Hélène was in doubt which of the two men she should marry.\nThe question was no longer whether this was possible, but only which was\nthe better match and how the matter would be regarded at court. There\nwere, it is true, some rigid individuals unable to rise to the height of\nsuch a question, who saw in the project a desecration of the sacrament\nof marriage, but there were not many such and they remained silent,\nwhile\nNatásha and Pétya who were trying to\ntell him something. He had a look at all the details of the hunt, sent\na pack of hounds and huntsmen on ahead to find the quarry, mounted his\nchestnut Donéts, and whistling to his own leash of borzois, set off\nacross the threshing ground to a field leading to the Otrádnoe wood.\nThe old count’s horse, a sorrel gelding called Viflyánka, was led by\nthe groom in attendance on him, while the count himself was to drive in\na small trap straight to a spot reserved for him.\n\nThey were taking fifty-four hounds, with six hunt attendants and\nwhippers-in. Besides the family, there were eight borzoi kennelmen\nand more than forty borzois, so that, with the borzois on the leash\nbelonging to members of the family, there were about a hundred and\nthirty dogs and twenty horsemen.\n\nEach dog knew its master and its call. Each man in the hunt knew his\nbusiness, his place, what he had to do. As soon as they had passed the\nfence they all spread out evenly and quietly, without noise or talk,\nalong the road and field leading to the Otrádnoe covert.\n\nThe horses stepped over the field as over a thick carpet, now and then\nsplashing into puddles as they crossed a road. The misty sky still\nseemed to descend evenly and imperceptibly toward the earth, the air\nwas still, warm, and silent. Occasionally the whistle of a huntsman,\nthe snort of a horse, the crack of a whip, or the whine of a straggling\nhound could be heard.\n\nWhen they had gone a\n\"widening\");\r\n    var missingType = createIntrinsicType(TypeFlags.Undefined, \"undefined\", /*objectFlags*/ undefined, \"missing\");\r\n    var undefinedOrMissingType = exactOptionalPropertyTypes ? missingType : undefinedType;\r\n    var optionalType = createIntrinsicType(TypeFlags.Undefined, \"undefined\", /*objectFlags*/ undefined, \"optional\");\r\n    var nullType = createIntrinsicType(TypeFlags.Null,\n(hasNodeCheckFlag(symbol.valueDeclaration, NodeCheckFlags.CapturedBlockScopedBinding)) {\r\n                        // binding is captured in the function\r\n                        // should be renamed if:\r\n                        // - binding is not top level - top level bindings never collide with anything\r\n                        // AND\r\n                        //   - binding is not declared in loop, should be renamed to avoid name reuse across siblings\r\n                        //     let a, b\r\n                        //     { let x = 1; a = () => x; }\r\n                        //     { let x = 100; b = () => x; }\r\n                        //     console.log(a()); // should print '1'\r\n                        //     console.log(b()); // should print '100'\r\n                        //     OR\r\n                        //   - binding is declared inside loop but not in inside initializer of iteration statement or directly inside loop body\r\n                        //     * variables from initializer are passed to rewritten loop body as parameters so they are not captured directly\r\n                        //     * variables that are declared immediately in loop body will become top level variable after loop is rewritten and thus\r\n                        //       they will not collide with anything\nnode.initializer && node.parent.parent.kind !== SyntaxKind.ForInStatement;\r\n            const needCheckWidenedType = !some(node.name.elements, not(isOmittedExpression));\r\n            if (needCheckInitializer || needCheckWidenedType) {\r\n                // Don't validate for-in initializer as it is already an error\r"
+                },
+                "refs": {
+                    "source": "none",
+                    "confidence": "high",
+                    "estimatedValue": {
+                        "parentTaskId": "019fde28-982b-71ad-a9ee-74f3ff329c5c"
+                    }
+                }
+            },
             "achEntries": 84,
             "uimEntries": 188,
             "diskTask": "her and that she loved both and was\nafraid of grieving either.\n\nA rumor immediately spread in Petersburg, not that Hélène wanted to\nbe divorced from her husband (had such a report spread many would ha...",
