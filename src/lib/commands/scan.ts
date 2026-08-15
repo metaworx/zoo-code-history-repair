@@ -55,8 +55,10 @@ Corruption reasons detected by scan:
  12. interrupted_task       — task appears interrupted (last turn ends with tool_use + other corruption)
  13. zero_tokens            — tokensIn/tokensOut/totalCost all 0 but ACH has entries
  14. missing_resume_ask     — ${UI_MESSAGES_NAME} is non-empty but doesn't end with a terminal ask
- 15. invalid_ui_timestamp   — an event ts in ${UI_MESSAGES_NAME} is not a plausible epoch (ms)
-${ABBREV_HELP}`
+ 15. invalid_timestamp      — a ts in ${UI_MESSAGES_NAME} or ${HISTORY_ITEM_NAME} is not a plausible epoch (ms)
+ 16. missing_ui_messages    — ${UI_MESSAGES_NAME} is missing
+ 17. dangling_child_ref     — a childIds entry references a task with no directory
+ ${ABBREV_HELP}`
 
 export const options: Array<[string, string, unknown]> = [
 	["--verify-ui-sync", `Compare ${UI_MESSAGES_NAME} against ACH-derived reconstruction`, false],
@@ -88,7 +90,9 @@ export async function action(cmdOpts: {
 				corruptions: result.corruptions.map((c) => ({
 					taskId: c.taskId,
 					recoverability: recoverabilityScore(c),
-					reasons: c.reasons.map((r) => ({ reason: r.reason, source: r.source })),
+					reasons: c.reasons.map((r) =>
+						r.staleIds && r.staleIds.length > 0 ? { reason: r.reason, source: r.source, staleIds: r.staleIds } : { reason: r.reason, source: r.source },
+					),
 				})),
 			}
 			console.log(JSON.stringify(out))
@@ -101,7 +105,9 @@ export async function action(cmdOpts: {
 		for (const c of result.corruptions) {
 			const score = recoverabilityScore(c)
 			console.log(
-				`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons.map((r) => `${r.reason}(${r.source})`).join(",")}`,
+				`${c.taskId.padEnd(38)} ${score.padEnd(5)} ${c.reasons
+					.map((r) => `${r.reason}(${r.source})${r.staleIds && r.staleIds.length > 0 ? `[${r.staleIds.join(",")}]` : ""}`)
+					.join(",")}`,
 			)
 		}
 
@@ -124,7 +130,9 @@ export async function action(cmdOpts: {
 			result.corruptions.map(async (c) => ({
 				taskId: c.taskId,
 				dir: c.dir,
-				reasons: c.reasons.map((r) => ({ reason: r.reason, source: r.source })),
+				reasons: c.reasons.map((r) =>
+					r.staleIds && r.staleIds.length > 0 ? { reason: r.reason, source: r.source, staleIds: r.staleIds } : { reason: r.reason, source: r.source },
+				),
 				recoverability: recoverabilityScore(c),
 				fields: await perFieldRecoverability(c, fullIndex),
 				achEntries: countEntries(c.dir, API_HISTORY_NAME),
@@ -174,7 +182,14 @@ export async function action(cmdOpts: {
 			const fields = await perFieldRecoverability(c, fullIndex)
 
 			console.log(`- ${c.taskId}`)
-			console.log(align("reasons:", c.reasons.map((r) => `${r.reason}(${r.source})`).join(", ")))
+			console.log(
+				align(
+					"reasons:",
+					c.reasons
+						.map((r) => `${r.reason}(${r.source})${r.staleIds && r.staleIds.length > 0 ? `[${r.staleIds.join(",")}]` : ""}`)
+						.join(", "),
+				),
+			)
 			console.log(align("recoverability:", score))
 			console.log(align("fields:", formatPerFieldSummary(fields)))
 			console.log(align("entries.ACH:", String(achCount)))

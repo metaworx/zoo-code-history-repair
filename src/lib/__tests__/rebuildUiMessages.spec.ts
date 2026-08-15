@@ -343,12 +343,12 @@ describe("rebuildUiMessages", () => {
 					{ type: "text", text: "B" },
 					{ type: "tool_use", name: "read_file", id: "t1", input: {} },
 				],
-				ts: 100,
+				ts: 1_600_000_000_000,
 			},
 		])
-		expect(events[0].ts).toBe(100)
-		expect(events[1].ts).toBe(101)
-		expect(events[2].ts).toBe(102)
+		expect(events[0].ts).toBe(1_600_000_000_000)
+		expect(events[1].ts).toBe(1_600_000_000_001)
+		expect(events[2].ts).toBe(1_600_000_000_002)
 	})
 
 	it("handles multiple turns with shared ts counter", () => {
@@ -356,29 +356,29 @@ describe("rebuildUiMessages", () => {
 			{
 				role: "user",
 				content: [{ type: "text", text: "Q1" }],
-				ts: 10,
+				ts: 1_600_000_000_000,
 			},
 			{
 				role: "assistant",
 				content: [{ type: "text", text: "A1" }],
-				ts: 20,
+				ts: 1_600_000_000_010,
 			},
 		])
-		expect(events[0].ts).toBe(10)
-		// counter is global; second event = baseTs(20) + counter(1) = 21
-		expect(events[1].ts).toBe(21)
+		expect(events[0].ts).toBe(1_600_000_000_000)
+		// counter is global; second event = baseTs(1_600_000_000_010) + counter(1) = 1_600_000_000_011
+		expect(events[1].ts).toBe(1_600_000_000_011)
 		expect(events[0].text).toBe("Q1")
 		expect(events[1].text).toBe("A1")
 	})
 
-	it("defaults ts to 0 when not provided", () => {
+	it("falls back to a plausible epoch timestamp when ts is not provided", () => {
 		const events = rebuildUiMessages([
 			{
 				role: "user",
 				content: [{ type: "text", text: "No ts" }],
 			},
 		])
-		expect(events[0].ts).toBe(0)
+		expect(events[0].ts).toBeGreaterThanOrEqual(1_000_000_000_000)
 	})
 
 	it("handles unknown block types gracefully (skipped)", () => {
@@ -397,7 +397,7 @@ describe("rebuildUiMessages", () => {
 			{
 				role: "user",
 				content: [{ type: "text", text: "Fix the bug" }],
-				ts: 100,
+				ts: 1_600_000_000_000,
 			},
 			{
 				role: "assistant",
@@ -410,7 +410,7 @@ describe("rebuildUiMessages", () => {
 						input: { path: "/src/bug.ts" },
 					},
 				],
-				ts: 200,
+				ts: 1_600_000_000_100,
 			},
 			{
 				role: "user",
@@ -422,18 +422,18 @@ describe("rebuildUiMessages", () => {
 						content: [{ type: "text", text: "line1\nline2" }],
 					},
 				],
-				ts: 300,
+				ts: 1_600_000_000_200,
 			},
 		])
 
 		expect(events).toHaveLength(4)
-		expect(events[0]).toMatchObject({ say: "text", text: "Fix the bug", ts: 100 })
+		expect(events[0]).toMatchObject({ say: "text", text: "Fix the bug", ts: 1_600_000_000_000 })
 		// counter is global across all turns:
-		// events[0] ts=100+0=100, events[1] ts=200+1=201,
-		// events[2] ts=200+2=202, events[3] ts=300+3=303
-		expect(events[1]).toMatchObject({ say: "reasoning", ts: 201 })
-		expect(events[2]).toMatchObject({ type: "ask", ask: "tool", ts: 202 })
-		expect(events[3]).toMatchObject({ say: "error", ts: 303, text: "line1\nline2" })
+		// events[0] ts=1_600_000_000_000+0, events[1] ts=1_600_000_000_100+1,
+		// events[2] ts=1_600_000_000_100+2, events[3] ts=1_600_000_000_200+3
+		expect(events[1]).toMatchObject({ say: "reasoning", ts: 1_600_000_000_101 })
+		expect(events[2]).toMatchObject({ type: "ask", ask: "tool", ts: 1_600_000_000_102 })
+		expect(events[3]).toMatchObject({ say: "error", ts: 1_600_000_000_203, text: "line1\nline2" })
 	})
 
 	it("strips <environment_details> from user text", () => {

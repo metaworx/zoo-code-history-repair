@@ -256,12 +256,12 @@ issue codes are mapped to `CorruptionReason`s via
 [`issueToReason()`](src/lib/validation.ts:71), each annotated with a source
 abbreviation (`hi` / `idx` / `uim` / `ach` / `tmd` / `uim,ach`). Cross-file checks
 (`ui_sync_mismatch`, `interrupted_task`, `missing_resume_ask`,
-`invalid_ui_timestamp`) are validators. `missing_resume_ask` is error-level and
-always reported; `invalid_ui_timestamp` is warning-level (suppressed by
+`invalid_timestamp`) are validators. `missing_resume_ask` is error-level and
+always reported; `invalid_timestamp` is warning-level (suppressed by
 `--no-warnings`). A solo `interrupted_task` with no co-occurring corruption is
 suppressed.
 
-### 5.1 `CorruptionReason` values (15)
+### 5.1 `CorruptionReason` values (17)
 
 | #   | Reason                  | Source(s)                            | Detection                                                          |
 | --- | ----------------------- | ------------------------------------ | ------------------------------------------------------------------ |
@@ -279,7 +279,9 @@ suppressed.
 | 12  | `interrupted_task`      | `ach`                                | last turn ends with `tool_use` (gated: solo occurrence suppressed) |
 | 13  | `zero_tokens`           | `hi`                                 | `tokensIn` / `tokensOut` / `totalCost` all 0 but ACH has entries   |
 | 14  | `missing_resume_ask`    | `uim`                                | non-empty `ui_messages.json` doesn't end with a terminal `ask`     |
-| 15  | `invalid_ui_timestamp`  | `uim`                                | an event `ts` < 1e12 (not a plausible epoch-millisecond value)     |
+| 15  | `invalid_timestamp`     | `uim` / `hi` / `idx`                 | a UIM event or history_item `ts` < 1e12 (not a plausible epoch)    |
+| 16  | `missing_ui_messages`   | `uim`                                | `ui_messages.json` is missing                                      |
+| 17  | `dangling_child_ref`    | `idx`                                | a `childIds` entry references a task with no directory             |
 
 `zero_tokens` requires all three of `ZERO_TOKENS_IN` + `ZERO_TOKENS_OUT` +
 `ZERO_TOTAL_COST` to be present. `zero_size` maps from `ZERO_SIZE` / `MISSING_SIZE`.
@@ -448,7 +450,7 @@ flowchart TB
         S --> T
         T --> U["validateInterruptedTask(ACH)"]
         U --> U1["validateUiResumeAsk(ui) → missing_resume_ask"]
-        U1 --> U2["validateUiTimestamps(ui) → invalid_ui_timestamp"]
+        U1 --> U2["validateUiTimestamps(ui) → invalid_timestamp"]
         U2 --> V["Check indexItem: placeholder, zero_size"]
         V --> W["Solo interrupted_task→clear"]
         W --> X["Return TaskCorruption"]

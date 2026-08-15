@@ -38,7 +38,9 @@ export type CorruptionReason =
 	| "missing_history_item"
 	| "invalid_json"
 	| "missing_task_dir"
+	| "dangling_child_ref" // a childIds entry references a task with no directory
 	| "empty_ui_messages"
+	| "missing_ui_messages"
 	| "empty_api_history"
 	| "index_orphan" // in index but no folder
 	| "folder_orphan" // folder exists but not in index
@@ -46,12 +48,19 @@ export type CorruptionReason =
 	| "interrupted_task" // task appears interrupted (last turn ends with tool_use, co-occurs with other corruption)
 	| "zero_tokens" // tokensIn==0 && tokensOut==0 && totalCost==0 but ACH has entries
 	| "missing_resume_ask" // ui_messages.json is non-empty but doesn't end with a terminal ask
-	| "invalid_ui_timestamp" // ui_messages.json event ts is not a plausible epoch (ms)
+	| "invalid_timestamp" // a ui_messages event or history_item ts is not a plausible epoch (ms)
+
+export interface CorruptionReasonEntry {
+	reason: CorruptionReason
+	source: string
+	/** Stale referenced task ids (only populated for dangling_child_ref). */
+	staleIds?: string[]
+}
 
 export interface TaskCorruption {
 	taskId: string
 	dir?: string
-	reasons: Array<{ reason: CorruptionReason; source: string }>
+	reasons: CorruptionReasonEntry[]
 	indexItem?: HistoryItem | null
 	diskItem?: HistoryItem | null
 	errorCount: number

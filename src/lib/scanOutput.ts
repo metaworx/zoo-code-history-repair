@@ -8,7 +8,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import type { CorruptionReason, TaskCorruption } from "../types.js"
-import { API_HISTORY_NAME } from "./paths.js"
+import { API_HISTORY_NAME, listTaskDirs } from "./paths.js"
 import { collectBackupPaths } from "./file.js"
 import { extractTaskFromApiHistory } from "./rebuildTaskField.js"
 import { isPlaceholderTaskName } from "./validation.js"
@@ -61,10 +61,14 @@ export function recoverabilityScore(c: TaskCorruption): string {
 			case "zero_size":
 				recoverable += 1
 				break
+			case "dangling_child_ref":
+				recoverable += 1
+				break
 			case "missing_task_text":
 				recoverable += hasAch ? 1 : 0
 				break
 			case "empty_ui_messages":
+			case "missing_ui_messages":
 				recoverable += hasAch ? 1 : 0
 				break
 			case "empty_api_history":
@@ -84,7 +88,7 @@ export function recoverabilityScore(c: TaskCorruption): string {
 				recoverable += hasIndex ? 1 : 0
 				break
 			case "missing_resume_ask":
-			case "invalid_ui_timestamp":
+			case "invalid_timestamp":
 				recoverable += hasAch ? 1 : 0
 				break
 			default:
@@ -261,10 +265,14 @@ export async function perFieldRecoverability(
 	// --- 4. Reference-field recovery (resolveReferences — Block 2) ---
 	let refsRecovered: Array<{ field: string; source: ReferenceSource }> = []
 	if (c.diskItem && fullIndex) {
+		const taskIds = new Set(fullIndex.keys())
+		if (c.dir) {
+			for (const d of listTaskDirs(path.dirname(c.dir))) taskIds.add(path.basename(d))
+		}
 		refsRecovered = (
 			await resolveReferences(entry, {
 				fullIndex,
-				taskIds: new Set(fullIndex.keys()),
+				taskIds,
 				ach,
 				backups: [...taskBackupPaths, ...indexBackupPaths],
 			})

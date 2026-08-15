@@ -29,6 +29,8 @@
  * ts values are independent Date.now() stamps and are not reconstructible).
  */
 
+import { MIN_PLAUSIBLE_EPOCH_MS } from "./constants.js"
+
 export interface UiSayEvent {
 	ts: number
 	type: "say"
@@ -429,9 +431,12 @@ export function rebuildUiMessages(apiHistory: AchTurn[], context: RebuildUiConte
 
 	const events: UiMessageEvent[] = []
 	let counter = 0
+	let lastValidTs = 0
 
 	for (const turn of apiHistory) {
-		const baseTs = turn.ts ?? 0
+		const turnTs = typeof turn.ts === "number" && turn.ts >= MIN_PLAUSIBLE_EPOCH_MS ? turn.ts : 0
+		const baseTs = turnTs || lastValidTs || Date.now()
+		if (turnTs > 0) lastValidTs = turnTs
 		const role = turn.role
 
 		if (context.includeTelemetry === true && role === "assistant") {

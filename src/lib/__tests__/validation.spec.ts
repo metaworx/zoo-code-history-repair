@@ -116,7 +116,7 @@ describe("inspectTaskDir", () => {
 			tokensOut: 20,
 			totalCost: 0.01,
 			number: 1,
-			ts: 1,
+			ts: 1_600_000_000_000,
 			workspace: "/ws",
 			mode: "code",
 			apiConfigName: "default",
@@ -210,7 +210,7 @@ describe("inspectTaskDir", () => {
 
 	describe("interrupted_task", () => {
 		it("does NOT flag unanswered attempt_completion (Trigger A removed — normal child-task behavior)", async () => {
-			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
+			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1_600_000_000_000 })
 			writeJson("ui_messages.json", [
 				{ type: "say", say: "text", text: "hi" },
 				{ type: "ask", ask: "resume_task" },
@@ -227,7 +227,7 @@ describe("inspectTaskDir", () => {
 		})
 
 		it("does NOT flag unanswered attemptCompletion (camelCase) (Trigger A removed)", async () => {
-			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
+			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1_600_000_000_000 })
 			writeJson("ui_messages.json", [
 				{ type: "say", say: "text", text: "hi" },
 				{ type: "ask", ask: "resume_task" },
@@ -244,7 +244,7 @@ describe("inspectTaskDir", () => {
 		})
 
 		it("gates interrupted_task when solo (co-occurrence required)", async () => {
-			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1 })
+			writeJson("history_item.json", { id: "abc", task: "Real task", size: 100, ts: 1_600_000_000_000 })
 			writeJson("ui_messages.json", [
 				{ type: "say", say: "text", text: "hi" },
 				{ type: "ask", ask: "resume_task" },

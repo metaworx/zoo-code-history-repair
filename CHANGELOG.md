@@ -7,6 +7,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.5] — 2026-08-15
+
+### Fixed
+
+- **Repair no-op: epoch-safe UIM timestamps** — [`rebuildUiMessages`](src/lib/rebuildUiMessages.ts) anchored every
+  event `ts` at `turn.ts ?? 0` plus a 1 ms counter, so turns without a `ts` field produced `0,1,2,…` timestamps below
+  the 1e12 epoch floor; the rebuilt `ui_messages.json` re-tripped `invalid_timestamp`, making `repair` look like a
+  no-op. The rebuild now falls back to the last valid epoch turn `ts` (then `Date.now()`) and clamps emitted
+  timestamps to a plausible epoch.
+
+### Added
+
+- **`missing_ui_messages` detection** — `scan` now flags a missing `ui_messages.json` (previously silently ignored in
+  the `NOT_FOUND` branch, which only handled `history_item.json`), mapped to a new `missing_ui_messages` corruption
+  reason with ACH-gated recoverability.
+- **Truncated UIM rebuild** — `repair` now rebuilds `ui_messages.json` when it is a non-empty array far smaller than
+  the ACH, or when the task is flagged `placeholder_task_name` / `interrupted_task`, in addition to the existing
+  `empty_ui_messages` / `missing_resume_ask` / `invalid_timestamp` triggers.
+- **`dangling_child_ref` detection + repair** — a `childIds` entry referencing a deleted task is now reported as a
+  recoverable `dangling_child_ref` reason (carrying the stale ids) instead of the misleading `missing_task_dir`, and
+  `repair` drops the stale child ids from `history_item.json` and the rebuilt index.
+- **`invalid_timestamp` generalized + history_item `ts` detection** — `invalid_ui_timestamp` is now a source-annotated
+  `invalid_timestamp` covering both `ui_messages.json` events (`uim`) and `history_item.json` / `_index.json` `ts`
+  (`hi` / `idx`); `repair` re-derives a non-epoch `history_item.ts` from the ACH.
+
 ## [0.8.4] — 2026-08-15
 
 ### Changed

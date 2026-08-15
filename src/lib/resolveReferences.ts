@@ -242,7 +242,21 @@ export async function resolveReferences(
 	if (entry.childIds !== undefined) {
 		const current = entry.childIds
 		const sound = Array.isArray(current) && current.every((id) => isSoundRef(id, self))
-		if (!sound) {
+		if (sound) {
+			// Drop child ids that no longer resolve to a known task (deleted child
+			// tasks whose directory and index entry are both gone).
+			const stale = current.filter((id) => !ctx.taskIds.has(id))
+			if (stale.length > 0) {
+				const kept = current.filter((id) => ctx.taskIds.has(id))
+				if (kept.length > 0) {
+					entry.childIds = kept
+				} else {
+					delete entry.childIds
+				}
+				recovered.push({ field: "childIds", source: "index" })
+				changed = true
+			}
+		} else {
 			let next: string[] | null = null
 			let source: ReferenceSource | null = null
 			if (achCandidates.length > 0) {

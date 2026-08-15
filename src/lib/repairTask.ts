@@ -7,6 +7,7 @@
 import path from "node:path"
 import type { HistoryItem } from "../types.js"
 import { API_HISTORY_NAME, HISTORY_ITEM_NAME, TASK_METADATA_NAME, UI_MESSAGES_NAME } from "./paths.js"
+import { MIN_PLAUSIBLE_EPOCH_MS } from "./constants.js"
 import { collectBackupPaths, JsonFileTransaction } from "./file.js"
 import { inspectTaskDir, isPlaceholderTaskName } from "./validation.js"
 import { readPartialJsonArray } from "./io/readJson.js"
@@ -27,6 +28,8 @@ export interface RepairResult {
 	uiRepaired: boolean
 	taskRepaired: boolean
 	sizeRepaired: boolean
+	/** True when history_item.json ts was non-epoch and re-derived from the ACH. */
+	tsRepaired: boolean
 	tokensRepaired: boolean
 	refsRepaired: boolean
 	refsRecoverySources?: Array<ReferenceSource>
@@ -52,6 +55,7 @@ export function formatRepairParts(r: RepairResult): string[] {
 	if (r.uiRepaired) parts.push("ui(ach→uim)")
 	if (r.taskRepaired) parts.push("task(ach→hi)")
 	if (r.sizeRepaired) parts.push("size(calc→hi)")
+	if (r.tsRepaired) parts.push("ts(ach→hi)")
 	if (r.tokensRepaired) {
 		const src = r.tokensRecoverySource ?? "unknown"
 		parts.push(`tokens(${src}→hi)`)
@@ -144,6 +148,7 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 		uiRepaired: false,
 		taskRepaired: false,
 		sizeRepaired: false,
+		tsRepaired: false,
 		tokensRepaired: false,
 		refsRepaired: false,
 		interruptedRepaired: false,
@@ -249,12 +254,21 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 	await uiTx.load(false)
 	const existingUi = uiTx.getData() as unknown[] | null
 	const existingIsEmpty = !Array.isArray(existingUi) || existingUi.length === 0
+	const uimTruncated =
+		Array.isArray(existingUi) && existingUi.length > 0 && existingUi.length < apiHistory.length
+	const hasInvalidUiTimestamp = corruption.reasons.some(
+		(r) => r.reason === "invalid_timestamp" && r.source.includes("uim"),
+	)
 	const shouldRebuildUi =
 		existingIsEmpty ||
 		options.forceUim ||
 		reasonSet.has("empty_ui_messages") ||
+		reasonSet.has("missing_ui_messages") ||
 		reasonSet.has("missing_resume_ask") ||
-		reasonSet.has("invalid_ui_timestamp")
+		hasInvalidUiTimestamp ||
+		reasonSet.has("placeholder_task_name") ||
+		reasonSet.has("interrupted_task") ||
+		uimTruncated
 
 	if (shouldRebuildUi) {
 		const newUi = rebuildUiMessages(apiHistory as Parameters<typeof rebuildUiMessages>[0], {
@@ -308,6 +322,17 @@ export async function repairTaskDir(taskDir: string, options: RepairTaskOptions 
 			result.tokensRepaired = true
 			result.tokensRecoverySource = tokenRecovery.source
 			modified = true
+		}
+
+		// --- 3a. Repair a non-epoch history_item ts from the ACH ---
+		const hiTs = historyItem.ts
+		if (typeof hiTs === "number" && hiTs > 0 && hiTs < MIN_PLAUSIBLE_EPOCH_MS) {
+			const derived = deriveHistoryItemTs(apiHistory, await readBackupEntries(allBackupPaths))
+			if (derived !== null && derived >= MIN_PLAUSIBLE_EPOCH_MS) {
+				historyItem.ts = derived
+				result.tsRepaired = true
+				modified = true
+			}
 		}
 
 		// --- 3b. Backup-source field recovery with defaults (L2/L3/L9) ---

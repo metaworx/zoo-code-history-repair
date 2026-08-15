@@ -37,13 +37,18 @@ import {
 
 /** Expected corruption reasons per task (from scan.fixtures.spec.ts). */
 const CORRUPT_REASONS: Record<string, string[]> = {
-	"019ede5a-9327-70cc-9c54-2d227182e4d1": ["missing_history_item", "folder_orphan"],
-	"019f0f12-02f9-70df-a35e-2b110efe4107": ["placeholder_task_name", "interrupted_task", "missing_task_dir"],
+	"019ede5a-9327-70cc-9c54-2d227182e4d1": ["missing_history_item", "missing_ui_messages", "folder_orphan"],
+	"019f0f12-02f9-70df-a35e-2b110efe4107": [
+		"placeholder_task_name",
+		"interrupted_task",
+		"missing_task_dir",
+		"dangling_child_ref",
+	],
 	"019fb786-503a-76ca-8708-fee1243c878d": [
 		"placeholder_task_name",
 		"zero_tokens",
 		"interrupted_task",
-		"missing_task_dir",
+		"dangling_child_ref",
 	],
 	"019fdc9c-a59f-75d9-bf05-4fd3d4fe4913": [
 		"placeholder_task_name",

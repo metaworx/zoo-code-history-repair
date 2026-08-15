@@ -7,7 +7,7 @@
 
 import path from "node:path"
 import fs from "node:fs/promises"
-import type { CorruptionReason, HistoryItem, TaskCorruption } from "../types.js"
+import type { CorruptionReason, CorruptionReasonEntry, HistoryItem, TaskCorruption } from "../types.js"
 import {
 	API_HISTORY_NAME,
 	DEFAULT_INDEX_NAME,
@@ -23,6 +23,7 @@ import { validateApiConversationHistory, validateInterruptedTask } from "./valid
 import { validateUiMessages, validateUiResumeAsk, validateUiSync, validateUiTimestamps } from "./validate/uiMessages.js"
 import { validateTaskMetadata } from "./validate/taskMetadata.js"
 import { resolveRoot } from "./cliContext.js"
+import { MIN_PLAUSIBLE_EPOCH_MS } from "./constants.js"
 
 const PLACEHOLDER_TASK_RE = /^Task\s*#\s*\d+(\s*\((Incomplete|No messages)\))?$/i
 
@@ -82,7 +83,7 @@ function issueToReason(issue: { code: string; field?: string }): CorruptionReaso
 		INTERRUPTED_TASK: "interrupted_task",
 		UI_SYNC_MISMATCH: "ui_sync_mismatch",
 		MISSING_RESUME_ASK: "missing_resume_ask",
-		INVALID_UI_TIMESTAMP: "invalid_ui_timestamp",
+		INVALID_UI_TIMESTAMP: "invalid_timestamp",
 		// Zod built-in codes mapped to reasons when on specific fields
 		invalid_type: "missing_task_text", // when field is "task", treated as missing_task_text
 	}
@@ -137,6 +138,8 @@ async function validateAndMap(
 				reasons.push({ reason: "invalid_json", source: fileSource(filePath) })
 			} else if (fileName === HISTORY_ITEM_NAME) {
 				reasons.push({ reason: "missing_history_item", source: "hi" })
+			} else if (fileName === UI_MESSAGES_NAME) {
+				reasons.push({ reason: "missing_ui_messages", source: "uim" })
 			}
 			continue
 		}
@@ -183,16 +186,25 @@ export async function inspectTaskDir(
 	options: InspectOptions = {},
 ): Promise<TaskCorruption> {
 	const reasonMap = new Map<CorruptionReason, Set<string>>()
+	const staleIdsMap = new Map<CorruptionReason, string[]>()
 	let errorCount = 0
 	let warningCount = 0
 	const showWarnings = options.showWarnings !== false
 
-	const add = (reason: CorruptionReason, source: string) => {
+	const add = (reason: CorruptionReason, source: string, staleIds?: string[]) => {
 		const sources = reasonMap.get(reason)
 		if (sources) {
 			sources.add(source)
 		} else {
 			reasonMap.set(reason, new Set([source]))
+		}
+		if (staleIds && staleIds.length > 0) {
+			const existing = staleIdsMap.get(reason)
+			if (existing) {
+				for (const id of staleIds) if (!existing.includes(id)) existing.push(id)
+			} else {
+				staleIdsMap.set(reason, [...staleIds])
+			}
 		}
 	}
 
@@ -292,6 +304,13 @@ export async function inspectTaskDir(
 		}
 	}
 
+	// Non-epoch history_item ts on disk — a broken rebuild can leave a small
+	// sequence number instead of an epoch-ms timestamp.
+	if (diskItem && typeof diskItem.ts === "number" && diskItem.ts > 0 && diskItem.ts < MIN_PLAUSIBLE_EPOCH_MS) {
+		add("invalid_timestamp", "hi")
+		warningCount++
+	}
+
 	// Index item checks (no file to validate — manual checks)
 	if (indexItem) {
 		if (isPlaceholderTaskName(indexItem.task)) {
@@ -302,22 +321,40 @@ export async function inspectTaskDir(
 			add("zero_size", "idx")
 			errorCount++
 		}
+		if (typeof indexItem.ts === "number" && indexItem.ts > 0 && indexItem.ts < MIN_PLAUSIBLE_EPOCH_MS) {
+			add("invalid_timestamp", "idx")
+			warningCount++
+		}
 		if (options.knownTaskIds) {
-			for (const refId of referencedTaskIds(indexItem)) {
-				if (!options.knownTaskIds.has(refId)) {
+			const knownTaskIds = options.knownTaskIds
+			// Scalar cross-reference fields referencing a missing directory are
+			// genuine missing_task_dir corruption.
+			for (const field of REFERENCE_FIELDS) {
+				const refId = indexItem[field]
+				if (typeof refId === "string" && refId.length > 0 && !knownTaskIds.has(refId)) {
 					add("missing_task_dir", "idx")
 					errorCount++
 					break
 				}
 			}
+			// childIds pointing at deleted tasks are dangling references, not a
+			// missing directory for this task — report them separately (recoverable).
+			const childIds = Array.isArray(indexItem.childIds) ? indexItem.childIds : []
+			const staleChildIds = childIds.filter((id) => !knownTaskIds.has(id))
+			if (staleChildIds.length > 0) {
+				add("dangling_child_ref", "idx", staleChildIds)
+				errorCount++
+			}
 		}
 	}
 
 	// Convert map to sorted array
-	const reasons = [...reasonMap.entries()].map(([reason, sources]) => ({
-		reason,
-		source: joinSources(sources),
-	}))
+	const reasons: CorruptionReasonEntry[] = [...reasonMap.entries()].map(([reason, sources]) => {
+		const entry: CorruptionReasonEntry = { reason, source: joinSources(sources) }
+		const staleIds = staleIdsMap.get(reason)
+		if (staleIds && staleIds.length > 0) entry.staleIds = staleIds
+		return entry
+	})
 
 	// v0.3.0: gate interrupted_task — only flag when co-occurring
 	// with other corruption. Solo interrupted_task = user simply moved on.

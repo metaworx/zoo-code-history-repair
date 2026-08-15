@@ -7,6 +7,7 @@
 import { z } from "zod"
 import type { ValidationResult } from "../validation.js"
 import { error, validationOk, warning } from "../validation.js"
+import { MIN_PLAUSIBLE_EPOCH_MS } from "../constants.js"
 import { zodResultToValidationResult } from "./zod.js"
 
 /**
@@ -228,8 +229,6 @@ export function validateUiResumeAsk(data: unknown): ValidationResult {
 		warningCount: 0,
 	}
 }
-
-const MIN_PLAUSIBLE_EPOCH_MS = 1_000_000_000_000
 
 /** Flag ui_messages events whose `ts` is not a plausible epoch-millisecond timestamp. */
 export function validateUiTimestamps(data: unknown): ValidationResult {

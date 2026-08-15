@@ -10,6 +10,10 @@
                     "source": "hi"
                 },
                 {
+                    "reason": "missing_ui_messages",
+                    "source": "uim"
+                },
+                {
                     "reason": "folder_orphan",
                     "source": "hi"
                 }
